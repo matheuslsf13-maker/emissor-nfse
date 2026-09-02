@@ -181,9 +181,40 @@ certificado da Glória contra a nota 8966, HTTP 200. Já `GET /danfse/{chave}`
 responde **501, Not Implemented**: o endereço existe, o serviço não. Não é
 falta de credenciamento nosso.
 
-Por isso `nfse/nacional.py` tenta o PDF **primeiro** a cada download e cai
-para o XML quando vem 501. No dia em que a Receita ligar o serviço, a clínica
-passa a receber o oficial sem precisar de versão nova.
+**Mas isso não impede nada — porque o DANFSe não é um arquivo que alguém
+guarda.** É uma *representação gráfica padronizada* da NFS-e. Quem emite pelo
+portal recebe um PDF gerado ali na hora, a partir do mesmo XML. É assim que
+todo sistema emissor imprime nota: seguindo o leiaute publicado. Não havia
+download a fazer; havia um leiaute a seguir.
+
+Então `nfse/danfse_oficial.py` monta o DANFSe aqui. O leiaute foi **medido no
+documento real** que a prefeitura emitiu para a nota 8966: página A4, moldura
+em 5pt, colunas em x=10, 155, 310 e 445, rótulos em Helvetica-Bold 7 (6
+quando longos), valores em Helvetica 7, onze linhas separando os blocos.
+
+Comparando palavra por palavra, com posição: **96,5% batem** (518 palavras,
+18 divergem). As 18 são todas explicáveis:
+
+| Divergência | Por quê |
+|---|---|
+| "DANFESe" → "DANFSe" | Erro de digitação do emissor deles |
+| "consulta pela chave" → "consultada" | Falta o "-da" no deles |
+| CPF e CEP do tomador formatados | Eles formatam os do prestador e não os do tomador |
+| "NNoommee EEmmpprreessaarriiaall" | Bug de renderização deles: o texto sai duplicado |
+| "Exclusões da BC" vazio | Eles repetem ali o valor do ISS, que não é exclusão de base de nada |
+
+`baixar_danfse()` continua tentando o PDF da Receita a cada download, e cai
+para o nosso quando vem 501. No dia em que ligarem o serviço, a clínica passa
+a receber o deles sem precisar de versão nova.
+
+**Em lote isso é barato.** Abrir a sessão TLS custa mais que a consulta em si
+(0,3s contra 0,1s por nota), então `baixar_varios()` reusa uma só: cem notas
+levam cerca de dez segundos. Por isso o PDF do paciente sai no leiaute
+oficial por padrão, e não como reconstrução local.
+
+Uma regra no `/paciente/pdf`: o leiaute oficial só vale se **todas** as notas
+vierem. Um PDF com metade das páginas em um formato e metade em outro
+confundiria quem recebe — melhor cair inteiro para o comprovante local.
 
 **A credencial ali é o mesmo certificado, em outro lugar.** Em Vila Velha ele
 assina o XML e vai dentro dele; no ADN ele vai no aperto de mão TLS (mTLS).

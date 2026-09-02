@@ -153,6 +153,38 @@ def baixar_xml(chave: str, certificado, ambiente: str = "producao",
         raise ErroNacional("Não consegui abrir o XML recebido: %s" % erro)
 
 
+def baixar_varios(chaves, certificado, ambiente: str = "producao",
+                  timeout: int = 40, aviso=None) -> dict:
+    """Varios XMLs de uma vez, reusando a mesma sessao TLS.
+
+    Abrir a sessao custa mais do que a consulta em si (0,3s contra 0,1s por
+    nota). Com uma sessao so, cem notas levam cerca de dez segundos -- o que
+    torna viavel montar o PDF do ano inteiro com os documentos oficiais em
+    vez da nossa reconstrucao.
+
+    Devolve {chave: xml}. Chave que falhar fica de fora, sem derrubar as
+    outras: melhor entregar 29 notas de 30 do que erro nenhum.
+    """
+    achados = {}
+    with _Sessao(certificado) as sessao:
+        for posicao, chave in enumerate(chaves, 1):
+            if aviso:
+                aviso(posicao, len(chaves))
+            try:
+                resposta = sessao.http.get(
+                    "%s/nfse/%s" % (_endereco(ambiente), chave),
+                    timeout=timeout)
+                if resposta.status_code != 200:
+                    continue
+                compactado = resposta.json().get("nfseXmlGZipB64")
+                if compactado:
+                    achados[chave] = gzip.decompress(
+                        base64.b64decode(compactado))
+            except Exception:  # noqa: BLE001
+                continue
+    return achados
+
+
 def baixar_danfse(chave: str, certificado, ambiente: str = "producao",
                   timeout: int = 60) -> bytes:
     """O PDF oficial -- quando a Receita ligar o servico.

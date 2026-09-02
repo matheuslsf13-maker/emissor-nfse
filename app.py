@@ -31,6 +31,7 @@ from nfse import base_clientes, nacional
 from nfse import planilha
 from nfse import whatsapp
 from nfse import danfse_pdf
+from nfse import danfse_oficial
 from nfse import config as cfgmod
 from nfse.conciliacao import conciliar
 from nfse.controle import Controle, ControleIlegivel
@@ -1152,9 +1153,21 @@ def xml_oficial(chave: str):
         xml = nacional.baixar_xml(chave, certificado)
     except nacional.ErroNacional as falha:
         abort(502, str(falha))
-    return Response(xml, mimetype="application/xml", headers={
-        "Content-Disposition": "attachment; filename=%s"
-                               % nacional.nome_do_arquivo(xml, chave)})
+
+    # O contador quer o XML; o paciente, o documento que da para ler. O
+    # padrao e o PDF, porque e o pedido de todo dia.
+    if request.args.get("formato") == "xml":
+        return Response(xml, mimetype="application/xml", headers={
+            "Content-Disposition": "attachment; filename=%s"
+                                   % nacional.nome_do_arquivo(xml, chave)})
+    try:
+        return Response(danfse_oficial.gerar(xml), mimetype="application/pdf",
+                        headers={"Content-Disposition":
+                                 "attachment; filename=%s"
+                                 % danfse_oficial.nome_do_arquivo(xml)})
+    except ImportError:
+        abort(500, "A biblioteca fpdf2 não está instalada. "
+                   "Rode o instalar.bat novamente.")
 
 
 @app.get("/paciente")
@@ -1228,6 +1241,35 @@ def pdf_do_paciente():
     if not registros:
         abort(404, "Nenhuma nota encontrada para gerar o PDF.")
 
+    # Primeiro caminho: o DANFSe no leiaute oficial, montado do XML que a
+    # Receita guarda. Reusando uma sessao TLS, cem notas levam uns dez
+    # segundos -- barato o bastante para ser o padrao.
+    cfg = cfgmod.carregar()
+    unidade = request.args.get("unidade") or next(iter(cfg.unidades))
+    chaves = [r.get("chave_acesso") for r in registros if r.get("chave_acesso")]
+    if chaves:
+        try:
+            from nfse.assinatura import carregar_pfx
+            certificado = carregar_pfx(cfg.caminho_certificado(unidade),
+                                       cfg.senha_certificado(unidade))
+            oficiais = nacional.baixar_varios(chaves, certificado)
+        except Exception:  # noqa: BLE001
+            oficiais = {}
+        # So vale se vieram TODAS: um PDF com metade das notas no leiaute
+        # oficial e metade no nosso confundiria quem recebe.
+        if len(oficiais) == len(chaves):
+            xmls = [oficiais[c] for c in chaves]
+            try:
+                return send_file(
+                    io.BytesIO(danfse_oficial.gerar(xmls)), as_attachment=True,
+                    download_name=danfse_oficial.nome_do_arquivo(xmls),
+                    mimetype="application/pdf")
+            except ImportError:
+                abort(500, "A biblioteca fpdf2 não está instalada. "
+                           "Rode o instalar.bat novamente.")
+
+    # Sem internet, sem certificado a mao, ou nota que o ambiente nacional
+    # ainda nao tem: o comprovante local, montado do XML que assinamos.
     montadas, sem_xml = [], []
     for registro in registros:
         caminho = danfse_pdf.achar_xml(registro.get("arquivo", ""))
@@ -1236,8 +1278,9 @@ def pdf_do_paciente():
             continue
         montadas.append(danfse_pdf.dados_do_xml(caminho, registro))
     if not montadas:
-        abort(404, "Não achei os arquivos destas notas em dados/saida. "
-                   "Elas podem ter sido geradas em outro computador.")
+        abort(404, "Não achei os arquivos destas notas em dados/saida, e o "
+                   "ambiente nacional não respondeu. Verifique a internet — "
+                   "ou gere o PDF no computador onde as notas foram emitidas.")
 
     try:
         dados = danfse_pdf.gerar(montadas)

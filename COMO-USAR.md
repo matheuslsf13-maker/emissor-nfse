@@ -169,31 +169,28 @@ A tela também lista as últimas notas transmitidas — é só clicar na chave.
 
 ### Mandar a nota para o contador
 
-Na tela da nota, o botão **Baixar arquivo oficial** traz a NFS-e como a
-Receita Federal a guarda — assinada, com validade fiscal. É esse arquivo que
-o contador quer.
-
-A regra é simples:
+Na tela da nota há dois botões:
 
 | Para quem | O que mandar |
 |---|---|
-| Paciente | Imprimir/salvar a página em PDF — é o que ele consegue ler |
-| Contador | **Baixar arquivo oficial** |
+| Paciente | **Baixar NFS-e (PDF oficial)** — o DANFSe, mesmo documento e mesmo leiaute da prefeitura |
+| Contador | **Baixar XML** — a nota assinada, que é o que ele arquiva |
 
-> **E o PDF oficial da prefeitura?** Ainda não sai por sistema — a Receita
-> publicou o endereço mas não ligou o serviço. Quem precisar dele informa a
-> chave em nfse.gov.br/consultapublica. O sistema já tenta buscá-lo a cada
-> download: no dia em que ligarem, ele passa a vir sozinho.
+O PDF é montado com os dados que a **Receita Federal** guarda, buscados na
+hora. Sai igual ao que sairia se você emitisse pelo portal.
 
 ### Notas de um paciente (imposto de renda)
 
 Menu **Notas do paciente**. Busque por nome ou CPF e escolha o ano.
 
 Aparecem todas as notas daquela pessoa, com o total. Marque as que quiser —
-ou deixe todas — e clique em **Baixar PDF**. O arquivo já sai nomeado com o paciente e a data —
-`NFSe-Maria-Silva-2026-09-02-nota-8966.pdf` para uma, ou
-`NFSe-Maria-Silva-12-notas-2026.pdf` para o ano inteiro. É só anexar no
-WhatsApp ou no e-mail.
+ou deixe todas — e clique em **Baixar PDF**. Sai um PDF com **uma página por nota, no leiaute da prefeitura**, já
+nomeado: `DANFSe-Maria-Silva-12-notas-2026.pdf`. É só anexar no WhatsApp ou
+no e-mail.
+
+Com muitas notas leva alguns segundos — o sistema busca cada uma na Receita.
+Se a internet estiver fora, sai um comprovante simplificado com a chave de
+acesso, que permite baixar a nota no portal depois.
 
 Se aparecer **“não tem nota emitida”**, a tela diz o motivo: pode ser o ano
 errado, ou notas que só existem em teste.

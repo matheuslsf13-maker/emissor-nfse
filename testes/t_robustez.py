@@ -849,6 +849,119 @@ checar("e nao com o nome da clinica",
 checar("sem numero, cai na chave e nao quebra",
        _nac.nome_do_arquivo(b"<NFSe></NFSe>", "9" * 50).endswith(".xml"))
 
+# --------------------------------------------------------------------------
+# O DANFSe no leiaute oficial.
+#
+# Ele nao e um arquivo que a prefeitura guarda e entrega: e uma
+# representacao grafica padronizada, que todo sistema emissor monta a partir
+# do XML. O leiaute daqui foi medido no DANFSe real da nota 8966 -- 96,5%
+# das palavras batem em texto E posicao; o que sobra sao escolhas
+# deliberadas (grafia, CPF e CEP formatados) e um bug de renderizacao deles.
+from nfse import danfse_oficial as _dof  # noqa: E402
+
+_XML_OFICIAL = (
+    b'<?xml version="1.0" encoding="UTF-8"?>'
+    b'<NFSe xmlns="http://www.sped.fazenda.gov.br/nfse" versao="1.01">'
+    b'<infNFSe Id="NFS3205200123334775900010200000000089662609066519691X">'
+    b"<xLocEmi>VILA VELHA</xLocEmi><xLocIncid>Vila Velha</xLocIncid>"
+    b"<nNFSe>8966</nNFSe><cStat>100</cStat><ambGer>1</ambGer>"
+    b"<dhProc>2026-09-02T00:00:00-03:00</dhProc>"
+    b"<emit><CNPJ>33347759000102</CNPJ><IM>92494</IM>"
+    b"<xNome>W.O. CLINICA ODONTOLOGICA LTDA</xNome>"
+    b"<enderNac><xLgr>AVN CARLOS LINDENBERG</xLgr><nro>689</nro>"
+    b"<cMun>3205200</cMun><UF>ES</UF><CEP>29106405</CEP></enderNac>"
+    b"<fone>999924811</fone><email>clinica@exemplo.com</email></emit>"
+    b"<valores><vBC>30.00</vBC><pAliqAplic>2.00</pAliqAplic>"
+    b"<vISSQN>0.60</vISSQN><vLiq>30.00</vLiq></valores>"
+    b'<DPS versao="1.01"><infDPS Id="DPS1"><tpAmb>1</tpAmb>'
+    b"<dhEmi>2026-09-02T00:00:00-03:00</dhEmi><serie>00001</serie>"
+    b"<nDPS>1</nDPS><dCompet>2026-08-01</dCompet><tpEmit>1</tpEmit>"
+    b"<prest><CNPJ>33347759000102</CNPJ>"
+    b"<regTrib><opSimpNac>1</opSimpNac><regEspTrib>0</regEspTrib></regTrib>"
+    b"</prest>"
+    b"<toma><CPF>12961172780</CPF><xNome>PRISCILA SANTANA FERREIRA</xNome>"
+    b"<end><endNac><cMun>3205200</cMun><CEP>29127041</CEP></endNac>"
+    b"<xLgr>RUA PORTO SEGURO</xLgr><nro>330</nro>"
+    b"<xBairro>JOAO GOULART</xBairro></end></toma>"
+    b"<serv><locPrest><cLocPrestacao>3205200</cLocPrestacao></locPrest>"
+    b"<cServ><cTribNac>041201</cTribNac>"
+    b"<xDescServ>Tratamento odontologico</xDescServ>"
+    b"<cNBS>123012300</cNBS></cServ></serv>"
+    b"<valores><vServPrest><vServ>30.00</vServ></vServPrest>"
+    b"<trib><tribMun><tribISSQN>1</tribISSQN><tpRetISSQN>1</tpRetISSQN>"
+    b"</tribMun></trib></valores>"
+    b"</infDPS></DPS></infNFSe></NFSe>")
+
+_do = _dof.ler(_XML_OFICIAL)
+checar("le o numero que so a prefeitura atribui", _do["numero"] == "8966")
+checar("a chave sai sem o prefixo NFS do Id",
+       _do["chave"].startswith("3205200") and "NFS" not in _do["chave"],
+       _do["chave"])
+checar("cStat 100 vira 'NFS-e Gerada'", _do["situacao"] == "NFS-e Gerada",
+       _do["situacao"])
+checar("competencia sai no formato brasileiro",
+       _do["competencia"] == "01/08/2026", _do["competencia"])
+checar("041201 vira 04.12.01", _do["servico"]["codigo"] == "04.12.01")
+checar("123012300 vira 1.2301.23.00",
+       _do["servico"]["nbs"] == "1.2301.23.00", _do["servico"]["nbs"])
+checar("CNPJ do prestador sai formatado",
+       _do["prestador"]["documento"] == "33.347.759/0001-02")
+checar("CPF do tomador sai formatado",
+       _do["tomador"]["documento"] == "129.611.727-80")
+checar("CEP sai com hifen", "29127-041" in _do["tomador"]["ibge_cep"])
+checar("o municipio do prestador vem do xLocEmi, nao da tabela IBGE",
+       _do["prestador"]["municipio"] == "VILA VELHA / ES",
+       _do["prestador"]["municipio"])
+checar("tribISSQN 1 vira 'Operação Tributável'",
+       _do["issqn"]["tipo"] == "Operação Tributável")
+checar("tpRetISSQN 1 vira 'Não retido'",
+       _do["issqn"]["retencao"] == "Não retido")
+checar("aliquota com duas casas e virgula",
+       _do["issqn"]["aliquota"] == "2,00%", _do["issqn"]["aliquota"])
+checar("ISS apurado em reais", _do["issqn"]["apurado"] == "R$ 0,60")
+checar("endereco do tomador junta rua, numero e bairro",
+       _do["tomador"]["endereco"] == "RUA PORTO SEGURO, 330, JOAO GOULART",
+       _do["tomador"]["endereco"])
+
+try:
+    _dof.ler(b"<coisa/>")
+    checar("XML que nao e nota e recusado", False)
+except ValueError as _e:
+    checar("XML que nao e nota e recusado com frase em portugues",
+           "NFS-e" in str(_e), str(_e))
+
+# Valores estranhos nao podem derrubar a geracao inteira.
+checar("valor ilegivel vira tracinho", _dof._dinheiro("abc") == "-")
+checar("aliquota ausente vira tracinho", _dof._porcento(None) == "-")
+checar("documento de tamanho torto sai como veio",
+       _dof._documento("12345") == "12345")
+checar("mil reais com separador de milhar",
+       _dof._dinheiro("1234.5") == "R$ 1.234,50", _dof._dinheiro("1234.5"))
+
+try:
+    _pdf_of = _dof.gerar(_XML_OFICIAL)
+    checar("gera o DANFSe em PDF",
+           _pdf_of[:4] == b"%PDF" and len(_pdf_of) > 2000, len(_pdf_of))
+    checar("uma nota, uma pagina", b"/Count 1" in _pdf_of)
+    _tres = _dof.gerar([_XML_OFICIAL] * 3)
+    checar("tres notas, tres paginas", b"/Count 3" in _tres,
+           "o pedido de fim de ano vem com o ano inteiro")
+    checar("e o PDF de tres e maior que o de uma",
+           len(_tres) > len(_pdf_of))
+    checar("nome de uma nota traz numero e paciente",
+           _dof.nome_do_arquivo(_XML_OFICIAL)
+           == "DANFSe-8966-Priscila-Santana-Ferreira.pdf",
+           _dof.nome_do_arquivo(_XML_OFICIAL))
+    _nome3 = _dof.nome_do_arquivo([_XML_OFICIAL] * 3)
+    checar("nome de varias traz quantas e o ano",
+           "3-notas" in _nome3 and "2026" in _nome3, _nome3)
+except ImportError:
+    checar("fpdf2 instalado para o DANFSe", False, "rode: pip install fpdf2")
+
+checar("o leiaute tem as onze linhas do documento da prefeitura",
+       len(_dof.SEPARADORES) == 11)
+checar("e as quatro colunas", _dof.COLUNAS == (10.0, 155.0, 310.0, 445.0))
+
 checar("chave torta nem chega a abrir o certificado",
        cliente.get("/nota/123/oficial").status_code == 404)
 
@@ -861,10 +974,11 @@ checar("o arquivo oficial nao aparece em nota de teste",
        html_nota.count("d.ambiente == '1'") >= 2,
        "nota de teste nao existe no ambiente nacional")
 
-checar("e a tela avisa que NAO e o DANFSe oficial",
-       "não é o DANFSe oficial" in html_pac.lower()
-       or "não é o danfse oficial" in html_pac.lower(),
-       "quem apresentar isso tem que saber o que e")
+checar("a tela diz que o PDF sai no leiaute da prefeitura",
+       "DANFSe" in html_pac and "leiaute da prefeitura" in html_pac)
+checar("e avisa o que acontece sem internet",
+       "comprovante simplificado" in html_pac,
+       "quem apresentar o documento tem que saber qual dos dois recebeu")
 
 
 # ==========================================================================
