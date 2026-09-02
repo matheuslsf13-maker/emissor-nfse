@@ -61,6 +61,21 @@ CAMPOS_REGISTRO = ("numero", "arquivo", "descricao", "em", "documento",
                    "chave_acesso", "ambiente")
 
 
+class ControleIlegivel(Exception):
+    """O arquivo de controle existe mas nao e um banco valido.
+
+    Acontece quando o `controle.db` corrompe -- desligamento no meio de uma
+    gravacao, disco cheio, antivirus mexendo no arquivo, ou uma copia mal
+    feita. E o arquivo mais critico do sistema: perde-lo faz a numeracao
+    recomecar e a prefeitura rejeitar tudo.
+
+    Vira excecao propria para o app poder explicar em portugues o que
+    aconteceu e mandar restaurar o backup, em vez de mostrar
+    `sqlite3.DatabaseError: file is not a database` numa tela 500 -- que na
+    recepcao da clinica e um beco sem saida.
+    """
+
+
 class Controle:
     def __init__(self, caminho: str):
         # Aceita o caminho antigo (.json) para não quebrar quem chama assim.
@@ -71,10 +86,26 @@ class Controle:
             self.caminho_json = caminho[:-3] + ".json"
         self.caminho = caminho
         os.makedirs(os.path.dirname(caminho) or ".", exist_ok=True)
-        self._conexao = sqlite3.connect(caminho, check_same_thread=False)
-        self._conexao.row_factory = sqlite3.Row
-        self._conexao.executescript(ESQUEMA)
-        self._conexao.commit()
+        try:
+            self._conexao = sqlite3.connect(caminho, check_same_thread=False)
+            self._conexao.row_factory = sqlite3.Row
+            self._conexao.executescript(ESQUEMA)
+            self._conexao.commit()
+        except sqlite3.DatabaseError as erro:
+            try:
+                self._conexao.close()
+            except Exception:
+                pass
+            self._conexao = None
+            raise ControleIlegivel(
+                "O arquivo de controle da numeração (%s) não pôde ser lido: "
+                "%s. É ele que guarda o último número usado e quais notas já "
+                "saíram. NÃO apague nem gere notas antes de resolver: "
+                "restaure o backup mais recente por cima deste arquivo. Se "
+                "não houver backup, confira no portal da prefeitura qual foi "
+                "a última nota emitida e use 'Ajustar numeração'."
+                % (caminho, erro)
+            )
         self._migrar_do_json()
 
     # -- migração ----------------------------------------------------------

@@ -125,6 +125,8 @@ def main() -> int:
                             help="JSON com as chaves de empresas.json a mesclar na clínica")
     analisador.add_argument("--url-base", default="",
                             help="prefixo das URLs no manifesto (ex.: https://.../releases/download/v1.1.0)")
+    analisador.add_argument("--github", metavar="USUARIO/REPO",
+                            help="publica via GitHub Releases: o manifesto já sai com a URL certa")
     analisador.add_argument("--drive", action="store_true",
                             help="nomes fixos, para hospedar no Google Drive sem refazer o link a cada versão")
     analisador.add_argument("--sem-testes", action="store_true",
@@ -142,7 +144,7 @@ def main() -> int:
     # que ser reconfigurado na clinica a cada versao. Com nome FIXO, o arquivo
     # e substituido por "Gerenciar versoes" no proprio Drive: o ID e o link
     # continuam os mesmos, e a clinica nunca precisa ser tocada de novo.
-    nome_zip = ("emissor-nfse.zip" if opcoes.drive
+    nome_zip = ("emissor-nfse.zip" if (opcoes.drive or opcoes.github)
                 else "emissor-nfse-%s.zip" % opcoes.versao)
     caminho_zip = os.path.join(SAIDA, nome_zip)
     incluidos = montar_zip(caminho_zip)
@@ -155,11 +157,28 @@ def main() -> int:
         with open(opcoes.config, encoding="utf-8") as fh:
             alteracoes = json.load(fh)
 
+    # O GitHub serve `releases/latest/download/<arquivo>` como um endereco
+    # permanente que sempre entrega a versao mais nova. Com isso a clinica e
+    # configurada UMA vez e nunca mais -- publicar passa a ser um comando so,
+    # sem nenhum passo manual.
+    #
+    # ARMADILHA, medida em 01/09/2026: o CDN do GitHub cacheia o asset pelo
+    # NOME. Refazer uma release reusando `emissor-nfse.zip` faz o endereco
+    # continuar entregando o arquivo antigo por alguns minutos -- com o
+    # manifesto ja novo. A clinica baixa um par incompativel, e so nao instala
+    # o pacote errado porque o sha256 e conferido antes de escrever qualquer
+    # coisa. Ao corrigir uma release ja publicada, use uma versao nova em vez
+    # de sobrescrever a mesma.
+    url_base = opcoes.url_base
+    if opcoes.github and not url_base:
+        url_base = ("https://github.com/%s/releases/latest/download"
+                    % opcoes.github.strip("/"))
+
     manifesto = {
         "versao": opcoes.versao,
         "publicado_em": datetime.now().isoformat(timespec="seconds"),
-        "url": (opcoes.url_base.rstrip("/") + "/" + nome_zip
-                if opcoes.url_base else nome_zip),
+        "url": (url_base.rstrip("/") + "/" + nome_zip
+                if url_base else nome_zip),
         "sha256": sha,
         "notas": opcoes.notas,
     }
@@ -178,7 +197,17 @@ def main() -> int:
     if alteracoes:
         print("  configuração          %d chave(s) a mesclar na clínica"
               % len(alteracoes))
-    if opcoes.drive and not opcoes.url_base:
+    if opcoes.github:
+        print("""
+GitHub Releases — publique com:
+  gh release create v%s publicacao/emissor-nfse.zip publicacao/manifesto.json
+
+Na clínica, `atualizacao.manifesto` aponta uma vez para:
+  %s/manifesto.json
+
+Esse endereço é permanente: toda release nova passa a ser servida por ele
+sem que a clínica precise ser tocada.""" % (opcoes.versao, url_base))
+    elif opcoes.drive and not opcoes.url_base:
         print("""
 Google Drive — só na PRIMEIRA vez:
   1. Suba os dois arquivos de publicacao/ para a pasta do Drive

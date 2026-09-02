@@ -52,7 +52,12 @@ exclusiva.
 
 **Atualização remota.** O responsável publica uma versão; a clínica clica em
 atualizar. O pacote carrega só código — `dados/`, certificados e senhas nunca
-são tocados, o que é testado contra um pacote hostil de propósito.
+são tocados, o que é testado contra um pacote hostil de propósito. O `sha256`
+é conferido **antes** de escrever qualquer arquivo, e isso não é zelo teórico:
+o CDN do GitHub cacheia assets por nome, então refazer uma release reusando o
+mesmo nome faz o endereço servir o pacote antigo junto com o manifesto novo.
+A conferência transforma isso em "não atualiza agora" em vez de uma
+instalação meio velha, meio nova.
 
 ---
 

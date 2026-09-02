@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% block titulo %}Arquivo de controle com problema{% endblock %}
+{% block conteudo %}
+
+<h1>O arquivo de controle da numeração está ilegível</h1>
+
+<div class="faixa erro">
+  <span class="icone">■</span>
+  <div>
+    <b>Não emita notas antes de resolver isto.</b>
+    <p>
+      É esse arquivo que guarda o <b>último número usado</b> e quais notas já
+      foram emitidas. Enquanto ele não for recuperado, o sistema não sabe em
+      que número está — e a prefeitura rejeita número repetido.
+    </p>
+  </div>
+</div>
+
+<h2>O que fazer, nesta ordem</h2>
+
+<div class="cartao">
+  <h3>1. Restaure o backup mais recente</h3>
+  <p>
+    Abra o último arquivo de backup que você baixou (o botão <b>Backup</b> na
+    tela de Configuração gera um <code>.zip</code>) e copie o
+    <code>dados/controle.db</code> de dentro dele por cima do arquivo atual.
+    Depois feche e abra o programa.
+  </p>
+</div>
+
+<div class="cartao">
+  <h3>2. Se não houver backup</h3>
+  <p>
+    Entre no portal da prefeitura e veja <b>qual foi o número da última nota
+    emitida</b> por cada clínica. Depois use <b>Ajustar numeração</b>, na tela
+    de Configuração, para continuar de onde parou.
+  </p>
+  <p style="color:var(--tinta-fraca);font-size:14px">
+    O sistema recomeça do zero se nada for feito, e todas as notas seguintes
+    seriam recusadas por duplicidade.
+  </p>
+</div>
+
+<div class="faixa atencao">
+  <span class="icone">▲</span>
+  <div>
+    <b>Não apague o arquivo</b>
+    <p>
+      Mesmo ilegível, ele pode ser recuperável. Renomeie para
+      <code>controle-com-problema.db</code> em vez de excluir, e avise o
+      responsável.
+    </p>
+  </div>
+</div>
+
+<details style="margin-top:18px">
+  <summary style="cursor:pointer;color:var(--marca)">Detalhe técnico</summary>
+  <code class="mono-bloco" style="margin-top:8px">{{ detalhe }}</code>
+</details>
+
+<p style="margin-top:22px">
+  <a href="{{ url_for('ajuda') }}">← Como usar o sistema</a>
+</p>
+{% endblock %}

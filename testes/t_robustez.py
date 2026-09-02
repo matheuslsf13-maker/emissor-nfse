@@ -206,7 +206,46 @@ controle.fechar()
 
 
 # ==========================================================================
-print("\n5. Dados de paciente esquisitos no XML")
+print("\n5. Controle da numeracao corrompido")
+# O `controle.db` e o arquivo mais critico do sistema. Se ele corromper
+# (desligamento no meio de uma gravacao, disco cheio, antivirus), o sqlite
+# levanta "file is not a database" e o app respondia 500 em quase todas as
+# telas -- um beco sem saida para quem esta na recepcao da clinica.
+from nfse.controle import ControleIlegivel  # noqa: E402
+
+pasta_ruim = tempfile.mkdtemp(prefix="nfse-rob-corromp-")
+try:
+    caminho_ruim = os.path.join(pasta_ruim, "controle.db")
+    with open(caminho_ruim, "w") as fh:
+        fh.write("isto nao e um banco sqlite")
+    try:
+        Controle(caminho_ruim)
+        checar("banco corrompido e detectado", False, "abriu normalmente")
+    except ControleIlegivel as erro:
+        checar("banco corrompido vira erro proprio, nao sqlite3", True)
+        checar("e a mensagem manda restaurar o backup",
+               "backup" in str(erro).lower(), str(erro)[:120])
+        checar("e avisa para nao apagar o arquivo",
+               "apague" in str(erro).lower(), str(erro)[:120])
+
+    dados_antes = cfgmod.PASTA_DADOS
+    cfgmod.PASTA_DADOS = pasta_ruim
+    appmod.cfgmod.PASTA_DADOS = pasta_ruim
+    try:
+        resposta = cliente.get("/")
+        corpo = resposta.data.decode("utf-8", "replace").lower()
+        checar("a tela explica o problema em portugues",
+               "restaure o backup" in corpo, resposta.status_code)
+        checar("e ensina o caminho sem backup", "ajustar numera" in corpo)
+    finally:
+        cfgmod.PASTA_DADOS = dados_antes
+        appmod.cfgmod.PASTA_DADOS = dados_antes
+finally:
+    shutil.rmtree(pasta_ruim, ignore_errors=True)
+
+
+# ==========================================================================
+print("\n6. Dados de paciente esquisitos no XML")
 
 from nfse.gerador_dps import gerar_nfse  # noqa: E402
 from nfse.conciliacao import Nota  # noqa: E402
@@ -255,7 +294,7 @@ checar("paciente sem documento nao gera CPF vazio no XML",
 
 
 # ==========================================================================
-print("\n6. Valores")
+print("\n7. Valores")
 
 xml = gerar("PACIENTE", valor="0.00")
 valores = etree.fromstring(xml).find(".//n:valores", NS)
@@ -273,7 +312,7 @@ checar("valor alto nao vira notacao cientifica",
 
 
 # ==========================================================================
-print("\n7. Documentos invalidos")
+print("\n8. Documentos invalidos")
 
 checar("CPF de digitos repetidos e invalido", not documento_valido("11111111111"))
 checar("CPF com digito errado e invalido", not documento_valido("12345678900"))
@@ -285,7 +324,7 @@ checar("letras no lugar do documento sao invalidas", not documento_valido("abcde
 
 
 # ==========================================================================
-print("\n8. Transmissao: as travas")
+print("\n9. Transmissao: as travas")
 
 from nfse.transmissao import transmitir  # noqa: E402
 from nfse.envio import EnvioIndisponivel, interpretar_retorno  # noqa: E402
@@ -324,7 +363,7 @@ checar("ambiente do XML e lido corretamente",
 
 
 # ==========================================================================
-print("\n9. Retorno estranho da prefeitura")
+print("\n10. Retorno estranho da prefeitura")
 
 casos = [
     ("resposta vazia", "", False),
@@ -354,7 +393,7 @@ checar("a mensagem de erro chega legivel, sem &lt;",
 
 
 # ==========================================================================
-print("\n10. Configuracao incompleta")
+print("\n11. Configuracao incompleta")
 
 cfg3 = cfgmod.carregar()
 cfg3.municipio = dict(cfg3.municipio)

@@ -29,7 +29,7 @@ from flask import (Flask, abort, jsonify, redirect, render_template, request,
 from nfse import base_clientes
 from nfse import config as cfgmod
 from nfse.conciliacao import conciliar
-from nfse.controle import Controle
+from nfse.controle import Controle, ControleIlegivel
 from nfse.documentos import formatar_documento, so_digitos
 from nfse.emissao import emitir
 from nfse.envio import EnvioIndisponivel
@@ -323,6 +323,17 @@ def processar_em_segundo_plano(lote_id: str) -> None:
 # ---------------------------------------------------------------------------
 # telas
 # ---------------------------------------------------------------------------
+
+@app.errorhandler(ControleIlegivel)
+def controle_ilegivel(erro):
+    """O controle da numeracao corrompeu.
+
+    Vale uma tela propria, e nao um 500: e o arquivo mais critico do sistema,
+    quem esta na recepcao nao sabe o que fazer com um traceback, e a acao
+    certa (restaurar o backup) e diferente de tudo o mais que da errado aqui.
+    """
+    return render_template("controle_ilegivel.html", detalhe=str(erro)), 500
+
 
 @app.route("/")
 def inicio():
