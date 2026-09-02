@@ -167,6 +167,32 @@ conferir a primeira nota de produção.
 
 A tela também lista as últimas notas transmitidas — é só clicar na chave.
 
+### Escolher quais notas transmitir
+
+Na tela de transmitir, três opções:
+
+- **Mandar uma primeiro** — a primeira que ainda falta, para conferir
+- **Escolher quais** — abre a lista com o nome de cada paciente; marque as
+  que quiser (o filtro ajuda a achar) e mande só aquelas
+- **Mandar todas de uma vez**
+
+> É assim que se emite **uma nota de teste**: escolha quais, filtre pelo
+> paciente, marque uma, transmita. As já aceitas aparecem marcadas e não
+> podem ser reenviadas.
+
+### Quando um lançamento fica travado
+
+A aba **Travados** mostra uma ficha **por pessoa** — se alguém travou em três
+lançamentos do mês, é uma ficha só, e apontar o cadastro resolve os três.
+
+Se o cadastro certo não estiver na lista de sugestões, use o campo de busca:
+funciona por **nome** (em qualquer ordem: "santana priscila" acha "PRISCILA
+SANTANA FERREIRA") ou por **CPF, com ou sem pontos**.
+
+Quando o único cadastro encontrado tem **CPF inválido**, não há botão para
+escolher — a prefeitura recusaria a nota. Corrija no TechCare e traga os
+relatórios de novo.
+
 ### Mandar a nota para o contador
 
 Na tela da nota há dois botões:

@@ -389,8 +389,23 @@ code, .mono-bloco {
   border-radius: 8px; box-shadow: var(--sombra); max-height: 300px;
   overflow: auto; margin-top: 4px;
 }
-.resultados-busca div { padding: 9px 12px; cursor: pointer; font-size: 13.5px; border-bottom: 1px solid var(--borda-fraca); }
-.resultados-busca div:hover { background: var(--marca-clara); }
+/* Estilo pela classe, e nao por "div": os resultados tem divs internas
+   (nome, endereco) que herdavam padding e cursor de mao sem serem
+   clicaveis. */
+.resultados-busca .achado {
+  display: flex; gap: 12px; align-items: center;
+  padding: 9px 12px; font-size: 13.5px;
+  border-bottom: 1px solid var(--borda-fraca);
+}
+.resultados-busca .achado:last-child { border-bottom: 0; }
+.resultados-busca .achado:hover { background: var(--marca-clara); }
+.resultados-busca .achado .info { flex: 1; min-width: 0; }
+.resultados-busca .achado .endereco {
+  color: var(--tinta-fantasma); font-size: 12.5px; margin-top: 2px;
+}
+.resultados-busca .achado-aviso {
+  padding: 10px 12px; font-size: 13px; color: var(--tinta-fraca);
+}
 
 @media (max-width: 720px) {
   .topo-interno { flex-wrap: wrap; }

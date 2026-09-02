@@ -258,16 +258,75 @@
         onsubmit="return confirm('Isto emite nota fiscal de verdade e não tem desfazer simples. Confirma?')"
         {% endif %}>
     {% if arquivos > 1 %}
-    {# Com uma nota so a escolha nao existe -- "todas as 1" e ruido. A
-       quantidade ja foi decidida na conferencia, ao escolher o que gerar. #}
+    {# Com uma nota so a escolha nao existe -- "todas as 1" e ruido. #}
     <label style="display:block;margin-bottom:10px">
-      <input type="radio" name="quantidade" value="uma" checked>
+      <input type="radio" name="quantidade" value="uma" checked
+             onclick="mostrarEscolha(false)">
       Mandar <b>uma primeiro</b>, para conferir
     </label>
+    <label style="display:block;margin-bottom:10px">
+      <input type="radio" name="quantidade" value="escolhidas"
+             onclick="mostrarEscolha(true)">
+      Escolher <b>quais</b> mandar <span id="quantas-marcadas"
+        style="color:var(--tinta-fraca);font-size:13px"></span>
+    </label>
     <label style="display:block;margin-bottom:14px">
-      <input type="radio" name="quantidade" value="todas">
+      <input type="radio" name="quantidade" value="todas"
+             onclick="mostrarEscolha(false)">
       Mandar as {{ arquivos }} de uma vez
     </label>
+
+    {# A lista fica fechada ate ser pedida: 277 linhas abertas empurrariam o
+       botao de transmitir para fora da tela. #}
+    <div id="caixa-escolha" style="display:none;margin:0 0 16px">
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;
+                  margin-bottom:8px">
+        <input type="text" id="filtro-envio" autocomplete="off"
+               placeholder="filtrar por paciente ou nº"
+               style="flex:1;min-width:200px;max-width:300px">
+        <button type="button" class="botao pequeno secundario"
+                onclick="marcarEnvio(true)">marcar todas</button>
+        <button type="button" class="botao pequeno secundario"
+                onclick="marcarEnvio(false)">desmarcar</button>
+      </div>
+      <div class="moldura-tabela" style="max-height:290px;overflow:auto">
+        <table id="tabela-envio">
+          <thead>
+            <tr><th style="width:34px"></th><th>Paciente</th>
+                <th style="width:90px" class="num">Valor</th>
+                <th style="width:110px">Situação</th></tr>
+          </thead>
+          <tbody>
+            {% for n in notas %}
+            <tr>
+              <td>
+                <input type="checkbox" name="arquivo" class="envio-escolha"
+                       value="{{ n.arquivo }}" onclick="contarEnvio()"
+                       {{ 'disabled' if n.enviada }}>
+              </td>
+              <td>
+                <b>{{ n.paciente or n.arquivo }}</b>
+                {% if n.documento %}
+                <div class="mono" style="color:var(--tinta-fraca);font-size:12px">
+                  {{ n.documento | documento }}</div>
+                {% endif %}
+              </td>
+              <td class="num">{{ n.valor | dinheiro }}</td>
+              <td>
+                {% if n.enviada %}
+                <span class="selo bom" title="Já aceita pela prefeitura">
+                  nota {{ n.numero_nota }}</span>
+                {% else %}
+                <span style="color:var(--tinta-fraca);font-size:12.5px">
+                  a enviar</span>
+                {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
     {% else %}
     <input type="hidden" name="quantidade" value="todas">
     {% endif %}
@@ -319,4 +378,27 @@
 <p style="margin-top:22px">
   <a href="{{ url_for('inicio') }}">← Voltar ao início</a>
 </p>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  function mostrarEscolha(ligado) {
+    var caixa = document.getElementById("caixa-escolha");
+    if (caixa) caixa.style.display = ligado ? "block" : "none";
+  }
+  function marcarEnvio(ligado) {
+    document.querySelectorAll(".envio-escolha").forEach(function (c) {
+      if (!c.disabled && c.closest("tr").style.display !== "none") {
+        c.checked = ligado;
+      }
+    });
+    contarEnvio();
+  }
+  function contarEnvio() {
+    var n = document.querySelectorAll(".envio-escolha:checked").length;
+    var alvo = document.getElementById("quantas-marcadas");
+    if (alvo) alvo.textContent = n ? "(" + n + " marcada(s))" : "";
+  }
+  filtrarTabela("filtro-envio", "tabela-envio");
+</script>
 {% endblock %}

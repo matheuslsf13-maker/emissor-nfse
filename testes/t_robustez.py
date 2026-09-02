@@ -850,6 +850,77 @@ checar("sem numero, cai na chave e nao quebra",
        _nac.nome_do_arquivo(b"<NFSe></NFSe>", "9" * 50).endswith(".xml"))
 
 # --------------------------------------------------------------------------
+# Escolher quais notas transmitir, e achar o cadastro de quem travou.
+#
+# Duas coisas que so apareceram com o sistema em uso: a busca de cadastro
+# nao achava nada quando o CPF era digitado com pontos, e a transmissao era
+# tudo-ou-a-primeira, sem dizer qual era a primeira.
+
+# `chave_nome` transforma "129.611.727-80" em "129 611 727 80" -- com
+# espacos, nunca casava com os digitos guardados. Por isso os digitos sao
+# extraidos antes de qualquer normalizacao de nome.
+from nfse.util import chave_nome as _chave_nome  # noqa: E402
+checar("o CPF pontuado vira algo que NAO casa com os digitos",
+       _chave_nome("129.611.727-80") not in "12961172780",
+       "era esta a causa da busca nao achar ninguem")
+
+_html_conf = io.open("web/templates/conferencia.html", encoding="utf-8").read()
+checar("a ficha de travado e por pessoa, nao por lancamento",
+       "for g in travados" in _html_conf)
+checar("e diz que resolver vale para todos os lancamentos dela",
+       "todos de uma vez" in _html_conf)
+checar("candidato com CPF invalido nao ganha botao que so nega",
+       "A prefeitura recusaria a nota" in _html_conf)
+checar("a busca aceita CPF com ou sem pontos, e avisa isso",
+       "com ou sem pontos" in _html_conf)
+
+_js = io.open("web/static/app.js", encoding="utf-8").read()
+checar("a busca avisa enquanto procura", "Procurando" in _js)
+checar("e avisa quando a rede falha", "Não consegui buscar agora" in _js)
+checar("resposta atrasada nao sobrescreve busca nova",
+       "meu !== pedido" in _js,
+       "digitar rapido trocava o resultado pelo de uma busca antiga")
+checar("a escolha vale para varios lancamentos",
+       "lancamentos: alvos" in _js)
+
+_html_tr = io.open("web/templates/transmissao.html", encoding="utf-8").read()
+checar("da para escolher quais notas transmitir",
+       'value="escolhidas"' in _html_tr)
+checar("a lista de envio mostra o paciente, nao so o arquivo",
+       "n.paciente" in _html_tr)
+checar("nota ja aceita aparece marcada e nao pode ser remarcada",
+       "n.enviada" in _html_tr and "disabled" in _html_tr)
+checar("marcar todas respeita o filtro",
+       "style.display !== " in _js or "style.display !==" in _html_tr,
+       "quem filtra por um paciente e marca todas quer aquelas")
+
+_passos = 0
+for _tela in ("inicio", "conferencia", "resultado", "transmissao",
+              "carregando"):
+    _t = io.open("web/templates/%s.html" % _tela, encoding="utf-8").read()
+    if "<b>4</b> Transmitir" in _t:
+        _passos += 1
+checar("as cinco telas mostram os quatro passos", _passos == 5,
+       "%d de 5 -- quem chega na transmissao nao pode ser pego de surpresa"
+       % _passos)
+
+# Pedir "as escolhidas" sem marcar nenhuma para ANTES de qualquer envio.
+# O teste passa pela rota de verdade -- se essa trava quebrar, o operador
+# clicaria em transmitir e nao aconteceria nada, sem explicacao.
+_pastas = [d for d in os.listdir(cfgmod.PASTA_SAIDA)
+           if not d.endswith("-teste")
+           and os.path.isdir(os.path.join(cfgmod.PASTA_SAIDA, d))]
+if _pastas:
+    _r = cliente.post("/saida/%s/transmitir" % _pastas[0],
+                      data={"quantidade": "escolhidas"})
+    _texto = _r.get_data(as_text=True)
+    checar("transmitir sem marcar nada avisa, e nao envia nada",
+           "Marque pelo menos uma nota" in _texto, _r.status_code)
+else:
+    checar("ha pasta de saida para testar a transmissao", True,
+           "nenhuma pasta gerada ainda")
+
+# --------------------------------------------------------------------------
 # O DANFSe no leiaute oficial.
 #
 # Ele nao e um arquivo que a prefeitura guarda e entrega: e uma

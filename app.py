@@ -543,6 +543,53 @@ def progresso(lote_id: str):
     })
 
 
+def agrupar_pendencias(pendencias) -> list:
+    """Junta os lancamentos travados da MESMA pessoa numa ficha so.
+
+    Uma pessoa costuma travar em varios lancamentos do mesmo mes: duas
+    parcelas, duas sessoes. Listados um a um, o operador fazia a mesma busca
+    duas, tres vezes -- e nada avisava que era a mesma pessoa. Agora e uma
+    ficha por pessoa, e apontar o cadastro resolve todos de uma vez.
+
+    Ordem: quem tem mais lancamentos presos primeiro, porque resolve mais
+    com o mesmo trabalho.
+    """
+    grupos: dict = {}
+    for p in pendencias:
+        # Documento identifica melhor que nome (homonimos existem), mas
+        # boleto sem cadastro so tem o CPF, e "sem cadastro" so tem o nome.
+        chave = so_digitos(p.documento) or chave_nome(p.nome) or p.id
+        grupo = grupos.get(chave)
+        if grupo is None:
+            grupo = grupos[chave] = {
+                "chave": chave,
+                "nome": p.nome,
+                "documento": p.documento,
+                "motivo": p.motivo,
+                "titulo": p.titulo,
+                "orientacao": p.orientacao,
+                "candidatos": p.candidatos,
+                "itens": [],
+                "ids": [],
+                "valor": 0.0,
+            }
+        grupo["itens"].append(p)
+        grupo["ids"].append(p.id)
+        try:
+            grupo["valor"] += float(p.valor)
+        except (TypeError, ValueError):
+            pass
+
+    lista = list(grupos.values())
+    for grupo in lista:
+        # Um candidato com CPF invalido nao resolve nada: a prefeitura
+        # recusaria a nota. A tela precisa saber disso para nao oferecer um
+        # botao que so nega.
+        grupo["tem_util"] = any(c.get("valido") for c in grupo["candidatos"])
+    lista.sort(key=lambda g: (-len(g["ids"]), g["nome"]))
+    return lista
+
+
 @app.get("/lote/<lote_id>")
 def conferencia(lote_id: str):
     lote = carregar_lote(lote_id)
@@ -558,6 +605,7 @@ def conferencia(lote_id: str):
         "conferencia.html",
         lote=lote,
         r=resultado,
+        travados=agrupar_pendencias(resultado.pendencias),
         cfg=cfg,
         unidade=cfg.unidade(resultado.unidade),
         brl=brl,
@@ -603,7 +651,13 @@ def escolher(lote_id: str):
     if not lote:
         abort(404)
     dados = request.get_json(force=True)
-    lancamento = dados.get("lancamento", "")
+    # Uma pessoa costuma travar em varios lancamentos do mesmo mes -- duas
+    # parcelas, duas sessoes. Resolver um a um obrigava a repetir a mesma
+    # busca. A tela manda a lista inteira daquela pessoa de uma vez.
+    lancamentos = dados.get("lancamentos")
+    if not lancamentos:
+        um = dados.get("lancamento", "")
+        lancamentos = [um] if um else []
     documento = so_digitos(dados.get("documento", ""))
 
     _, cadastro, _ = conciliar_lote(lote)
@@ -615,12 +669,13 @@ def escolher(lote_id: str):
         }), 400
 
     lote.setdefault("escolhas", {})
-    if documento:
-        lote["escolhas"][lancamento] = documento
-    else:
-        lote["escolhas"].pop(lancamento, None)
+    for lancamento in lancamentos:
+        if documento:
+            lote["escolhas"][lancamento] = documento
+        else:
+            lote["escolhas"].pop(lancamento, None)
     salvar_lote(lote)
-    return jsonify({"ok": True})
+    return jsonify({"ok": True, "aplicados": len(lancamentos)})
 
 
 @app.get("/lote/<lote_id>/buscar")
@@ -629,26 +684,51 @@ def buscar_cliente(lote_id: str):
     lote = carregar_lote(lote_id)
     if not lote:
         abort(404)
-    termo = chave_nome(request.args.get("q", ""))
-    if len(termo) < 3:
-        return jsonify({"resultados": []})
+    bruto = (request.args.get("q") or "").strip()
+    digitos = so_digitos(bruto)
+    palavras = [p for p in chave_nome(bruto).split() if p]
+
+    # CPF digitado com pontos e o jeito normal de digitar -- e era o que
+    # nao funcionava: chave_nome("129.611.727-80") vira "129 611 727 80",
+    # que nunca casa com os digitos guardados. Por isso os digitos sao
+    # extraidos a parte, antes de qualquer normalizacao de nome.
+    por_documento = len(digitos) >= 3 and len(digitos) >= len(bruto) - 4
+
+    if not por_documento and len("".join(palavras)) < 3:
+        return jsonify({"resultados": [], "total": 0, "curto": True})
+
     _, cadastro, _ = conciliar_lote(lote)
     achados = []
     for cliente in cadastro.clientes:
-        if termo in cliente.chave or termo in so_digitos(cliente.documento):
-            achados.append({
-                "nome": cliente.nome,
-                "documento": cliente.documento,
-                "documento_formatado": cliente.documento_formatado,
-                "valido": cliente.documento_ok,
-                "endereco": "%s, %s - %s - %s/%s" % (
-                    cliente.logradouro, cliente.numero, cliente.bairro,
-                    cliente.cidade, cliente.uf),
-                "nascimento": cliente.nascimento,
-            })
-            if len(achados) >= 25:
-                break
-    return jsonify({"resultados": achados})
+        doc = so_digitos(cliente.documento)
+        if por_documento:
+            if digitos not in doc:
+                continue
+        else:
+            # Todas as palavras, em qualquer ordem: quem digita "santana
+            # priscila" quer achar "PRISCILA SANTANA FERREIRA".
+            if not all(palavra in cliente.chave for palavra in palavras):
+                continue
+        achados.append({
+            "nome": cliente.nome,
+            "documento": cliente.documento,
+            "documento_formatado": cliente.documento_formatado,
+            "valido": cliente.documento_ok,
+            "endereco": "%s, %s - %s - %s/%s" % (
+                cliente.logradouro, cliente.numero, cliente.bairro,
+                cliente.cidade, cliente.uf),
+            "nascimento": cliente.nascimento,
+        })
+
+    # Cadastro utilizavel primeiro, depois quem comeca pelo que foi digitado:
+    # o operador tende a clicar no primeiro da lista.
+    inicio = palavras[0] if palavras else ""
+    achados.sort(key=lambda c: (
+        not c["valido"],
+        not chave_nome(c["nome"]).startswith(inicio),
+        c["nome"]))
+    return jsonify({"resultados": achados[:25], "total": len(achados),
+                    "curto": False})
 
 
 @app.get("/lote/<lote_id>/planilha")
@@ -767,11 +847,21 @@ def transmitir_lote(pasta: str):
     # prefeitura, sem explicação óbvia.
     ambiente = ambiente_da_pasta(caminho) or "homologacao"
     cfg.faturamento["ambiente"] = ambiente
+    # Tres modos: uma (a primeira que faltar), escolhidas (as marcadas na
+    # lista) ou todas. Escolher e o que permite mandar a nota de UM paciente
+    # para conferir antes de soltar o mes inteiro -- antes era tudo ou a
+    # primeira, sem dizer qual era.
     quantidade = request.form.get("quantidade", "uma")
+    escolhidas = [a for a in request.form.getlist("arquivo") if a]
+    apenas = set(escolhidas) if quantidade == "escolhidas" else None
     limite = 1 if quantidade == "uma" else None
 
-    erro = ""
-    if ambiente == "producao" and chave_nome(
+    erro_escolha = ""
+    if quantidade == "escolhidas" and not escolhidas:
+        erro_escolha = "Marque pelo menos uma nota para transmitir."
+
+    erro = erro_escolha
+    if not erro and ambiente == "producao" and chave_nome(
         request.form.get("confirmacao", "")
     ) != "PRODUCAO":
         erro = "Para transmitir em produção é preciso digitar PRODUCAO."
@@ -780,7 +870,8 @@ def transmitir_lote(pasta: str):
     # na hora. Lote grande vai para segundo plano -- 276 notas levam minutos,
     # e uma requisicao HTTP parada esse tempo todo parece travamento (e o
     # navegador pode desistir no meio, deixando o envio sem dono).
-    if not erro and limite != 1:
+    sincrono = limite == 1 or (apenas is not None and len(apenas) <= 3)
+    if not erro and not sincrono:
         with _TRAVA:
             if TRANSMISSOES.get(pasta, {}).get("estado") == "enviando":
                 erro = "Esta pasta já está sendo transmitida agora."
@@ -792,14 +883,14 @@ def transmitir_lote(pasta: str):
                 }
         if not erro:
             threading.Thread(target=_transmitir_em_segundo_plano,
-                             args=(pasta, caminho, ambiente),
+                             args=(pasta, caminho, ambiente, apenas),
                              daemon=True).start()
             return redirect(url_for("tela_transmitir", pasta=pasta))
 
     resultado = None
     if not erro:
         try:
-            resultado = transmitir(caminho, cfg, limite=limite)
+            resultado = transmitir(caminho, cfg, limite=limite, apenas=apenas)
         except EnvioIndisponivel as falha:
             erro = str(falha)
         except Exception as falha:  # noqa: BLE001
@@ -813,12 +904,14 @@ def transmitir_lote(pasta: str):
         ambiente=ambiente,
         envio=situacao_envio(cfg),
         arquivos=len(listar_xmls(caminho)),
+        notas=notas_da_pasta(caminho),
         gerado_para=ambiente_da_pasta(caminho),
         andamento=TRANSMISSOES.get(pasta),
     )
 
 
-def _transmitir_em_segundo_plano(pasta: str, caminho: str, ambiente: str) -> None:
+def _transmitir_em_segundo_plano(pasta: str, caminho: str, ambiente: str,
+                                 apenas: set = None) -> None:
     """Envia o lote fora da requisição, atualizando o andamento."""
     cfg = cfgmod.carregar()
     cfg.faturamento["ambiente"] = ambiente
@@ -848,7 +941,8 @@ def _transmitir_em_segundo_plano(pasta: str, caminho: str, ambiente: str) -> Non
                 estado["ultimo"] = "DPS %s recusada" % (item.numero_dps or "?")
 
     try:
-        resultado = transmitir(caminho, cfg, progresso=andou)
+        resultado = transmitir(caminho, cfg, apenas=apenas,
+                               progresso=andou)
         with _TRAVA:
             TRANSMISSOES[pasta] = {
                 "estado": "pronto",
@@ -874,6 +968,35 @@ def andamento_transmissao(pasta: str):
     return jsonify(estado)
 
 
+def notas_da_pasta(caminho: str) -> list:
+    """As notas de uma pasta gerada, com paciente e valor, para escolher.
+
+    A tela so sabia dizer "277 arquivos". Quem quer mandar UMA nota -- a de
+    um paciente especifico, para conferir antes de soltar o mes -- precisa
+    ver de quem e cada uma.
+
+    O que ja foi aceito pela prefeitura vem marcado: reenviar nao duplica
+    (o controle barra), mas ver isso evita a duvida.
+    """
+    with Controle(os.path.join(cfgmod.PASTA_DADOS, "controle.db")) as controle:
+        por_arquivo = controle.por_arquivo()
+
+    notas = []
+    for nome in listar_xmls(caminho):
+        _, registro = por_arquivo.get(nome, (None, {}))
+        descricao = registro.get("descricao") or ""
+        notas.append({
+            "arquivo": nome,
+            "paciente": descricao.split(" - ")[0] if descricao else "",
+            "documento": registro.get("documento") or "",
+            "valor": registro.get("valor") or "",
+            "numero": registro.get("numero") or "",
+            "numero_nota": registro.get("numero_nota") or "",
+            "enviada": bool(registro.get("transmitida")),
+        })
+    return notas
+
+
 @app.get("/saida/<path:pasta>/transmitir")
 def tela_transmitir(pasta: str):
     caminho = os.path.join(cfgmod.PASTA_SAIDA, pasta)
@@ -888,6 +1011,7 @@ def tela_transmitir(pasta: str):
         ambiente=cfg.faturamento.get("ambiente", "homologacao"),
         envio=situacao_envio(cfg),
         arquivos=len(listar_xmls(caminho)),
+        notas=notas_da_pasta(caminho),
         gerado_para=ambiente_da_pasta(caminho),
         andamento=TRANSMISSOES.get(pasta),
     )
@@ -1063,13 +1187,16 @@ def consultar_nota():
     with Controle(os.path.join(cfgmod.PASTA_DADOS, "controle.db")) as controle:
         recentes = controle.transmitidas(limite=15)
     for nota in recentes:
+        # O nome fica guardado dentro da descricao ("FULANO - R$ 30,00").
+        # Quem opera identifica a nota pelo paciente, nao pelo numero.
+        nota["paciente"] = (nota.get("descricao") or "").split(" - ")[0]
         # Só as de produção: nota de teste não existe para o paciente.
         if nota.get("ambiente") != "producao":
             nota["whatsapp"] = ""
             continue
         fone = telefone_do_paciente(unidade, nota.get("documento", ""))
         nota["whatsapp"] = whatsapp.link(
-            {"tomador": (nota.get("descricao") or "").split(" - ")[0],
+            {"tomador": nota["paciente"],
              "numero_nota": nota.get("numero_nota"),
              "valor": nota.get("valor"),
              "chave_acesso": nota.get("chave_acesso")},
@@ -1386,7 +1513,17 @@ def ajuda():
 
 @app.template_filter("dinheiro")
 def filtro_dinheiro(valor):
-    return brl(valor)
+    """Valor em reais, tolerante a vazio.
+
+    Nota de lote descartado perde o registro no controle e chega aqui sem
+    valor -- e uma tela inteira nao pode cair por causa de uma celula.
+    """
+    if valor in (None, ""):
+        return "—"
+    try:
+        return brl(valor)
+    except Exception:  # noqa: BLE001
+        return "—"
 
 
 @app.template_filter("documento")

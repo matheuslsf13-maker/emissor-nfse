@@ -6,6 +6,7 @@
   <div class="passo feito"><b>1</b> Trazer os relatórios</div>
   <div class="passo ativo"><b>2</b> Conferir</div>
   <div class="passo"><b>3</b> Gerar as notas</div>
+  <div class="passo"><b>4</b> Transmitir</div>
 </div>
 
 <h1>{{ unidade.apelido }} — competência {{ r.competencia | replace('-', '/') }}</h1>
@@ -219,53 +220,98 @@
   <div class="faixa info">
     <span class="icone">›</span>
     <div>
-      <b>Estes lançamentos não viram nota até serem resolvidos</b>
+      <b>{{ travados | length }} pessoa(s) esperando, R$ {{ brl(travados | sum(attribute='valor')) }}</b>
       <p>
-        O sistema nunca chuta o CPF de um paciente. Resolva no TechCare e exporte
-        os relatórios de novo, ou aponte aqui embaixo qual cadastro é o certo.
+        O sistema <b>nunca chuta o CPF</b> de um paciente — por isso estes
+        ficam de fora até alguém dizer quem é. Aponte o cadastro certo aqui
+        embaixo, ou corrija no TechCare e traga os relatórios de novo.
       </p>
     </div>
   </div>
 
-  {% for p in r.pendencias %}
+  {% for g in travados %}
   <div class="pendencia">
     <header>
       <div>
-        <div class="quem">{{ p.nome }}</div>
+        <div class="quem">{{ g.nome }}</div>
         <div class="porque">
-          <b>{{ p.titulo }}.</b> {{ p.orientacao }}
-        </div>
-        <div class="porque" style="font-size:12.5px">
-          {{ p.data | data_br }} · {{ p.secao }} · caixa {{ p.caixa | lower }} · lançamento {{ p.lancto }}
+          <b>{{ g.titulo }}.</b> {{ g.orientacao }}
         </div>
       </div>
       <div class="valor">
-        <div style="font-weight:600">R$ {{ brl(p.valor) }}</div>
-        <span class="selo aviso">travado</span>
+        <div style="font-weight:600">R$ {{ brl(g.valor) }}</div>
+        <span class="selo aviso">
+          {% if g.ids | length > 1 %}{{ g.ids | length }} lançamentos{% else %}travado{% endif %}
+        </span>
       </div>
     </header>
+
     <div class="corpo">
-      {% if p.candidatos %}
-      <h3 style="font-size:13.5px;color:var(--tinta-fraca)">Cadastros parecidos encontrados</h3>
-      {% for c in p.candidatos %}
+      {% if g.ids | length > 1 %}
+      <p style="font-size:13px;color:var(--tinta-fraca);margin:0 0 10px">
+        A mesma pessoa travou em <b>{{ g.ids | length }} lançamentos</b>.
+        Apontar o cadastro resolve <b>todos de uma vez</b>.
+      </p>
+      {% endif %}
+
+      <details style="margin-bottom:10px">
+        <summary style="cursor:pointer;font-size:13px;color:var(--tinta-fraca)">
+          Ver {{ 'os lançamentos' if g.ids | length > 1 else 'o lançamento' }}
+        </summary>
+        <table style="margin:8px 0 0">
+          <tbody>
+            {% for i in g.itens %}
+            <tr>
+              <td style="padding-left:0">{{ i.data | data_br }}</td>
+              <td>{{ i.secao }}</td>
+              <td style="color:var(--tinta-fraca)">caixa {{ i.caixa | lower }} · lanç. {{ i.lancto }}</td>
+              <td class="num">R$ {{ brl(i.valor) }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </details>
+
+      {% if g.candidatos %}
+      <h3 style="font-size:13.5px;color:var(--tinta-fraca);margin-bottom:6px">
+        {% if g.tem_util %}Cadastros parecidos{% else %}Encontrei este, mas ele não serve{% endif %}
+      </h3>
+      {% for c in g.candidatos %}
       <div class="candidato">
         <div class="info">
           <b>{{ c.nome }}</b> — {{ c.documento_formatado }}
           {% if not c.valido %}<span class="selo ruim">CPF inválido</span>{% endif %}
           <div class="endereco">{{ c.endereco }}{% if c.nascimento %} · nasc. {{ c.nascimento }}{% endif %}</div>
         </div>
-        <button class="botao pequeno {{ 'secundario' if not c.valido }}"
-                onclick="escolherCadastro('{{ lote.id }}', '{{ p.id }}', '{{ c.documento }}', {{ 'true' if c.valido else 'false' }})">
-          É este
+        {% if c.valido %}
+        <button class="botao pequeno" type="button"
+                onclick="escolherCadastro('{{ lote.id }}', {{ g.ids | tojson }}, '{{ c.documento }}', true)">
+          É este{% if g.ids | length > 1 %} ({{ g.ids | length }}){% endif %}
         </button>
+        {% else %}
+        <span style="color:var(--tinta-fraca);font-size:12.5px;max-width:190px;
+                     text-align:right">
+          A prefeitura recusaria a nota. Corrija o CPF no TechCare.
+        </span>
+        {% endif %}
       </div>
       {% endfor %}
       {% endif %}
 
-      <div class="busca-caixa" style="margin-top:10px">
-        <input type="search" id="busca-{{ p.id }}" placeholder="Procurar outro cadastro por nome ou CPF…" style="width:100%">
-        <div class="resultados-busca" id="resultados-{{ p.id }}"></div>
-      </div>
+      <label class="busca-caixa" style="display:block;margin-top:12px">
+        <span style="display:block;font-size:13px;color:var(--tinta-fraca);
+                     margin-bottom:5px">
+          {% if g.candidatos and not g.tem_util %}
+          Procure o cadastro certo desta pessoa:
+          {% else %}
+          Não é nenhum deles? Procure por nome ou CPF:
+          {% endif %}
+        </span>
+        <input type="search" id="busca-{{ g.chave }}"
+               placeholder="nome, ou CPF com ou sem pontos" style="width:100%"
+               autocomplete="off">
+        <div class="resultados-busca" id="resultados-{{ g.chave }}"></div>
+      </label>
     </div>
   </div>
   {% endfor %}
@@ -471,8 +517,8 @@
 {% block scripts %}
 <script>
   filtrarTabela("filtro", "tabela-notas");
-  {% for p in r.pendencias %}
-  prepararBusca("{{ lote.id }}", "{{ p.id }}");
+  {% for g in travados %}
+  prepararBusca("{{ lote.id }}", "{{ g.chave }}", {{ g.ids | tojson }});
   {% endfor %}
 </script>
 {% endblock %}

@@ -184,49 +184,146 @@ function filtrarTabela(idCampo, idTabela) {
   });
 }
 
-/* --- resolucao de pendencia: escolher o cadastro certo --------------- */
-function prepararBusca(loteId, lancamento) {
-  const campo = document.getElementById("busca-" + lancamento);
-  const caixa = document.getElementById("resultados-" + lancamento);
-  if (!campo) return;
+/* --------------------------------------------------------------------------
+   Resolucao de pendencia: apontar qual cadastro e o certo.
+
+   Esta busca nao dava sinal de vida: digitava-se e, se nada aparecesse, nao
+   havia como saber se era termo curto demais, se ninguem batia, ou se a
+   busca tinha falhado. Agora cada estado diz o que e -- e o resultado tem
+   botao "E este", igual aos candidatos sugeridos logo acima, em vez de uma
+   linha que so quem descobre e que da para clicar.
+   -------------------------------------------------------------------------- */
+
+function prepararBusca(loteId, ficha, lancamentos) {
+  const campo = document.getElementById("busca-" + ficha);
+  const caixa = document.getElementById("resultados-" + ficha);
+  const alvos = lancamentos || [ficha];
+  if (!campo || !caixa) return;
+
+  function aviso(texto) {
+    caixa.innerHTML = "";
+    const linha = document.createElement("div");
+    linha.className = "achado-aviso";
+    linha.textContent = texto;
+    caixa.appendChild(linha);
+  }
+
   let timer = null;
+  let pedido = 0;
+
   campo.addEventListener("input", () => {
     clearTimeout(timer);
+    const termo = campo.value.trim();
+    if (!termo) { caixa.innerHTML = ""; return; }
+    if (termo.replace(/[^0-9A-Za-zÀ-ÿ]/g, "").length < 3) {
+      aviso("Digite pelo menos 3 letras do nome, ou o começo do CPF.");
+      return;
+    }
+    aviso("Procurando…");
+
     timer = setTimeout(async () => {
-      const termo = campo.value.trim();
-      if (termo.length < 3) { caixa.innerHTML = ""; return; }
-      const r = await fetch("/lote/" + loteId + "/buscar?q=" + encodeURIComponent(termo));
-      const d = await r.json();
-      caixa.innerHTML = "";
-      if (!d.resultados.length) {
-        caixa.innerHTML = '<div style="color:var(--tinta-fraca)">Ninguém encontrado com esse nome ou CPF.</div>';
+      const meu = ++pedido;
+      let d;
+      try {
+        const r = await fetch("/lote/" + loteId + "/buscar?q=" +
+                              encodeURIComponent(termo));
+        if (!r.ok) throw new Error("HTTP " + r.status);
+        d = await r.json();
+      } catch (e) {
+        // Sem isto, falha de rede virava tela parada: o operador ficava
+        // digitando achando que a busca nao existe.
+        aviso("Não consegui buscar agora (" + e.message + "). " +
+              "Tente de novo.");
         return;
       }
-      d.resultados.forEach((c) => {
+      // Uma resposta antiga nao pode sobrescrever a busca atual.
+      if (meu !== pedido) return;
+
+      const achados = (d && d.resultados) || [];
+      if (!achados.length) {
+        aviso("Ninguém com esse nome ou CPF no cadastro. " +
+              "Tente só o primeiro nome, ou o CPF sem pontos.");
+        return;
+      }
+
+      caixa.innerHTML = "";
+      achados.forEach((c) => {
         const item = document.createElement("div");
-        item.innerHTML =
-          "<b>" + c.nome + "</b> — " + c.documento_formatado +
-          (c.valido ? "" : ' <span class="selo ruim">CPF inválido</span>') +
-          '<br><span style="color:var(--tinta-fantasma)">' + c.endereco + "</span>";
-        item.onclick = () => escolherCadastro(loteId, lancamento, c.documento, c.valido);
+        item.className = "achado";
+
+        const info = document.createElement("div");
+        info.className = "info";
+        const nome = document.createElement("b");
+        nome.textContent = c.nome;
+        info.appendChild(nome);
+        info.appendChild(document.createTextNode(" — " + c.documento_formatado));
+        if (!c.valido) {
+          const selo = document.createElement("span");
+          selo.className = "selo ruim";
+          selo.textContent = "CPF inválido";
+          selo.style.marginLeft = "6px";
+          info.appendChild(selo);
+        }
+        const end = document.createElement("div");
+        end.className = "endereco";
+        end.textContent = c.endereco + (c.nascimento ? " · nasc. " + c.nascimento : "");
+        info.appendChild(end);
+        item.appendChild(info);
+
+        const botao = document.createElement("button");
+        botao.type = "button";
+        botao.className = "botao pequeno" + (c.valido ? "" : " secundario");
+        botao.textContent = alvos.length > 1
+          ? "É este (" + alvos.length + ")" : "É este";
+        botao.onclick = () =>
+          escolherCadastro(loteId, alvos, c.documento, c.valido);
+        item.appendChild(botao);
+
         caixa.appendChild(item);
       });
+
+      if (d.total > achados.length) {
+        const mais = document.createElement("div");
+        mais.className = "achado-aviso";
+        mais.textContent = "Mostrando " + achados.length + " de " + d.total +
+                           ". Escreva mais para reduzir a lista.";
+        caixa.appendChild(mais);
+      }
     }, 250);
+  });
+
+  // Clicar fora fecha a lista: ela flutua sobre o resto da pagina.
+  document.addEventListener("click", (e) => {
+    if (!campo.contains(e.target) && !caixa.contains(e.target)) {
+      caixa.innerHTML = "";
+    }
+  });
+  campo.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") { caixa.innerHTML = ""; campo.blur(); }
   });
 }
 
-async function escolherCadastro(loteId, lancamento, documento, valido) {
+async function escolherCadastro(loteId, lancamentos, documento, valido) {
   if (valido === false) {
-    alert("Esse cadastro tem CPF inválido. Corrija no TechCare antes de usá-lo.");
+    alert("Esse cadastro tem CPF inválido — a prefeitura recusaria a nota. " +
+          "Corrija no TechCare e exporte os relatórios de novo.");
     return;
   }
-  const r = await fetch("/lote/" + loteId + "/escolher", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ lancamento: lancamento, documento: documento }),
-  });
-  const d = await r.json();
-  if (!r.ok) { alert(d.erro); return; }
+  // Aceita um lancamento solto ou a lista inteira da pessoa.
+  const alvos = Array.isArray(lancamentos) ? lancamentos : [lancamentos];
+  let d;
+  try {
+    const r = await fetch("/lote/" + loteId + "/escolher", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ lancamentos: alvos, documento: documento }),
+    });
+    d = await r.json();
+    if (!r.ok) { alert(d.erro || "Não consegui aplicar a escolha."); return; }
+  } catch (e) {
+    alert("Não consegui aplicar a escolha agora: " + e.message);
+    return;
+  }
   window.location.reload();
 }
 
