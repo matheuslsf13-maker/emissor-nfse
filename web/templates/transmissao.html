@@ -128,15 +128,42 @@
      e a nota nem o que fazer com ela. #}
   {% if entregar %}
   <h2>Pronto. O que fazer com {{ 'esta nota' if entregar | length == 1 else 'estas notas' }}</h2>
+
+  <form method="post" action="{{ url_for('pdf_em_lote') }}" target="_blank">
+    <input type="hidden" name="unidade" value="{{ unidade_lote }}">
+    {% if entregar | length > 1 %}
+    <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;
+         margin-bottom:10px">
+      <button type="submit" class="botao pequeno" id="botao-lote-tr" disabled>
+        Abrir PDF das marcadas <span id="quantas-lote-tr"></span>
+      </button>
+      <button type="button" class="botao pequeno secundario"
+              onclick="marcarLoteTr(true)">marcar todas</button>
+      <button type="button" class="botao pequeno secundario"
+              onclick="marcarLoteTr(false)">desmarcar</button>
+      <span style="color:var(--tinta-fraca);font-size:13px">
+        um PDF só, uma página por nota
+      </span>
+    </div>
+    {% endif %}
+
   <div class="moldura-tabela">
     <table>
       <thead>
-        <tr><th style="width:80px">Nota nº</th><th>Paciente</th>
+        <tr>{% if entregar | length > 1 %}<th style="width:34px"></th>{% endif %}
+            <th style="width:80px">Nota nº</th><th>Paciente</th>
             <th style="width:90px" class="num">Valor</th><th></th></tr>
       </thead>
       <tbody>
         {% for n in entregar %}
         <tr>
+          {% if entregar | length > 1 %}
+          <td>
+            <input type="checkbox" name="chave" class="lote-tr"
+                   value="{{ n.chave }}" onclick="contarLoteTr()"
+                   {{ 'disabled' if not (n.chave and n.producao) }}>
+          </td>
+          {% endif %}
           <td><b>{{ n.numero_nota or '—' }}</b></td>
           <td>
             <b>{{ n.paciente or '—' }}</b>
@@ -175,10 +202,12 @@
       </tbody>
     </table>
   </div>
+  </form>
   <p class="legenda" style="margin-top:10px">
     <b>Abrir PDF</b> mostra o DANFSe no leiaute da prefeitura, de onde dá
-    para imprimir ou salvar para mandar ao paciente. <b>WhatsApp</b> abre a conversa com a mensagem escrita — você
-    confere e envia, nada sai sozinho.
+    para imprimir ou salvar para mandar ao paciente. <b>WhatsApp</b> abre a
+    conversa com a mensagem escrita — você confere e envia, nada sai
+    sozinho.
   </p>
   {% endif %}
 
@@ -459,5 +488,20 @@
     if (alvo) alvo.textContent = n ? "(" + n + " marcada(s))" : "";
   }
   filtrarTabela("filtro-envio", "tabela-envio");
+
+  function marcarLoteTr(ligado) {
+    document.querySelectorAll(".lote-tr").forEach(function (c) {
+      if (!c.disabled) c.checked = ligado;
+    });
+    contarLoteTr();
+  }
+  function contarLoteTr() {
+    var n = document.querySelectorAll(".lote-tr:checked").length;
+    var conta = document.getElementById("quantas-lote-tr");
+    var botao = document.getElementById("botao-lote-tr");
+    if (conta) conta.textContent = n ? "(" + n + ")" : "";
+    if (botao) botao.disabled = n === 0;
+  }
+  contarLoteTr();
 </script>
 {% endblock %}

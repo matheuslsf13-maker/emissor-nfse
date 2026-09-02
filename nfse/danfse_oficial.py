@@ -449,8 +449,10 @@ def _pagina(pdf, d: dict) -> None:
 def nome_do_arquivo(xmls) -> str:
     """DANFSe-8966-Priscila-Santana-Ferreira.pdf
 
-    Com varias notas, o nome diz de quem sao, quantas e de que ano -- e o
-    arquivo que o paciente recebe para a declaracao.
+    Com varias notas DA MESMA pessoa, o nome diz de quem sao, quantas e de
+    que ano -- e o arquivo que o paciente recebe para a declaracao. Com
+    pacientes diferentes o nome fica generico: por um nome so ali, o arquivo
+    mentiria sobre o que tem dentro.
     """
     if isinstance(xmls, (bytes, bytearray, str)):
         xmls = [xmls]
@@ -458,15 +460,22 @@ def nome_do_arquivo(xmls) -> str:
     if not dados:
         return "DANFSe.pdf"
 
-    nome = re.sub(r"[^\w\s-]", "", (dados[0]["tomador"]["nome"] or "").title())
-    nome = nome.strip().replace(" ", "-")[:60].rstrip("-")
-
     if len(dados) == 1:
+        nome = _apelido(dados[0]["tomador"]["nome"])
         partes = ["DANFSe", dados[0]["numero"] or dados[0]["chave"][:12], nome]
         return "-".join(p for p in partes if p) + ".pdf"
+
+    pessoas = {d["tomador"]["nome"] for d in dados}
+    nome = _apelido(dados[0]["tomador"]["nome"]) if len(pessoas) == 1 else ""
 
     anos = sorted({d["competencia"][-4:] for d in dados if d["competencia"]})
     periodo = anos[0] if len(anos) == 1 else (
         "%s-a-%s" % (anos[0], anos[-1]) if anos else "")
     partes = ["DANFSe", nome, "%d-notas" % len(dados), periodo]
     return "-".join(p for p in partes if p) + ".pdf"
+
+
+def _apelido(nome: str) -> str:
+    """Nome de pessoa em forma de nome de arquivo."""
+    limpo = re.sub(r"[^\w\s-]", "", (nome or "").title())
+    return limpo.strip().replace(" ", "-")[:60].rstrip("-")

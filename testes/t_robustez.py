@@ -1049,6 +1049,72 @@ checar("e com os botoes de imprimir, PDF e WhatsApp",
        and "n.whatsapp" in _html_tr2)
 
 # --------------------------------------------------------------------------
+# Paginacao, so-clientes e o diagnostico que mentia.
+
+# Uma lista que mostra 50 de 849 e esconde o resto sem oferecer caminho
+# deixa quem procura alguem do fim do alfabeto sem saida.
+_itens = list(range(849))
+_fatia, _nav = appmod.paginar(_itens, 1)
+checar("a primeira pagina traz 50 de 849",
+       len(_fatia) == 50 and _nav["total"] == 849 and _nav["paginas"] == 17)
+checar("e diz qual faixa esta na tela",
+       _nav["primeiro"] == 1 and _nav["ultimo"] == 50)
+_fatia, _nav = appmod.paginar(_itens, 17)
+checar("a ultima pagina traz o resto", len(_fatia) == 49)
+checar("e nao oferece proxima", not _nav["tem_proxima"])
+_fatia, _nav = appmod.paginar(_itens, 999)
+checar("pagina alem do fim cai na ultima, nao em erro",
+       _nav["pagina"] == 17, _nav["pagina"])
+_fatia, _nav = appmod.paginar(_itens, "abacaxi")
+checar("pagina que nao e numero cai na primeira", _nav["pagina"] == 1)
+_fatia, _nav = appmod.paginar([], 1)
+checar("lista vazia nao quebra",
+       _nav["paginas"] == 1 and _nav["total"] == 0)
+
+# Com muitas paginas, 40 numeros lado a lado nao ajudam ninguem.
+_, _nav = appmod.paginar(_itens, 9)
+checar("muitas paginas viram primeira, vizinhas e ultima, com reticencias",
+       None in _nav["numeros"] and 1 in _nav["numeros"]
+       and 17 in _nav["numeros"] and 9 in _nav["numeros"],
+       _nav["numeros"])
+_, _nav = appmod.paginar(list(range(30)), 1)
+checar("poucas paginas mostram todos os numeros, sem reticencias",
+       _nav["numeros"] == [1])
+
+for _rota, _params in (("/clientes?unidade=gloria&q=maria", "clientes"),
+                       ("/consultar", "consultar"),
+                       ("/paciente?q=maria&unidade=gloria", "paciente")):
+    checar("a tela de %s aceita ?pagina=" % _params,
+           cliente.get(_rota + ("&" if "?" in _rota else "?")
+                       + "pagina=2").status_code == 200)
+
+# Mandar SO o relatorio de clientes: exigir o caixa junto obrigava a
+# inventar um lote de conferencia so para atualizar o cadastro.
+checar("a tela inicial explica que da para mandar so o de clientes",
+       "Só quer atualizar a base?" in io.open(
+           "web/templates/inicio.html", encoding="utf-8").read())
+checar("e o erro sem caixa aponta esse caminho",
+       "CLIENTES E FORNECEDORES para só" in io.open(
+           "app.py", encoding="utf-8").read())
+
+# O diagnostico dizia "O que falta antes de emitir valendo" e listava
+# observacoes -- quem ja emitia lia ali que nao podia.
+_html_cfg = io.open("web/templates/configuracao.html",
+                    encoding="utf-8").read()
+# Na renderizacao, e nao no arquivo: o titulo antigo sobrevive no
+# comentario que explica por que ele saiu.
+_tela_cfg = cliente.get("/configuracao").get_data(as_text=True)
+checar("a configuracao nao afirma mais que falta algo",
+       "O que falta antes de emitir" not in _tela_cfg)
+checar("e, sem erro, diz que nada impede",
+       "Nada impede a emissão" in _tela_cfg)
+checar("erro e observacao ficam separados",
+       "O que impede a emissão" in _html_cfg
+       and "Vale observar" in _html_cfg)
+checar("e sem erro a tela diz que nada impede",
+       "Nada impede a emissão" in _html_cfg)
+
+# --------------------------------------------------------------------------
 # O DANFSe no leiaute oficial.
 #
 # Ele nao e um arquivo que a prefeitura guarda e entrega: e uma

@@ -167,6 +167,22 @@ conferir a primeira nota de produção.
 
 A tela também lista as últimas notas transmitidas — é só clicar na chave.
 
+### Só atualizar a base de clientes
+
+Quando entrar paciente novo e você **não** quiser conferir caixa nenhum:
+mande **apenas** o relatório *Clientes e Fornecedores*, sozinho, na tela
+inicial. O sistema atualiza a base e diz o que entrou.
+
+> **Ninguém é duplicado.** Quem já está na base é reconhecido — pelo CPF ou,
+> quando falta CPF, pelo nome e data de nascimento — e só recebe o que
+> mudou. Mandar o mesmo relatório duas vezes não cria uma pessoa a mais.
+
+### Listas grandes
+
+Quando a busca acha muita gente, aparece uma **barra de páginas** no fim da
+lista: `‹ 1 2 3 … 17 ›`. Vale para a base de clientes, para as notas de um
+paciente e para a lista de notas transmitidas.
+
 ### Corrigir o cadastro de um paciente
 
 Na aba **Clientes**, comece a digitar o nome ou o CPF — as pessoas vão

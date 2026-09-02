@@ -440,6 +440,41 @@ def inicio():
     )
 
 
+def importar_so_clientes(caminho: str, unidade: str = "") -> dict:
+    """Atualiza a base de clientes com um relatorio, sem conferir caixa.
+
+    **Ninguem e duplicado.** A mesclagem casa por documento e, quando o
+    documento falta ou nao bate, por nome + nascimento. Quem ja esta na base
+    e reconhecido e so recebe os campos que mudaram; quem nao esta, entra.
+    Mandar o mesmo relatorio duas vezes nao cria uma pessoa a mais -- a
+    segunda vez cai inteira em "sem mudanca".
+    """
+    cfg = cfgmod.carregar()
+    cadastro = obter_cadastro(caminho)
+
+    unidade = unidade or cfg.unidade_por_relatorio(
+        getattr(cadastro, "empresa", "") or "") or ""
+    if unidade not in cfg.unidades:
+        raise ValueError(
+            "Não reconheci de qual clínica é este relatório. O cabeçalho dele "
+            "traz a empresa — confira se o arquivo é o CLIENTES E "
+            "FORNECEDORES exportado pelo TechCare.")
+
+    base = base_clientes.abrir(cfgmod.PASTA_DADOS, unidade)
+    antes = base.total
+    resultado = base.mesclar(cadastro, origem=os.path.basename(caminho))
+    return {
+        "unidade": unidade,
+        "apelido": cfg.unidades.get(unidade, {}).get("apelido", unidade),
+        "antes": antes,
+        "depois": base.total,
+        "novos": resultado["novos"],
+        "atualizados": resultado["atualizados"],
+        "iguais": resultado["iguais"],
+        "lidos": resultado["lidos"],
+    }
+
+
 @app.post("/lote")
 def criar_lote():
     arquivos = request.files.getlist("arquivos")
@@ -477,13 +512,29 @@ def criar_lote():
         else:
             ignorados.append("%s (não reconheci que relatório é)" % nome)
 
+    # SO o relatorio de clientes: alimenta a base e acabou. Exigir o caixa
+    # junto obrigava a inventar um lote de conferencia so para atualizar o
+    # cadastro -- e quem quer acrescentar paciente novo nem sempre tem o
+    # caixa do mes em maos.
+    if clientes and not caixas:
+        try:
+            resumo = importar_so_clientes(clientes, request.form.get("unidade"))
+        except ValueError as falha:
+            shutil.rmtree(pasta, ignore_errors=True)
+            return jsonify({"erro": str(falha), "detalhes": detalhes}), 400
+        shutil.rmtree(pasta, ignore_errors=True)
+        return jsonify({"tipo": "base", "resumo": resumo,
+                        "detalhes": detalhes})
+
     if not caixas:
         shutil.rmtree(pasta, ignore_errors=True)
         # Quando TODOS os arquivos falharam, o motivo de cada um explica mais
         # do que "falta o relatório de caixa".
         detalhe = "; ".join(ignorados)
         return jsonify({
-            "erro": ("Falta pelo menos um relatório CAIXA - LANÇAMENTOS."
+            "erro": ("Falta pelo menos um relatório CAIXA - LANÇAMENTOS "
+                     "(ou, sozinho, o de CLIENTES E FORNECEDORES para só "
+                     "atualizar a base)."
                      + ((" O que recebi: " + detalhe) if detalhe else "")),
             "detalhes": detalhes,
         }), 400
@@ -964,6 +1015,7 @@ def transmitir_lote(pasta: str):
         arquivos=len(listar_xmls(caminho)),
         notas=notas_da_pasta(caminho),
         entregar=notas_para_entregar(resultado, pasta, cfg),
+        unidade_lote=unidade_da_pasta(pasta, cfg),
         gerado_para=ambiente_da_pasta(caminho),
         andamento=TRANSMISSOES.get(pasta),
     )
@@ -1073,6 +1125,7 @@ def tela_transmitir(pasta: str):
         arquivos=len(listar_xmls(caminho)),
         notas=notas_da_pasta(caminho),
         entregar=notas_para_entregar(resultado, pasta, cfg),
+        unidade_lote=unidade_da_pasta(pasta, cfg),
         gerado_para=ambiente_da_pasta(caminho),
         andamento=TRANSMISSOES.get(pasta),
     )
@@ -1246,7 +1299,10 @@ def consultar_nota():
         except Exception as falha:  # noqa: BLE001
             erro = "%s: %s" % (type(falha).__name__, falha)
     with Controle(os.path.join(cfgmod.PASTA_DADOS, "controle.db")) as controle:
-        recentes = controle.transmitidas(limite=15)
+        # 15 mostrava so a ultima ponta. Com filtro e ordenacao por
+        # coluna, a lista inteira do mes e util: e nela que se acha "aquela
+        # de mil e seiscentos" ou se separa teste de producao.
+        recentes = controle.transmitidas(limite=10 ** 9)
     for nota in recentes:
         # O nome fica guardado dentro da descricao ("FULANO - R$ 30,00").
         # Quem opera identifica a nota pelo paciente, nao pelo numero.
@@ -1262,7 +1318,9 @@ def consultar_nota():
              "valor": nota.get("valor"),
              "chave_acesso": nota.get("chave_acesso")},
             cfg.unidades.get(unidade, {}), fone)
+    recentes, nav = paginar(recentes, request.args.get("pagina"), 100)
     return render_template("consulta.html", cfg=cfg, resultado=resultado,
+                           nav=nav,
                            erro=erro, chave=chave, unidade=unidade,
                            recentes=recentes,
                            ambiente=cfg.faturamento.get("ambiente", ""))
@@ -1363,6 +1421,64 @@ def xml_oficial(chave: str):
                    "Rode o instalar.bat novamente.")
 
 
+@app.post("/notas/pdf")
+def pdf_em_lote():
+    """Um PDF com as notas marcadas, no leiaute oficial, uma por pagina.
+
+    POST, e nao GET: cada chave tem 50 digitos, e cinquenta notas passariam
+    de 2.500 caracteres so de URL -- servidor e navegador comecam a cortar
+    bem antes disso.
+
+    So producao. Nota de teste nao existe no ambiente nacional, entao nao ha
+    de onde tirar o documento oficial dela.
+    """
+    chaves = [so_digitos(c) for c in request.form.getlist("chave")]
+    chaves = [c for c in chaves if len(c) == 50]
+    if not chaves:
+        abort(400, "Marque pelo menos uma nota.")
+
+    cfg = cfgmod.carregar()
+    unidade = request.form.get("unidade") or next(iter(cfg.unidades))
+    try:
+        from nfse.assinatura import carregar_pfx
+        certificado = carregar_pfx(cfg.caminho_certificado(unidade),
+                                   cfg.senha_certificado(unidade))
+    except Exception as falha:  # noqa: BLE001
+        abort(502, "Não consegui abrir o certificado da clínica: %s" % falha)
+
+    oficiais = nacional.baixar_varios(chaves, certificado)
+    if not oficiais:
+        abort(502, "O ambiente nacional não devolveu nenhuma destas notas. "
+                   "Verifique a internet — e lembre que nota de teste não "
+                   "existe lá.")
+
+    # Falta de uma so nao pode impedir as outras: quem pediu trinta prefere
+    # vinte e nove agora a nenhuma. O cabecalho conta quantas ficaram de
+    # fora.
+    #
+    # A ordem e a do numero da nota, e nao a que veio do banco: quem imprime
+    # trinta paginas espera folhear em ordem.
+    def _numero(chave):
+        try:
+            return int(danfse_oficial.ler(oficiais[chave])["numero"] or 0)
+        except (ValueError, KeyError):
+            return 0
+
+    presentes = sorted((c for c in chaves if c in oficiais), key=_numero)
+    xmls = [oficiais[c] for c in presentes]
+    try:
+        pdf = danfse_oficial.gerar(xmls)
+    except ImportError:
+        abort(500, "A biblioteca fpdf2 não está instalada. "
+                   "Rode o instalar.bat novamente.")
+
+    cabecalhos = {"Content-Disposition": "inline; filename=%s"
+                  % danfse_oficial.nome_do_arquivo(xmls)}
+    if len(xmls) < len(chaves):
+        cabecalhos["X-Notas-Faltando"] = str(len(chaves) - len(xmls))
+    return Response(pdf, mimetype="application/pdf", headers=cabecalhos)
+
+
 @app.get("/paciente")
 def notas_do_paciente():
     """Todas as notas de um paciente, para imprimir ou mandar de uma vez.
@@ -1387,7 +1503,8 @@ def notas_do_paciente():
         if termo:
             base = base_clientes.abrir(cfgmod.PASTA_DADOS, unidade)
             if base.existe:
-                encontrados, _ = base.procurar(termo, limite=12)
+                encontrados, achados_total = base.procurar(termo,
+                                                           limite=10 ** 9)
             # Um resultado so, ou busca por documento exato: ja abre as notas.
             digitos = so_digitos(termo)
             if len(encontrados) == 1 or (digitos and len(digitos) >= 11):
@@ -1409,11 +1526,22 @@ def notas_do_paciente():
         nome = (notas[0].get("descricao") or "").split(" - ")[0]
 
     total = sum(float(n.get("valor") or 0) for n in notas)
+
+    # Duas listas podem crescer: os homonimos ("Marcela" da 12 na Gloria) e
+    # as notas de quem trata ha anos. Cada uma pagina por conta.
+    nav_gente = nav_notas = None
+    if encontrados and not notas:
+        encontrados, nav_gente = paginar(encontrados,
+                                         request.args.get("pagina"), 25)
+    if notas:
+        notas, nav_notas = paginar(notas, request.args.get("pagina"), 50)
+
     return render_template("paciente.html", cfg=cfg, unidade=unidade,
                            termo=termo, ano=ano, anos=anos,
                            encontrados=encontrados, paciente=paciente,
                            nome=nome, documento=documento, em_teste=em_teste,
-                           outros_anos=outros_anos,
+                           outros_anos=outros_anos, nav_gente=nav_gente,
+                           nav_notas=nav_notas,
                            notas=notas, total=total, brl=brl)
 
 
@@ -1562,22 +1690,76 @@ def clientes():
     unidade = request.args.get("unidade") or next(iter(cfg.unidades))
     termo = (request.args.get("q") or "").strip()
     filtro = request.args.get("filtro") or ""
-    achados, quantos = [], 0
+    achados, quantos, nav = [], 0, None
     if unidade in cfg.unidades:
         base = base_clientes.abrir(cfgmod.PASTA_DADOS, unidade)
         if base.existe and (termo or filtro):
-            encontrados, quantos = base.procurar(termo, filtro)
+            # Sem limite aqui: quem pagina precisa da lista inteira para
+            # saber quantas paginas existem.
+            encontrados, quantos = base.procurar(termo, filtro,
+                                                 limite=10 ** 9)
             # A tela precisa da POSICAO de cada um para poder corrigi-lo:
             # `procurar` devolve as proprias instancias da base, entao a
             # identidade do objeto da a posicao sem inventar um id novo.
             posicao = {id(c): i for i, c in enumerate(base.clientes)}
-            achados = [(posicao.get(id(c), -1), c) for c in encontrados]
+            todos = [(posicao.get(id(c), -1), c) for c in encontrados]
+            achados, nav = paginar(todos, request.args.get("pagina"))
 
     return render_template("clientes.html", bases=bases, unidade=unidade,
                            termo=termo, filtro=filtro, achados=achados,
-                           quantos=quantos, cfg=cfg,
+                           quantos=quantos, cfg=cfg, nav=nav,
                            editado=request.args.get("editado", ""),
                            erro_edicao=request.args.get("erro", ""))
+
+
+POR_PAGINA = 50
+
+
+def paginar(itens, pagina, por_pagina: int = POR_PAGINA):
+    """Fatia uma lista em paginas e devolve (fatia, navegacao).
+
+    Mostrar "849 encontrados -- mostrando os 60 primeiros" e esconder 789
+    pessoas sem oferecer caminho para elas: quem procurava alguem do fim do
+    alfabeto simplesmente nao achava, e nada na tela dizia como chegar la.
+
+    A navegacao traz a lista de numeros ja pronta, com reticencias quando
+    sao muitas paginas -- 40 numeros lado a lado nao ajudam ninguem.
+    """
+    try:
+        pagina = max(1, int(pagina or 1))
+    except (TypeError, ValueError):
+        pagina = 1
+
+    total = len(itens)
+    paginas = max(1, -(-total // por_pagina))   # divisao arredondando para cima
+    pagina = min(pagina, paginas)
+    inicio = (pagina - 1) * por_pagina
+
+    if paginas <= 9:
+        numeros = list(range(1, paginas + 1))
+    else:
+        # Sempre a primeira, a ultima, e as vizinhas da atual.
+        perto = {1, paginas}
+        perto.update(range(max(1, pagina - 2), min(paginas, pagina + 2) + 1))
+        numeros = []
+        anterior = 0
+        for n in sorted(perto):
+            if anterior and n > anterior + 1:
+                numeros.append(None)     # reticencias
+            numeros.append(n)
+            anterior = n
+
+    return itens[inicio:inicio + por_pagina], {
+        "pagina": pagina,
+        "paginas": paginas,
+        "total": total,
+        "por_pagina": por_pagina,
+        "primeiro": inicio + 1 if total else 0,
+        "ultimo": min(inicio + por_pagina, total),
+        "numeros": numeros,
+        "tem_anterior": pagina > 1,
+        "tem_proxima": pagina < paginas,
+    }
 
 
 @app.get("/clientes/buscar")
@@ -1638,7 +1820,8 @@ def editar_cliente():
         indice = -1
 
     volta = {"unidade": unidade, "q": request.form.get("q", ""),
-             "filtro": request.form.get("filtro", "")}
+             "filtro": request.form.get("filtro", ""),
+             "pagina": request.form.get("pagina", "")}
     try:
         resultado = base.editar(
             indice,

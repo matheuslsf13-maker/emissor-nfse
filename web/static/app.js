@@ -122,6 +122,26 @@ function iniciarEnvio() {
         botao.textContent = "Conferir os lançamentos";
         return;
       }
+      // So o relatorio de clientes: nao ha lote de conferencia para abrir,
+      // a base foi atualizada e o que importa e dizer o que entrou.
+      if (corpo.tipo === "base") {
+        const r = corpo.resumo;
+        mensagem.innerHTML =
+          '<div class="faixa bom"><span class="icone">✓</span><div>' +
+          "<b>Base de clientes de " + r.apelido + " atualizada</b><p>" +
+          "<b>" + r.novos + "</b> pessoa(s) nova(s), <b>" + r.atualizados +
+          "</b> com dados alterados, <b>" + r.iguais + "</b> sem mudança. " +
+          "A base foi de " + r.antes + " para <b>" + r.depois + "</b> pessoas." +
+          "</p><p style='margin-top:6px'>Ninguém foi duplicado: quem já " +
+          "estava na base foi reconhecido e só recebeu o que mudou. " +
+          "<a href='/clientes?unidade=" + encodeURIComponent(r.unidade) +
+          "'>Ver a base</a></p></div></div>";
+        botao.disabled = false;
+        botao.textContent = "Conferir os lançamentos";
+        arquivos.length = 0;
+        desenhar();
+        return;
+      }
       window.location = "/lote/" + corpo.id;
     } catch (erro) {
       mensagem.innerHTML =
@@ -181,6 +201,72 @@ function filtrarTabela(idCampo, idTabela) {
     });
     const contador = document.getElementById(idCampo + "-conta");
     if (contador) contador.textContent = visiveis + " linha(s)";
+  });
+}
+
+/* --------------------------------------------------------------------------
+   Ordenar uma tabela clicando no titulo da coluna.
+
+   Uma lista de notas em ordem de emissao serve para ver a ultima; nao serve
+   para achar "aquela de mil e seiscentos" nem para separar teste de
+   producao. Cada <th data-ordem="..."> vira botao: numero, dinheiro ou
+   texto. Clicar de novo inverte.
+
+   A ordenacao e feita aqui, no navegador, sobre as linhas ja carregadas --
+   sem ida ao servidor e sem perder o filtro que estiver ativo.
+   -------------------------------------------------------------------------- */
+
+function ordenarTabela(idTabela) {
+  const tabela = document.getElementById(idTabela);
+  if (!tabela) return;
+  const corpo = tabela.querySelector("tbody");
+  if (!corpo) return;
+
+  function valor(linha, coluna, tipo) {
+    const celula = linha.children[coluna];
+    const texto = celula ? celula.textContent.trim() : "";
+    if (tipo === "numero") return parseFloat(texto.replace(/\D/g, "")) || 0;
+    if (tipo === "dinheiro") {
+      // "R$ 1.600,00" -> 1600.00. Ponto e milhar, virgula e decimal.
+      return parseFloat(texto.replace(/[^\d,.-]/g, "")
+                             .replace(/\./g, "").replace(",", ".")) || 0;
+    }
+    return texto.toLowerCase();
+  }
+
+  tabela.querySelectorAll("th[data-ordem]").forEach((th, _indice) => {
+    const coluna = Array.from(th.parentElement.children).indexOf(th);
+    const tipo = th.dataset.ordem;
+    th.style.cursor = "pointer";
+    th.title = "Clique para ordenar";
+    if (!th.querySelector(".seta")) {
+      const seta = document.createElement("span");
+      seta.className = "seta";
+      seta.textContent = " ↕";
+      seta.style.opacity = ".35";
+      th.appendChild(seta);
+    }
+    th.addEventListener("click", () => {
+      const desc = th.dataset.desc !== "1";
+      tabela.querySelectorAll("th[data-ordem]").forEach((outro) => {
+        outro.dataset.desc = "";
+        const s = outro.querySelector(".seta");
+        if (s) { s.textContent = " ↕"; s.style.opacity = ".35"; }
+      });
+      th.dataset.desc = desc ? "1" : "";
+      const seta = th.querySelector(".seta");
+      if (seta) { seta.textContent = desc ? " ↓" : " ↑"; seta.style.opacity = "1"; }
+
+      const linhas = Array.from(corpo.querySelectorAll("tr"));
+      linhas.sort((a, b) => {
+        const va = valor(a, coluna, tipo);
+        const vb = valor(b, coluna, tipo);
+        if (va < vb) return desc ? 1 : -1;
+        if (va > vb) return desc ? -1 : 1;
+        return 0;
+      });
+      linhas.forEach((l) => corpo.appendChild(l));
+    });
   });
 }
 

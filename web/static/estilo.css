@@ -382,6 +382,30 @@ code, .mono-bloco {
 }
 .mono-bloco { display: block; padding: 12px 14px; white-space: pre-wrap; word-break: break-all; }
 
+/* ---------- paginacao ---------- */
+.paginacao {
+  display: flex; align-items: center; gap: 4px; flex-wrap: wrap;
+  margin: 14px 0 4px; font-size: 14px;
+}
+.paginacao .conta {
+  color: var(--tinta-fraca); margin-right: auto; font-size: 13.5px;
+  font-variant-numeric: tabular-nums;
+}
+.paginacao a, .paginacao .atual, .paginacao .desligado {
+  min-width: 32px; padding: 5px 9px; text-align: center;
+  border: 1px solid var(--borda); border-radius: 7px;
+  text-decoration: none; font-variant-numeric: tabular-nums;
+}
+.paginacao a { color: var(--marca); background: var(--papel); }
+.paginacao a:hover { background: var(--marca-clara); border-color: var(--marca); }
+.paginacao .atual {
+  background: var(--marca); border-color: var(--marca); color: var(--sobre-cor);
+  font-weight: 600;
+}
+.paginacao .desligado { color: var(--tinta-fantasma); background: var(--fundo); }
+.paginacao .reticencias { border: 0; color: var(--tinta-fantasma); padding: 5px 2px; }
+.conta-simples { color: var(--tinta-fraca); font-size: 13.5px; margin: 10px 0 0; }
+
 /* Rotulo curto acima de um campo de formulario. */
 .rotulo-campo {
   display: block; font-size: 12.5px; color: var(--tinta-fraca);

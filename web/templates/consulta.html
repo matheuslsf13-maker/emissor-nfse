@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_paginacao.html" import paginacao %}
 {% block titulo %}Consultar uma nota
 {% endblock %}
 {% block conteudo %}
@@ -118,26 +119,57 @@
   pode ser anexado na conversa, já que o WhatsApp não aceita anexo por
   link.
 </p>
+<form method="post" action="{{ url_for('pdf_em_lote') }}" id="form-lote"
+      target="_blank">
+  <input type="hidden" name="unidade" value="{{ unidade }}">
+
 <div style="margin-bottom:10px;display:flex;gap:12px;align-items:center;
      flex-wrap:wrap">
   <input type="text" id="filtro-notas" autocomplete="off"
          placeholder="filtrar por paciente ou número da nota"
-         style="flex:1;min-width:260px;max-width:420px">
+         style="flex:1;min-width:220px;max-width:340px">
   <span id="filtro-notas-conta"
         style="color:var(--tinta-fraca);font-size:13.5px"></span>
+  <button type="submit" class="botao pequeno" id="botao-lote" disabled>
+    Abrir PDF das marcadas <span id="quantas-lote"></span>
+  </button>
+  <button type="button" class="botao pequeno secundario"
+          onclick="marcarLote(true)">marcar todas</button>
+  <button type="button" class="botao pequeno secundario"
+          onclick="marcarLote(false)">desmarcar</button>
 </div>
 
+<p class="legenda" style="margin-top:-4px;font-size:13.5px">
+  Marque as notas e abra <b>um PDF só</b>, com uma página por nota, no
+  leiaute da prefeitura — para imprimir ou salvar de uma vez.
+  <b>Clique no título de uma coluna para ordenar</b> (a ordenação vale para
+  a página que está na tela).
+</p>
+{{ paginacao(nav, 'consultar_nota', {}) }}
+
 <div class="moldura-tabela">
-  <table id="tabela-recentes">
+  <table id="tabela-recentes" class="ordenavel">
     <thead>
-      <tr><th style="width:70px">Nota nº</th><th>Paciente</th>
-          <th style="width:90px">Quando</th><th style="width:90px">Valor</th>
-          <th style="width:100px">Ambiente</th><th style="width:110px">Chave</th>
+      <tr><th style="width:34px"></th>
+          <th style="width:70px" data-ordem="numero">Nota nº</th>
+          <th data-ordem="texto">Paciente</th>
+          <th style="width:90px" data-ordem="texto">Quando</th>
+          <th style="width:90px" data-ordem="dinheiro">Valor</th>
+          <th style="width:100px" data-ordem="texto">Ambiente</th>
+          <th style="width:110px">Chave</th>
           <th></th></tr>
     </thead>
     <tbody>
       {% for n in recentes %}
       <tr>
+        <td>
+          {# So producao: nota de teste nao existe no ambiente nacional, e
+             nao ha de onde tirar o documento oficial dela. #}
+          <input type="checkbox" name="chave" class="lote-escolha"
+                 value="{{ n.chave_acesso }}" onclick="contarLote()"
+                 {{ 'disabled' if n.ambiente != 'producao' or not n.chave_acesso }}
+                 title="{{ 'Nota de teste não tem documento oficial' if n.ambiente != 'producao' else '' }}">
+        </td>
         <td><b>{{ n.numero_nota or '—' }}</b></td>
         <td>
           <b>{{ n.paciente or '—' }}</b>
@@ -187,6 +219,8 @@
     </tbody>
   </table>
 </div>
+{{ paginacao(nav, 'consultar_nota', {}) }}
+</form>
 {% endif %}
 
 
@@ -202,5 +236,28 @@
 {% block scripts %}
 <script>
   filtrarTabela("filtro-notas", "tabela-recentes");
+  ordenarTabela("tabela-recentes");
+
+  function marcarLote(ligado) {
+    document.querySelectorAll(".lote-escolha").forEach(function (c) {
+      // Linha escondida pelo filtro nao entra: quem filtra por um paciente
+      // e clica "marcar todas" quer as dele, nao a lista inteira.
+      if (!c.disabled && c.closest("tr").style.display !== "none") {
+        c.checked = ligado;
+      }
+    });
+    contarLote();
+  }
+
+  function contarLote() {
+    var n = document.querySelectorAll(".lote-escolha:checked").length;
+    var conta = document.getElementById("quantas-lote");
+    var botao = document.getElementById("botao-lote");
+    if (conta) conta.textContent = n ? "(" + n + ")" : "";
+    if (botao) botao.disabled = n === 0;
+  }
+
+  document.addEventListener("DOMContentLoaded", contarLote);
+  contarLote();
 </script>
 {% endblock %}

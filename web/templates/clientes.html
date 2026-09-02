@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_paginacao.html" import paginacao %}
 {% set pagina = 'clientes' %}
 {% block titulo %}Base de clientes
 {% endblock %}
@@ -87,15 +88,15 @@
 
 {% if termo or filtro %}
   {% if achados %}
-  <p class="legenda" style="margin-top:16px">
-    {{ quantos }} encontrado(s){% if quantos > achados|length %} —
-    mostrando os {{ achados|length }} primeiros, refine a busca para ver
-    outros{% endif %}.
+  <p class="legenda" style="margin-top:16px;margin-bottom:6px">
+    <b>{{ quantos }}</b> encontrado(s).
     {% if filtro %}
-    <b>Corrija no TechCare</b> e mande o relatório de clientes de novo: o
-    sistema compara e atualiza só quem mudou.
+    <b>Corrija no TechCare</b> e mande o relatório de clientes de novo — ou
+    use o botão <b>corrigir</b> na linha da pessoa.
     {% endif %}
   </p>
+  {{ paginacao(nav, 'clientes', {'unidade': unidade, 'q': termo,
+                                 'filtro': filtro}) }}
   <div class="moldura-tabela">
     <table>
       <thead>
@@ -166,6 +167,8 @@
               <input type="hidden" name="confere" value="{{ c.documento }}">
               <input type="hidden" name="q" value="{{ termo }}">
               <input type="hidden" name="filtro" value="{{ filtro }}">
+              <input type="hidden" name="pagina"
+                     value="{{ nav.pagina if nav else 1 }}">
 
               <div style="display:grid;gap:10px;
                    grid-template-columns:repeat(auto-fit,minmax(150px,1fr))">
@@ -245,6 +248,8 @@
       </tbody>
     </table>
   </div>
+  {{ paginacao(nav, 'clientes', {'unidade': unidade, 'q': termo,
+                                 'filtro': filtro}) }}
   {% else %}
   <div class="faixa atencao" style="margin-top:16px">
     <span class="icone">▲</span>

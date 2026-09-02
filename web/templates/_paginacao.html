@@ -1,0 +1,47 @@
+{#
+  Barra de paginas, usada por toda lista que possa crescer.
+
+  Mostrar "849 encontrados -- os 60 primeiros" e esconder o resto sem
+  oferecer caminho deixava quem procurava alguem do fim do alfabeto sem
+  saida. Aqui a navegacao e explicita: os numeros, e as setas para andar
+  de um em um.
+
+  Uso:
+    {% from "_paginacao.html" import paginacao %}
+    {{ paginacao(nav, 'clientes', {'unidade': unidade, 'q': termo}) }}
+#}
+{% macro paginacao(nav, rota, parametros) %}
+{% if nav and nav.paginas > 1 %}
+<nav class="paginacao" aria-label="Páginas">
+  <span class="conta">
+    {{ nav.primeiro }}–{{ nav.ultimo }} de <b>{{ nav.total }}</b>
+  </span>
+
+  {% if nav.tem_anterior %}
+  <a href="{{ url_for(rota, pagina=nav.pagina - 1, **parametros) }}"
+     rel="prev" title="Página anterior">‹</a>
+  {% else %}
+  <span class="desligado">‹</span>
+  {% endif %}
+
+  {% for n in nav.numeros %}
+    {% if n is none %}
+    <span class="reticencias">…</span>
+    {% elif n == nav.pagina %}
+    <span class="atual" aria-current="page">{{ n }}</span>
+    {% else %}
+    <a href="{{ url_for(rota, pagina=n, **parametros) }}">{{ n }}</a>
+    {% endif %}
+  {% endfor %}
+
+  {% if nav.tem_proxima %}
+  <a href="{{ url_for(rota, pagina=nav.pagina + 1, **parametros) }}"
+     rel="next" title="Próxima página">›</a>
+  {% else %}
+  <span class="desligado">›</span>
+  {% endif %}
+</nav>
+{% elif nav and nav.total %}
+<p class="conta-simples">{{ nav.total }} no total.</p>
+{% endif %}
+{% endmacro %}

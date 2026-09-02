@@ -12,16 +12,45 @@
   mexer no código.
 </p>
 
-<h2>O que falta antes de emitir valendo</h2>
-{% if not diagnostico %}
-<div class="faixa bom"><span class="icone">✓</span><div><b>Nada pendente.</b></div></div>
-{% endif %}
-{% for d in diagnostico %}
-<div class="faixa {{ 'erro' if d.nivel == 'erro' else ('atencao' if d.nivel == 'atencao' else 'info') }}">
-  <span class="icone">{{ '■' if d.nivel == 'erro' else ('▲' if d.nivel == 'atencao' else '›') }}</span>
+{# O titulo antigo era "O que falta antes de emitir valendo" -- e mentia:
+   a lista trazia observacoes e avisos, nada que impedisse emitir, e quem
+   ja estava emitindo lia ali que nao podia. Agora o que IMPEDE fica
+   separado do que so vale saber. #}
+{% set impedem = diagnostico | selectattr('nivel', 'equalto', 'erro') | list %}
+{% set observar = diagnostico | rejectattr('nivel', 'equalto', 'erro') | list %}
+
+{% if impedem %}
+<h2>O que impede a emissão</h2>
+{% for d in impedem %}
+<div class="faixa erro">
+  <span class="icone">■</span>
   <div><b>{{ d.titulo }}</b><p>{{ d.detalhe }}</p></div>
 </div>
 {% endfor %}
+{% else %}
+<h2>Situação</h2>
+<div class="faixa bom"><span class="icone">✓</span><div>
+  <b>Nada impede a emissão</b>
+  <p>
+    O sistema está pronto para gerar e transmitir notas
+    {%- if observar %}. As observações abaixo não bloqueiam nada{% endif %}.
+  </p>
+</div></div>
+{% endif %}
+
+{% if observar %}
+<h2>Vale observar</h2>
+<p class="legenda" style="margin-top:-6px">
+  Nada aqui impede emitir — são coisas para saber e, quando for o caso,
+  resolver com calma.
+</p>
+{% for d in observar %}
+<div class="faixa {{ 'atencao' if d.nivel == 'atencao' else 'info' }}">
+  <span class="icone">{{ '▲' if d.nivel == 'atencao' else '›' }}</span>
+  <div><b>{{ d.titulo }}</b><p>{{ d.detalhe }}</p></div>
+</div>
+{% endfor %}
+{% endif %}
 
 <h2>Unidades</h2>
 <div class="grade-2">
