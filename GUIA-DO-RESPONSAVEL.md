@@ -167,6 +167,23 @@ pronto. Três decisões:
 - **A mensagem leva a chave, não um PDF.** O `wa.me` não aceita anexo. Para
   mandar o arquivo, use **imprimir → salvar como PDF** e anexe na conversa.
 
+### Notas de um paciente, em PDF
+
+**Notas do paciente** busca por nome ou CPF, filtra por ano e gera um PDF
+com uma página por nota — o pedido de imposto de renda.
+
+Dois detalhes de desenho:
+
+- **Os dados saem do XML que nós assinamos**, guardado em `dados/saida/`,
+  não de consulta à prefeitura. Ela processa um pedido por vez por CNPJ:
+  cem consultas levariam muitos minutos. Número e chave, que só ela atribui,
+  vêm do controle.
+- **É um comprovante, não o DANFSe oficial.** O documento da prefeitura tem
+  21 seções padronizadas por Nota Técnica, incluindo as vazias no nosso caso
+  (intermediário, retenções federais, IBS/CBS). Chamá-lo de DANFSe seria
+  enganoso — alguém poderia apresentá-lo achando que é o oficial. Quem
+  precisar dele usa a chave no portal, e o próprio comprovante diz isso.
+
 ### Imprimir a nota sem ir ao portal
 
 A NFS-e que vale é o **XML**; o papel é apenas o *documento auxiliar* — uma

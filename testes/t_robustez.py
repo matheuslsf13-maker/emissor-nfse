@@ -726,7 +726,75 @@ checar("na impressao sobra so o documento",
 
 
 # ==========================================================================
-print("\n17. Homologacao nao pode bloquear a producao")
+print("\n17. Notas de um paciente, em PDF")
+# O pedido de fim de ano: o paciente quer as notas do ano para a
+# declaracao. Antes, achar as notas de uma pessoa entre milhares
+# significava procurar uma a uma pela chave.
+from nfse import danfse_pdf as _pdf  # noqa: E402
+
+checar("moeda sai no formato brasileiro",
+       _pdf._dinheiro("1234.5") == "1.234,50", _pdf._dinheiro("1234.5"))
+checar("valor invalido nao quebra", _pdf._dinheiro(None) == "0,00")
+checar("aliquota de 4 casas vira 2",
+       _pdf._porcento("2.0000") == "2,00%", _pdf._porcento("2.0000"))
+
+# A fonte do PDF e latin-1: travessao ou aspas curvas derrubariam a geracao
+# inteira, e nome de paciente pode trazer qualquer coisa.
+checar("travessao vira hifen", _pdf._latin("a — b") == "a - b")
+checar("aspas curvas viram retas",
+       _pdf._latin("“x”") == '"x"')
+checar("caractere exotico nao derruba o PDF",
+       _pdf._latin("中文") == "??", _pdf._latin("中文"))
+checar("acento comum e preservado",
+       _pdf._latin("Conceição") == "Conceição")
+
+_regs = [{"numero_nota": "8966", "chave_acesso": "1" * 50,
+          "transmitida_em": "2026-09-02T00:00:00", "ambiente": "producao",
+          "competencia": "2026-08"}]
+_dados_pdf = [{"numero": "8966", "chave": "1" * 50, "emitida_em": "2026-09-02",
+               "ambiente": "producao", "municipio": "VILA VELHA",
+               "serie": "00001", "numero_dps": "1", "competencia": "2026-08",
+               "prestador": {"nome": "CLINICA", "documento": "11222333000181",
+                             "im": "1", "endereco": "RUA X, 1", "email": ""},
+               "tomador": {"nome": "MARIA DA CONCEIÇÃO", "documento": "12345678909",
+                           "endereco": "RUA Y, 2"},
+               "servico": {"descricao": "Tratamento", "codigo": "041201", "nbs": "1"},
+               "valores": {"base": "30.00", "aliquota": "2.0000",
+                           "iss": "0.60", "liquido": "30.00"}}]
+try:
+    _bytes = _pdf.gerar(_dados_pdf)
+    checar("gera um PDF de verdade",
+           _bytes[:4] == b"%PDF" and len(_bytes) > 1000, len(_bytes))
+    checar("o nome do arquivo traz paciente e numero",
+           "8966" in _pdf.nome_do_arquivo(_dados_pdf)
+           and "Maria" in _pdf.nome_do_arquivo(_dados_pdf),
+           _pdf.nome_do_arquivo(_dados_pdf))
+
+    _varias = _dados_pdf * 3
+    nome_varias = _pdf.nome_do_arquivo(_varias)
+    checar("com varias notas, o nome diz quantas e o ano",
+           "3-notas" in nome_varias and "2026" in nome_varias, nome_varias)
+except ImportError:
+    checar("fpdf2 instalado", False, "rode: pip install fpdf2")
+
+checar("PDF sem paciente e recusado",
+       cliente.get("/paciente/pdf").status_code == 400)
+checar("paciente sem nota nenhuma devolve 404",
+       cliente.get("/paciente/pdf?documento=00000000000").status_code == 404)
+checar("a tela de paciente abre",
+       cliente.get("/paciente").status_code == 200)
+
+html_pac = io.open("web/templates/paciente.html", encoding="utf-8").read()
+checar("da para escolher quais notas entram no PDF",
+       "nota-escolhida" in html_pac)
+checar("e a tela avisa que NAO e o DANFSe oficial",
+       "não é o DANFSe oficial" in html_pac.lower()
+       or "não é o danfse oficial" in html_pac.lower(),
+       "quem apresentar isso tem que saber o que e")
+
+
+# ==========================================================================
+print("\n18. Homologacao nao pode bloquear a producao")
 # O bug que travou a virada para valendo: 276 notas de TESTE marcavam os
 # lancamentos como "ja emitidos", e ao gerar em producao o sistema pulava
 # todos -- nenhuma nota aparecia. Nota de homologacao nao existe
@@ -779,7 +847,7 @@ finally:
 
 
 # ==========================================================================
-print("\n18. Dados de paciente esquisitos no XML")
+print("\n19. Dados de paciente esquisitos no XML")
 
 from nfse.gerador_dps import gerar_nfse  # noqa: E402
 from nfse.conciliacao import Nota  # noqa: E402
@@ -828,7 +896,7 @@ checar("paciente sem documento nao gera CPF vazio no XML",
 
 
 # ==========================================================================
-print("\n19. Valores")
+print("\n20. Valores")
 
 xml = gerar("PACIENTE", valor="0.00")
 valores = etree.fromstring(xml).find(".//n:valores", NS)
@@ -846,7 +914,7 @@ checar("valor alto nao vira notacao cientifica",
 
 
 # ==========================================================================
-print("\n20. Documentos invalidos")
+print("\n21. Documentos invalidos")
 
 checar("CPF de digitos repetidos e invalido", not documento_valido("11111111111"))
 checar("CPF com digito errado e invalido", not documento_valido("12345678900"))
@@ -858,7 +926,7 @@ checar("letras no lugar do documento sao invalidas", not documento_valido("abcde
 
 
 # ==========================================================================
-print("\n21. Transmissao: as travas")
+print("\n22. Transmissao: as travas")
 
 from nfse.transmissao import transmitir  # noqa: E402
 from nfse.envio import EnvioIndisponivel, interpretar_retorno  # noqa: E402
@@ -897,7 +965,7 @@ checar("ambiente do XML e lido corretamente",
 
 
 # ==========================================================================
-print("\n22. Retorno estranho da prefeitura")
+print("\n23. Retorno estranho da prefeitura")
 
 casos = [
     ("resposta vazia", "", False),
@@ -927,7 +995,7 @@ checar("a mensagem de erro chega legivel, sem &lt;",
 
 
 # ==========================================================================
-print("\n23. Configuracao incompleta")
+print("\n24. Configuracao incompleta")
 
 cfg3 = cfgmod.carregar()
 cfg3.municipio = dict(cfg3.municipio)

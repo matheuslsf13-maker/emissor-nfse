@@ -1,0 +1,186 @@
+{% extends "base.html" %}
+{% set pagina = 'paciente' %}
+{% block titulo %}Notas do paciente{% endblock %}
+{% block conteudo %}
+
+<h1>Notas de um paciente</h1>
+<p class="legenda">
+  Todas as notas emitidas para uma pessoa, para imprimir ou mandar de uma vez
+  — é o pedido que aparece no fim do ano, para a declaração de imposto de
+  renda.
+</p>
+
+<div class="cartao">
+  <form method="get" action="{{ url_for('notas_do_paciente') }}">
+    <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">
+      <label style="flex:1;min-width:240px">
+        <span style="display:block;font-size:13.5px;margin-bottom:5px">Nome ou CPF do paciente</span>
+        <input type="text" name="q" value="{{ termo }}" autocomplete="off"
+               placeholder="parte do nome, ou o CPF completo" style="width:100%">
+      </label>
+      <label>
+        <span style="display:block;font-size:13.5px;margin-bottom:5px">Clínica</span>
+        <select name="unidade">
+          {% for ch, dados in cfg.unidades.items() %}
+          <option value="{{ ch }}" {{ 'selected' if ch == unidade }}>
+            {{ dados.apelido or ch }}
+          </option>
+          {% endfor %}
+        </select>
+      </label>
+      <label>
+        <span style="display:block;font-size:13.5px;margin-bottom:5px">Ano</span>
+        <select name="ano">
+          <option value="">todos</option>
+          {% for a in anos %}
+          <option value="{{ a }}" {{ 'selected' if a == ano }}>{{ a }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <button class="botao" type="submit">Procurar</button>
+    </div>
+  </form>
+</div>
+
+{% if encontrados and not notas %}
+<h2>Qual deles?</h2>
+<div class="moldura-tabela">
+  <table>
+    <thead><tr><th>Paciente</th><th>CPF/CNPJ</th><th></th></tr></thead>
+    <tbody>
+      {% for c in encontrados %}
+      <tr>
+        <td><b>{{ c.nome }}</b></td>
+        <td class="mono">{{ c.documento | documento }}</td>
+        <td style="text-align:right">
+          <a class="botao pequeno secundario"
+             href="{{ url_for('notas_do_paciente', q=c.documento, unidade=unidade, ano=ano) }}">
+            ver as notas
+          </a>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+{% if termo and not encontrados and not notas %}
+<div class="faixa atencao" style="margin-top:16px">
+  <span class="icone">▲</span>
+  <div><b>Não achei esse paciente</b>
+    <p>Tente parte do nome, sem acento, ou o CPF completo.</p></div>
+</div>
+{% endif %}
+
+{% if notas %}
+<h2>
+  {{ notas[0].descricao.split(' - ')[0] if notas[0].descricao else 'Paciente' }}
+</h2>
+<p class="legenda">
+  {{ notas | length }} nota(s){% if ano %} em {{ ano }}{% endif %},
+  somando <b>R$ {{ brl(total) }}</b>.
+  Marque as que quiser ou deixe todas marcadas.
+</p>
+
+<form method="get" action="{{ url_for('pdf_do_paciente') }}" id="form-pdf">
+  <input type="hidden" name="documento" value="{{ notas[0].documento }}">
+  <input type="hidden" name="ano" value="{{ ano }}">
+
+  <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px;align-items:center">
+    <button class="botao" type="submit">
+      Baixar PDF <span id="quantas-pdf"></span>
+    </button>
+    <button type="button" class="botao secundario"
+            onclick="marcarNotas(true)">marcar todas</button>
+    <button type="button" class="botao secundario"
+            onclick="marcarNotas(false)">desmarcar</button>
+    <span style="color:var(--tinta-fraca);font-size:13.5px">
+      O arquivo já sai nomeado com o paciente — pronto para anexar.
+    </span>
+  </div>
+
+  <div class="moldura-tabela">
+    <table>
+      <thead>
+        <tr>
+          <th style="width:34px">
+            <input type="checkbox" checked onclick="marcarNotas(this.checked)">
+          </th>
+          <th>Nota nº</th><th>Competência</th><th>Emitida em</th>
+          <th class="num">Valor</th><th>Chave</th><th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for n in notas %}
+        <tr>
+          <td>
+            <input type="checkbox" class="nota-escolhida" name="nota"
+                   value="{{ n.numero_nota }}" checked onclick="contarNotas()">
+          </td>
+          <td><b>{{ n.numero_nota }}</b></td>
+          <td>{{ n.competencia }}</td>
+          <td>{{ (n.transmitida_em or '')[:10] | data_br }}</td>
+          <td class="num">R$ {{ brl(n.valor) }}</td>
+          <td class="mono" style="font-size:11.5px">{{ n.chave_acesso }}</td>
+          <td style="text-align:right;white-space:nowrap">
+            <a class="botao pequeno secundario"
+               href="{{ url_for('imprimir_nota', chave=n.chave_acesso, unidade=unidade) }}">
+              ver
+            </a>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</form>
+
+<div class="faixa info" style="margin-top:16px">
+  <span class="icone">›</span>
+  <div>
+    <b>O que é este PDF</b>
+    <p>
+      Um <b>comprovante</b> com os dados de cada nota e a chave de acesso.
+      Não é o DANFSe oficial — quem precisar dele informa a chave em
+      nfse.gov.br/consultapublica. Para a maioria dos usos, inclusive a
+      declaração, o comprovante com a chave resolve.
+    </p>
+  </div>
+</div>
+{% endif %}
+
+<nav class="rodape-nav">
+  <a href="{{ url_for('inicio') }}">← Voltar ao início</a>
+  <a href="{{ url_for('consultar_nota') }}">Consultar por chave →</a>
+</nav>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  function contarNotas() {
+    var n = document.querySelectorAll(".nota-escolhida:checked").length;
+    var total = document.querySelectorAll(".nota-escolhida").length;
+    var alvo = document.getElementById("quantas-pdf");
+    if (alvo) {
+      alvo.textContent = (n === total) ? "(todas)" : "(" + n + ")";
+    }
+  }
+  function marcarNotas(ligado) {
+    document.querySelectorAll(".nota-escolhida").forEach(function (c) {
+      c.checked = ligado;
+    });
+    contarNotas();
+  }
+  document.addEventListener("DOMContentLoaded", contarNotas);
+  var formPdf = document.getElementById("form-pdf");
+  if (formPdf) {
+    formPdf.addEventListener("submit", function (e) {
+      if (document.querySelectorAll(".nota-escolhida:checked").length === 0) {
+        e.preventDefault();
+        alert("Marque pelo menos uma nota.");
+      }
+    });
+  }
+</script>
+{% endblock %}

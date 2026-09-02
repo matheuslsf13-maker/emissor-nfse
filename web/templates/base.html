@@ -24,6 +24,7 @@
       <nav>
         <a href="{{ url_for('inicio') }}" class="{{ 'ativo' if pagina == 'inicio' }}">Início</a>
         <a href="{{ url_for('clientes') }}" class="{{ 'ativo' if pagina == 'clientes' }}">Clientes</a>
+        <a href="{{ url_for('notas_do_paciente') }}" class="{{ 'ativo' if pagina == 'paciente' }}">Notas do paciente</a>
         <a href="{{ url_for('consultar_nota') }}" class="{{ 'ativo' if pagina == 'consulta' }}">Consultar nota</a>
         <a href="{{ url_for('configuracao') }}" class="{{ 'ativo' if pagina == 'configuracao' }}">Configuração</a>
         <a href="{{ url_for('ajuda') }}" class="{{ 'ativo' if pagina == 'ajuda' }}">Como usar</a>

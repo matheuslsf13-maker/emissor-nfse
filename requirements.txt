@@ -7,6 +7,7 @@
 # Flask       serve a tela local.
 # requests    envio ao WebService municipal (quando for liberado).
 # openpyxl    exporta a conferencia em planilha, para o contador.
+# fpdf2       gera o comprovante da nota em PDF, para o paciente.
 
 pdfplumber>=0.11
 lxml>=5.0
@@ -14,3 +15,4 @@ cryptography>=42.0
 Flask>=3.0
 requests>=2.31
 openpyxl>=3.1
+fpdf2>=2.8

@@ -30,6 +30,7 @@ from flask import (Flask, abort, jsonify, redirect, render_template, request,
 from nfse import base_clientes
 from nfse import planilha
 from nfse import whatsapp
+from nfse import danfse_pdf
 from nfse import config as cfgmod
 from nfse.conciliacao import conciliar
 from nfse.controle import Controle, ControleIlegivel
@@ -1112,6 +1113,79 @@ def imprimir_nota(chave: str):
         cfg.unidades.get(unidade, {}), fone) if dados["ambiente"] == "1" else ""
 
     return render_template("danfse.html", d=dados, whatsapp=link)
+
+
+@app.get("/paciente")
+def notas_do_paciente():
+    """Todas as notas de um paciente, para imprimir ou mandar de uma vez.
+
+    E o pedido de fim de ano: o paciente quer as notas do ano para a
+    declaracao. Antes, achar as notas de uma pessoa entre milhares
+    significava procurar uma a uma pela chave.
+    """
+    cfg = cfgmod.carregar()
+    unidade = request.args.get("unidade") or next(iter(cfg.unidades))
+    termo = (request.args.get("q") or "").strip()
+    ano = request.args.get("ano") or ""
+
+    encontrados, notas, paciente = [], [], None
+    with Controle(os.path.join(cfgmod.PASTA_DADOS, "controle.db")) as controle:
+        anos = controle.anos_com_notas()
+        if termo:
+            base = base_clientes.abrir(cfgmod.PASTA_DADOS, unidade)
+            if base.existe:
+                encontrados, _ = base.procurar(termo, limite=12)
+            # Um resultado so, ou busca por documento exato: ja abre as notas.
+            digitos = so_digitos(termo)
+            if len(encontrados) == 1 or (digitos and len(digitos) >= 11):
+                paciente = encontrados[0] if encontrados else None
+                documento = digitos if len(digitos) >= 11 else (
+                    paciente.documento if paciente else "")
+                notas = controle.notas_do_paciente(documento, ano=ano)
+
+    total = sum(float(n.get("valor") or 0) for n in notas)
+    return render_template("paciente.html", cfg=cfg, unidade=unidade,
+                           termo=termo, ano=ano, anos=anos,
+                           encontrados=encontrados, paciente=paciente,
+                           notas=notas, total=total, brl=brl)
+
+
+@app.get("/paciente/pdf")
+def pdf_do_paciente():
+    """Baixa um PDF com as notas escolhidas, com nome pronto para enviar."""
+    escolhidas = request.args.getlist("nota")
+    documento = so_digitos(request.args.get("documento") or "")
+    ano = request.args.get("ano") or ""
+    if not documento:
+        abort(400, "Informe o paciente.")
+
+    with Controle(os.path.join(cfgmod.PASTA_DADOS, "controle.db")) as controle:
+        registros = controle.notas_do_paciente(documento, ano=ano)
+    if escolhidas:
+        registros = [r for r in registros
+                     if str(r.get("numero_nota")) in escolhidas]
+    if not registros:
+        abort(404, "Nenhuma nota encontrada para gerar o PDF.")
+
+    montadas, sem_xml = [], []
+    for registro in registros:
+        caminho = danfse_pdf.achar_xml(registro.get("arquivo", ""))
+        if not caminho:
+            sem_xml.append(registro.get("numero_nota"))
+            continue
+        montadas.append(danfse_pdf.dados_do_xml(caminho, registro))
+    if not montadas:
+        abort(404, "Não achei os arquivos destas notas em dados/saida. "
+                   "Elas podem ter sido geradas em outro computador.")
+
+    try:
+        dados = danfse_pdf.gerar(montadas)
+    except ImportError:
+        abort(500, "A biblioteca fpdf2 não está instalada. "
+                   "Rode o instalar.bat novamente.")
+    return send_file(io.BytesIO(dados), as_attachment=True,
+                     download_name=danfse_pdf.nome_do_arquivo(montadas),
+                     mimetype="application/pdf")
 
 
 @app.post("/backup")

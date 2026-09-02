@@ -3,10 +3,10 @@
 {% block conteudo %}
 
 {#
-  Documento auxiliar da NFS-e, montado com os dados que a prefeitura
-  devolveu na consulta. A nota que vale e o XML eletronico; o papel e uma
-  representacao dele -- por isso da para gerar aqui, em vez de mandar o
-  operador ao portal digitar 50 digitos so para conseguir imprimir.
+  Comprovante de emissao, montado com os dados da nota. NAO e o DANFSe
+  oficial: aquele segue um leiaute de 21 secoes padronizado por Nota
+  Tecnica, e se baixa no portal com a chave. Chamar este de DANFSe seria
+  enganoso -- alguem poderia apresenta-lo achando que e o oficial.
 #}
 
 <div class="so-tela">
@@ -44,7 +44,7 @@
 <div class="danfse">
   <header class="danfse-topo">
     <div>
-      <div class="danfse-titulo">Documento Auxiliar da NFS-e</div>
+      <div class="danfse-titulo">Comprovante de emissão de NFS-e</div>
       <div class="danfse-sub">
         Município de {{ d.municipio | title }} · Padrão Nacional
       </div>
@@ -59,7 +59,7 @@
     <div class="danfse-rotulo">Chave de acesso</div>
     <div class="danfse-chave">{{ d.chave }}</div>
     <div class="danfse-nota">
-      A autenticidade pode ser conferida em nfse.gov.br/consultapublica
+      Consulte ou baixe a nota oficial em nfse.gov.br/consultapublica
     </div>
   </section>
 
@@ -144,8 +144,10 @@
   </section>
 
   <footer class="danfse-rodape">
-    Documento auxiliar da Nota Fiscal de Serviço eletrônica. A NFS-e que tem
-    validade é o documento eletrônico, conferível pela chave de acesso acima.
+    Este comprovante reúne os dados da NFS-e emitida. <b>Não substitui o
+    DANFSe oficial</b>: para obtê-lo, informe a chave de acesso acima em
+    nfse.gov.br/consultapublica. A nota com validade fiscal é o documento
+    eletrônico, e a chave permite conferi-lo a qualquer momento.
     {% if d.ambiente != '1' %}
     <br><b>AMBIENTE DE TESTE — sem valor fiscal.</b>
     {% endif %}

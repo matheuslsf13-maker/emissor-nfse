@@ -345,6 +345,48 @@ class Controle:
         ).fetchall()
         return [dict(linha) for linha in linhas]
 
+    def notas_do_paciente(self, documento: str, ambiente: str = "producao",
+                          ano: str = "") -> list:
+        """Todas as notas ja transmitidas de um CPF/CNPJ.
+
+        E o pedido de fim de ano: o paciente quer as notas do ano para a
+        declaracao. Sem isto, achar as notas de uma pessoa entre milhares
+        significava procurar uma a uma.
+
+        So producao por padrao: nota de homologacao nao existe para o
+        paciente e nao entra em declaracao nenhuma.
+        """
+        digitos = "".join(c for c in (documento or "") if c.isdigit())
+        if not digitos:
+            return []
+        condicoes = ["transmitida = 1", "documento = ?"]
+        valores = [digitos]
+        if ambiente:
+            condicoes.append("ambiente = ?")
+            valores.append(ambiente)
+        if ano:
+            # A competencia e gravada como AAAA-MM.
+            condicoes.append("competencia LIKE ?")
+            valores.append("%s%%" % ano)
+        linhas = self._conexao.execute(
+            "SELECT * FROM emitidas WHERE %s ORDER BY competencia, numero"
+            % " AND ".join(condicoes), valores).fetchall()
+        return [dict(linha) for linha in linhas]
+
+    def anos_com_notas(self, documento: str = "") -> list:
+        """Anos em que houve nota, para oferecer o filtro certo."""
+        if documento:
+            digitos = "".join(c for c in documento if c.isdigit())
+            linhas = self._conexao.execute(
+                "SELECT DISTINCT substr(competencia, 1, 4) AS ano FROM emitidas"
+                " WHERE transmitida = 1 AND documento = ? ORDER BY ano DESC",
+                (digitos,)).fetchall()
+        else:
+            linhas = self._conexao.execute(
+                "SELECT DISTINCT substr(competencia, 1, 4) AS ano FROM emitidas"
+                " WHERE transmitida = 1 ORDER BY ano DESC").fetchall()
+        return [l["ano"] for l in linhas if l["ano"]]
+
     def resumo(self) -> dict:
         unidades = {
             linha["unidade"]: int(linha["ultimo_numero"])

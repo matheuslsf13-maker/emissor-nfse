@@ -167,7 +167,19 @@ conferir a primeira nota de produção.
 
 A tela também lista as últimas notas transmitidas — é só clicar na chave.
 
-### Imprimir ou salvar a nota
+### Notas de um paciente (imposto de renda)
+
+Menu **Notas do paciente**. Busque por nome ou CPF e escolha o ano.
+
+Aparecem todas as notas daquela pessoa, com o total. Marque as que quiser —
+ou deixe todas — e clique em **Baixar PDF**. O arquivo já sai nomeado, tipo
+`NFSe-Maria-Silva-12-notas-2026.pdf`, pronto para anexar no WhatsApp ou no
+e-mail.
+
+> É o pedido que aparece no fim do ano. Antes, achar as notas de uma pessoa
+> significava procurar uma a uma pela chave.
+
+### Imprimir ou salvar uma nota
 
 Na lista, cada nota tem o botão **imprimir**. Ele monta o documento aqui
 mesmo — **não precisa ir ao portal nem digitar a chave**.
