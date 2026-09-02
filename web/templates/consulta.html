@@ -1,5 +1,6 @@
 {% extends "base.html" %}
-{% block titulo %}Consultar uma nota{% endblock %}
+{% block titulo %}Consultar uma nota
+{% endblock %}
 {% block conteudo %}
 
 <h1>Consultar uma nota na prefeitura</h1>
@@ -124,5 +125,11 @@
 </div>
 {% endif %}
 
-<p style="margin-top:22px"><a href="{{ url_for('inicio') }}">← Voltar ao início</a></p>
+
+
+<nav class="rodape-nav">
+  <a href="{{ url_for('inicio') }}">← Voltar ao início</a>
+  <a href="{{ url_for('clientes') }}">Base de clientes →</a>
+</nav>
+
 {% endblock %}

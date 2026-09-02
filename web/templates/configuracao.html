@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 {% set pagina = 'configuracao' %}
-{% block titulo %}Configuração{% endblock %}
+{% block titulo %}Configuração
+{% endblock %}
 {% block conteudo %}
 
 <h1>Configuração</h1>
@@ -334,4 +335,10 @@
 <p style="margin-top:20px;color:var(--tinta-fraca);font-size:13.5px">
   Arquivo de configuração: <code>{{ caminho_config }}</code>
 </p>
+
+<nav class="rodape-nav">
+  <a href="{{ url_for('inicio') }}">← Voltar ao início</a>
+  <a href="{{ url_for('ajuda') }}">Como usar →</a>
+</nav>
+
 {% endblock %}

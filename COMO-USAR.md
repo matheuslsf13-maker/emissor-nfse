@@ -116,10 +116,11 @@ se vale de verdade. Para transmitir valendo, é preciso digitar `PRODUCAO`.
 **Na primeira vez, mande uma nota só.** Confira o retorno. Se estiver certo,
 mande o resto.
 
-Quando são muitas, o envio vai em fila, com barra de progresso. **Pode fechar
-a tela que o envio continua.** A prefeitura aceita uma nota por vez por
-clínica, então o programa espera a vez de cada uma — por isso demora alguns
-minutos, e não é travamento.
+Quando são muitas, o envio vai em fila, com **barra de progresso e tempo
+restante**. A prefeitura aceita uma nota por vez por clínica, então o
+programa espera a vez de cada uma — um lote grande leva de 2 a 20 minutos,
+dependendo de quão rápido ela responde. **Não é travamento, e pode fechar a
+tela que o envio continua.**
 
 Quando a prefeitura aceita, ela devolve o **número da nota** e a **chave de
 acesso**, que ficam guardados.
@@ -220,3 +221,13 @@ O passo 4 é opcional depois que você pegar confiança — mas testar não gast
 nota real, então nunca custa.
 
 **Uma vez por mês:** Configuração → Backup.
+
+---
+
+## Duas coisas pequenas
+
+**Modo noturno.** O botão ◐ no canto superior direito alterna entre claro e
+escuro. A escolha fica salva nesse computador.
+
+**Voltar.** Toda tela tem, no rodapé, um link para o início — não precisa
+usar o botão do navegador.

@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 {% set pagina = 'ajuda' %}
-{% block titulo %}Como usar{% endblock %}
+{% block titulo %}Como usar
+{% endblock %}
 {% block conteudo %}
 
 <h1>Como usar, do começo ao fim</h1>
@@ -65,44 +66,89 @@
 
 <div class="cartao">
   <h2 style="margin-top:0">Passo 4 — Gerar</h2>
-  <div class="grade-2">
+  <p>
+    O ambiente é escolhido <b>aqui</b>, em cada lote. Não há configuração para
+    mexer antes.
+  </p>
+  <div class="grade-3" style="display:grid;gap:14px;
+       grid-template-columns:repeat(auto-fit,minmax(13rem,1fr))">
     <div>
-      <h3><span class="selo bom">Modo teste</span></h3>
-      <p>Gera e assina os XMLs sem gastar numeração. <b>Use sempre este primeiro.</b>
-         Pode repetir quantas vezes quiser.</p>
+      <h3><span class="selo neutro">Só conferir</span></h3>
+      <p>Monta os XMLs sem gastar numeração e sem falar com a prefeitura.
+         Pode repetir à vontade.</p>
+    </div>
+    <div>
+      <h3><span class="selo bom">Gerar para teste</span></h3>
+      <p>Vai para a homologação e pode ser transmitido. A prefeitura responde
+         de verdade, mas nada vale fiscalmente.</p>
     </div>
     <div>
       <h3><span class="selo ruim">Emitir valendo</span></h3>
-      <p>Consome a numeração de forma permanente e registra cada nota.
-         Não tem desfazer — por isso pede para digitar EMITIR.</p>
+      <p>Nota fiscal de verdade. Pede para digitar EMITIR, e não tem
+         desfazer.</p>
     </div>
   </div>
-  <p>
-    Nos dois casos os arquivos ficam na pasta <code>dados/saida/</code> e dá para
-    baixar tudo em um .zip, junto com um <code>RELATORIO.txt</code> que lista o
-    que foi gerado e o que ficou de fora.
+
+  <div class="linha-dado">
+    <span class="chave">Testar gasta nota real?</span>
+    <span class="valor"><b>Não.</b> As numerações de teste e de produção são
+      separadas, como na prefeitura. Testar o mês inteiro e depois emitir
+      valendo não é retrabalho.</span>
+  </div>
+  <div class="linha-dado">
+    <span class="chave">Escolher quais notas</span>
+    <span class="valor">Na lista <b>Vão virar nota</b>, use as caixinhas para
+      marcar só algumas. Serve para soltar <b>uma nota</b> valendo, de um
+      paciente específico, antes do mês inteiro.</span>
+  </div>
+  <div class="linha-dado">
+    <span class="chave">Onde o lote está</span>
+    <span class="valor">Acima dos botões, o sistema mostra quantas já saíram
+      em teste e quantas já saíram valendo.</span>
+  </div>
+
+  <p style="margin-top:12px">
+    Os arquivos ficam em <code>dados/saida/</code> e dá para baixar tudo em um
+    .zip, com um <code>RELATORIO.txt</code> do que foi gerado e do que ficou
+    de fora.
   </p>
 </div>
 
 <div class="cartao">
   <h2 style="margin-top:0">Passo 5 — Transmitir</h2>
   <p>
-    Depois de gerar valendo, aparece o botão <b>Transmitir para a prefeitura</b>.
-    É a transmissão que faz a nota existir: a prefeitura devolve o número e o
-    código de verificação, e é isso que o paciente recebe.
+    É a transmissão que faz a nota existir: a prefeitura devolve o número e a
+    chave de acesso, e é isso que o paciente recebe.
   </p>
-  <div class="linha-dado"><span class="chave">Homologação</span><span class="valor">
-    Ambiente de testes. Nada vale fiscalmente. <b>Comece sempre por aqui.</b></span></div>
-  <div class="linha-dado"><span class="chave">Produção</span><span class="valor">
-    Vale de verdade. Pede para digitar PRODUCAO. Em Vila Velha, cancelar exige
-    processo administrativo.</span></div>
-  <p style="margin-top:12px">
-    Na primeira vez, mande <b>uma nota só</b>. A tela mostra a resposta completa
-    da prefeitura — se estiver certa, aí sim manda o resto.
+  <p>
+    <b>Você não escolhe o ambiente aqui.</b> Ele já está assinado dentro de
+    cada nota, e o sistema manda para onde ela foi feita. A tela avisa se
+    aquelas notas são teste ou se valem de verdade; para valendo, pede
+    <b>PRODUCAO</b> digitado.
   </p>
-  <p style="color:var(--tinta-fraca)">
-    O que já foi aceito não é reenviado. O que foi recusado pode ser reenviado
-    depois de corrigir, sem gerar tudo de novo.
+
+  <div class="linha-dado">
+    <span class="chave">Quanto demora</span>
+    <span class="valor">A prefeitura aceita <b>uma nota por vez</b> por
+      clínica. Um lote grande leva de 2 a 20 minutos, com barra de progresso
+      e tempo restante. <b>Pode fechar a tela que o envio continua.</b></span>
+  </div>
+  <div class="linha-dado">
+    <span class="chave">Se fechar no meio</span>
+    <span class="valor">Na tela inicial aparece <b>“Notas geradas, esperando
+      a prefeitura”</b>, para continuar de onde parou.</span>
+  </div>
+  <div class="linha-dado">
+    <span class="chave">Reenvio</span>
+    <span class="valor">O que já foi aceito não é reenviado. O que foi
+      recusado pode ser mandado de novo depois de corrigir, sem gerar tudo
+      outra vez.</span>
+  </div>
+
+  <p style="margin-top:12px;color:var(--tinta-fraca)">
+    Na primeira vez do mês, mande <b>uma nota só</b> e confira em
+    <a href="{{ url_for('consultar_nota') }}">Consultar nota</a> antes de
+    soltar o resto.
   </p>
 </div>
 
@@ -179,5 +225,11 @@
     Velha, cancelar uma nota exige processo administrativo.
   </p>
 </div>
+
+
+<nav class="rodape-nav">
+  <a href="{{ url_for('inicio') }}">← Voltar ao início</a>
+  <a href="{{ url_for('configuracao') }}">Configuração →</a>
+</nav>
 
 {% endblock %}

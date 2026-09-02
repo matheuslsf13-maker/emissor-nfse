@@ -18,6 +18,7 @@ import os
 import sys
 import shutil
 import threading
+import time
 import traceback
 import uuid
 import zipfile
@@ -789,11 +790,21 @@ def _transmitir_em_segundo_plano(pasta: str, caminho: str, ambiente: str) -> Non
     cfg = cfgmod.carregar()
     cfg.faturamento["ambiente"] = ambiente
 
+    comeco = time.monotonic()
+
     def andou(feitos, total, item):
         with _TRAVA:
             estado = TRANSMISSOES.setdefault(pasta, {})
             estado["feitos"] = feitos
             estado["total"] = total
+            # Estimativa pelo ritmo medido, nao por um numero fixo: a
+            # prefeitura ora responde na hora, ora demora segundos, e a
+            # diferenca entre 2 e 21 minutos para o mesmo lote e grande
+            # demais para o operador ficar no escuro.
+            decorrido = time.monotonic() - comeco
+            if feitos >= 3 and total > feitos:
+                por_nota = decorrido / feitos
+                estado["faltam_seg"] = int(por_nota * (total - feitos))
             if item.aceita:
                 estado["aceitas"] = estado.get("aceitas", 0) + 1
                 estado["ultimo"] = "nota %s emitida" % (item.numero_nota or "?")

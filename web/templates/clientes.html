@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 {% set pagina = 'clientes' %}
-{% block titulo %}Base de clientes{% endblock %}
+{% block titulo %}Base de clientes
+{% endblock %}
 {% block conteudo %}
 
 <h1>Base de clientes</h1>
@@ -254,4 +255,10 @@
     <span class="valor">Entra como pessoa nova.</span>
   </div>
 </div>
+
+<nav class="rodape-nav">
+  <a href="{{ url_for('inicio') }}">← Voltar ao início</a>
+  <a href="{{ url_for('ajuda') }}">Como usar →</a>
+</nav>
+
 {% endblock %}

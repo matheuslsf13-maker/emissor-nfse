@@ -347,3 +347,21 @@ code, .mono-bloco {
 }
 .botao-tema:hover { background: var(--fundo); color: var(--tinta); }
 .botao-tema:focus-visible { outline: 2px solid var(--marca); outline-offset: 2px; }
+
+
+/* Rodape de navegacao: toda tela tem saida visivel.
+
+   Antes, quem entrava em Clientes ou Como usar so voltava pelo menu do topo
+   -- que existe, mas depois de rolar uma pagina longa fica fora de vista. */
+.rodape-nav {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-top: 36px;
+  padding-top: 18px;
+  border-top: 1px solid var(--borda);
+  font-size: 14.5px;
+}
+.rodape-nav a { color: var(--marca); text-decoration: none; }
+.rodape-nav a:hover { text-decoration: underline; }

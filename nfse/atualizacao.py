@@ -54,8 +54,8 @@ PRESERVAR = (
 # So estes caminhos sao aceitos de dentro do pacote. Um zip nao pode escrever
 # onde quiser: e arquivo baixado da internet.
 PERMITIDOS = ("app.py", "nfse/", "web/", "testes/", "LEIA-ME.md",
-              "COMO-USAR.md", "requirements.txt", "VERSAO", "Iniciar.bat",
-              "instalar.bat")
+              "COMO-USAR.md", "GUIA-DO-RESPONSAVEL.md", "requirements.txt",
+              "VERSAO", "Iniciar.bat", "instalar.bat", "publicar.bat")
 
 
 class ErroAtualizacao(Exception):

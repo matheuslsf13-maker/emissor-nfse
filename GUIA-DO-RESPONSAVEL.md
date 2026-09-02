@@ -1,0 +1,201 @@
+# Guia do responsável
+
+O que está publicado, como instalar na clínica e como consertar de longe.
+
+> Este arquivo é para **quem cuida do sistema**. O manual de quem emite as
+> notas no dia a dia é o `COMO-USAR.md` — esse pode ficar na clínica.
+
+---
+
+## 1. O que está no GitHub
+
+O projeto fica em
+[github.com/matheuslsf13-maker/emissor-nfse](https://github.com/matheuslsf13-maker/emissor-nfse),
+público. Qualquer pessoa com o link consegue ver.
+
+Lá tem duas coisas diferentes:
+
+| | O quê |
+|---|---|
+| **O código** | As instruções que fazem o programa funcionar. É o que outro programador olha. |
+| **O aplicativo pronto** | Em **Releases**, `EmissorNFSe-app.zip` (42 MB). Baixa, descompacta, dois cliques. |
+
+Quem baixar o aplicativo abre o sistema completo, mas com **clínicas
+fictícias**. Para emitir de verdade precisaria dos dados da própria empresa,
+certificado A1 e credenciamento — e o WebService aqui é o de Vila Velha/ES.
+
+### O que NÃO está publicado, de propósito
+
+Certificados, senhas, o `config/empresas.json` com dados reais, a base de
+15 mil pacientes e os relatórios do TechCare. Nada disso sobe — e não é
+sorte, é `.gitignore`.
+
+---
+
+## 2. Instalar na clínica
+
+O programa é feito em Python — pense nele como o motor que faz os arquivos
+rodarem. A máquina da clínica precisa desse motor.
+
+**1. Instalar o Python lá.** Baixe em <https://python.org/downloads>.
+
+> Na primeira tela, **marque "Add python.exe to PATH"**, embaixo, antes de
+> clicar em Install. É a caixinha mais fácil de passar batido e a causa nº 1
+> de "instalei e não funciona".
+>
+> Se o aviso continuar aparecendo depois de instalar: feche a janela do
+> terminal e abra de novo. O Windows só enxerga o Python em janelas abertas
+> *depois* da instalação.
+
+**2. Levar o programa.** Copie a pasta `emissor-nfse` (menos de 2 MB).
+
+> **Não leve as pastas `dados`, `distribuicao` e `publicacao`.** A primeira é
+> a numeração das *suas* notas — se for junto, a clínica começa com o número
+> errado e a prefeitura rejeita.
+
+**3. Rodar `instalar.bat`, uma vez.** Confere o Python, baixa os componentes
+e prepara o arquivo de senhas sozinho.
+
+**4. Pôr os certificados à mão** em `config\certificados\`.
+
+> Eles nunca viajam junto com o programa: certificado e senha no mesmo
+> pacote, passando por pen drive e e-mail, é assinatura digital vazada.
+
+**5. Preencher `config\senhas.bat`** — o instalador já criou o arquivo.
+
+**6. Abrir com `Iniciar.bat`** e conferir em **Configuração** se não sobrou
+nenhum aviso vermelho.
+
+> Faça um atalho: botão direito no `Iniciar.bat` → Enviar para → Área de
+> trabalho.
+
+### Plano B, se o Python der trabalho
+
+```bash
+python empacotar.py
+```
+
+Monta uma pasta de ~94 MB com o **Python já embutido**, que roda sem instalar
+nada. Vale se a máquina for de rede corporativa ou tiver antivírus
+bloqueando instalações.
+
+---
+
+## 3. Consertar de longe
+
+O computador da clínica **não recebe nada** — ele vai buscar, num endereço
+fixo na internet que funciona como um mural.
+
+### Você, aqui
+
+```bash
+publicar.bat 2.1.0 "o que mudou"
+```
+
+Um comando só: entra na pasta certa, roda a bateria de testes, monta o
+pacote e põe no ar. **Se algum teste falhar, não publica nada.**
+
+O número da versão é você quem escolhe — só precisa ser **maior** que o
+anterior, e nunca reaproveitado. Refazer uma versão com o mesmo número faz o
+GitHub servir o pacote antigo por alguns minutos.
+
+### Ela, na clínica
+
+**Configuração → Procurar atualizações → Instalar**, e depois **fechar e
+abrir o programa**.
+
+> O reinício é obrigatório: as telas recarregam sozinhas, o código não. Entre
+> instalar e reiniciar o sistema fica meio novo, meio velho. Enquanto isso,
+> uma faixa fica avisando em todas as telas.
+
+A atualização troca **só o programa**. Numeração, pacientes, certificados e
+notas emitidas ficam onde estão — testado contra um pacote que tenta apagar
+essas coisas de propósito. A versão anterior é guardada, e há botão para
+voltar.
+
+### Corrigir a configuração remotamente
+
+Às vezes o erro está num dado, não no código. Crie um arquivo com só o que
+muda:
+
+```json
+{"unidades": {"cobilandia": {"endereco": {"bairro": "COBILANDIA"}}}}
+```
+
+```bash
+python publicar.py 2.1.0 --github matheuslsf13-maker/emissor-nfse --config remendo.json
+```
+
+Só as chaves citadas mudam lá; o resto da configuração da clínica fica
+intacto.
+
+---
+
+## 4. Teste e produção
+
+Não há configuração de ambiente para ligar. A escolha é feita **em cada
+lote**, na hora de gerar:
+
+| Botão | O que faz |
+|---|---|
+| **Só conferir** | Sem gastar numeração e sem falar com a prefeitura |
+| **Gerar para teste** | Homologação — a prefeitura responde, nada vale fiscalmente |
+| **Emitir valendo** | Nota fiscal real, pede `EMITIR` digitado |
+
+**Testar não gasta nota real.** As numerações são independentes, como na
+prefeitura. A tela mostra onde cada lote está:
+
+```
+Teste:   todas as 276 já foram geradas ✓
+Valendo: nenhuma ainda — as 276 continuam disponíveis
+```
+
+Dá para **escolher quais notas** emitir: na lista, marque só as que quiser.
+Serve para soltar uma nota específica valendo antes de comprometer o resto.
+
+**A transmissão não pergunta o ambiente** — ele já está assinado dentro de
+cada nota.
+
+> **A prefeitura aceita uma nota por vez por CNPJ.** Medido contra um
+> servidor que simula a fila: com resposta rápida, 276 notas levam ~2 min;
+> com resposta lenta, ~21 min. Em todos os cenários **100% foram aceitas** —
+> o sistema insiste sozinho no que é recusa por ritmo, e não insiste no que
+> é erro de conteúdo. A tela mostra progresso e tempo restante; pode fechar
+> que o envio continua.
+
+---
+
+## 5. Se algo der errado
+
+| Sintoma | O que é |
+|---|---|
+| `E0014 — número já existe` | A numeração está atrás da prefeitura. Use "Descartar este lote" e ajuste a numeração em Configuração. |
+| Tudo recusado por *"requisição em andamento"* | Fila da prefeitura. O sistema já insiste sozinho; se persistir, tente mais tarde. |
+| "Arquivo de controle ilegível" | O `controle.db` corrompeu. Restaure o backup — a tela explica o passo a passo. |
+| A operadora não sabe explicar | Peça **uma foto da tela**. As mensagens dizem o que fazer. |
+
+---
+
+## Resumo
+
+```
+MOSTRAR PARA ALGUÉM
+  github.com/matheuslsf13-maker/emissor-nfse
+  (para rodar: Releases → EmissorNFSe-app.zip)
+
+INSTALAR NA CLÍNICA
+  lá: instalar o Python ("Add python.exe to PATH")
+  copiar a pasta + rodar instalar.bat
+  pôr os .pfx e preencher config\senhas.bat
+
+CORRIGIR DE LONGE
+  publicar.bat 2.1.0 "o que mudou"
+  lá: Configuração → Procurar atualizações → Instalar
+      e fechar/abrir o programa
+
+EMITIR O MÊS (na clínica)
+  gerar para TESTE → transmitir → conferir
+  gerar VALENDO    → transmitir uma → conferir → o resto
+```
+
+**Uma vez por mês, na clínica:** Configuração → Backup.

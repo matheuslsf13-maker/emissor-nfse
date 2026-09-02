@@ -62,8 +62,8 @@ _console_utf8()
 
 INCLUIR_PASTAS = ("nfse", "web", "testes")
 INCLUIR_ARQUIVOS = ("app.py", "LEIA-ME.md", "COMO-USAR.md",
-                    "requirements.txt", "VERSAO", "Iniciar.bat",
-                    "instalar.bat", "publicar.bat")
+                    "GUIA-DO-RESPONSAVEL.md", "requirements.txt", "VERSAO",
+                    "Iniciar.bat", "instalar.bat", "publicar.bat")
 IGNORAR = ("__pycache__", ".pyc", ".pyo", ".db", ".log")
 
 TESTES = ("rodar_tudo.py", "t_base_clientes.py", "t_transmissao.py",

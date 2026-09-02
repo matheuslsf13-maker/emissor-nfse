@@ -62,6 +62,7 @@
     <span><b id="feitos">0</b> de <b id="total">?</b> enviadas</span>
     <span style="color:var(--bom)"><b id="aceitas">0</b> aceitas</span>
     <span style="color:var(--ruim)"><b id="recusadas">0</b> recusadas</span>
+    <span id="falta-tempo" style="color:var(--tinta-fraca)"></span>
     <span id="ultimo" style="margin-left:auto;color:var(--tinta-fantasma)"></span>
   </div>
 </div>
@@ -86,6 +87,13 @@
         document.getElementById('aceitas').textContent = d.aceitas || 0;
         document.getElementById('recusadas').textContent = d.recusadas || 0;
         document.getElementById('ultimo').textContent = d.ultimo || '';
+        var falta = document.getElementById('falta-tempo');
+        if (d.faltam_seg > 0) {
+          var m = Math.round(d.faltam_seg / 60);
+          falta.textContent = m >= 1
+            ? '~' + m + ' min restante(s)'
+            : 'menos de 1 min';
+        } else { falta.textContent = ''; }
         setTimeout(passo, 1200);
       })
       .catch(function () { setTimeout(passo, 3000); });

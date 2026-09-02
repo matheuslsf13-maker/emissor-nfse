@@ -503,7 +503,40 @@ checar("e sem localStorage nao quebra", "catch (e)" in js_tema)
 
 
 # ==========================================================================
-print("\n13. Homologacao nao pode bloquear a producao")
+print("\n13. Navegacao e manuais")
+# Toda tela precisa de saida visivel: o menu do topo existe, mas depois de
+# rolar uma pagina longa fica fora de vista. E o rodape tem que cair dentro
+# do bloco de CONTEUDO -- num descuido ele foi parar dentro do <title>, e o
+# nome da aba virou o HTML do menu.
+for rota in ("/clientes", "/configuracao", "/consultar", "/ajuda"):
+    corpo = cliente.get(rota).data.decode("utf-8", "replace")
+    checar("%s tem rodape de navegacao" % rota, "rodape-nav" in corpo)
+    titulo = corpo.split("<title>")[1].split("</title>")[0]
+    checar("e o titulo de %s ficou limpo" % rota,
+           "<" not in titulo and len(titulo.strip()) < 40, titulo[:60])
+
+# a ajuda embutida e o manual que a operadora tem a mao: nao pode descrever
+# um fluxo que deixou de existir
+ajuda = cliente.get("/ajuda").data.decode("utf-8", "replace")
+checar("a ajuda mostra os tres caminhos de gerar",
+       "Só conferir" in ajuda and "Gerar para teste" in ajuda
+       and "Emitir valendo" in ajuda)
+checar("e explica que testar nao gasta nota real",
+       "gasta nota real" in ajuda)
+checar("nao manda mais mexer na configuracao para trocar ambiente",
+       "mude na Configuração" not in ajuda)
+
+for manual in ("COMO-USAR.md", "GUIA-DO-RESPONSAVEL.md"):
+    checar("%s existe para viajar com o programa" % manual,
+           os.path.exists(manual))
+
+empacota = io.open("empacotar.py", encoding="utf-8").read()
+checar("os dois manuais entram no pacote da clinica",
+       "COMO-USAR.md" in empacota and "GUIA-DO-RESPONSAVEL.md" in empacota)
+
+
+# ==========================================================================
+print("\n14. Homologacao nao pode bloquear a producao")
 # O bug que travou a virada para valendo: 276 notas de TESTE marcavam os
 # lancamentos como "ja emitidos", e ao gerar em producao o sistema pulava
 # todos -- nenhuma nota aparecia. Nota de homologacao nao existe
@@ -556,7 +589,7 @@ finally:
 
 
 # ==========================================================================
-print("\n14. Dados de paciente esquisitos no XML")
+print("\n15. Dados de paciente esquisitos no XML")
 
 from nfse.gerador_dps import gerar_nfse  # noqa: E402
 from nfse.conciliacao import Nota  # noqa: E402
@@ -605,7 +638,7 @@ checar("paciente sem documento nao gera CPF vazio no XML",
 
 
 # ==========================================================================
-print("\n15. Valores")
+print("\n16. Valores")
 
 xml = gerar("PACIENTE", valor="0.00")
 valores = etree.fromstring(xml).find(".//n:valores", NS)
@@ -623,7 +656,7 @@ checar("valor alto nao vira notacao cientifica",
 
 
 # ==========================================================================
-print("\n16. Documentos invalidos")
+print("\n17. Documentos invalidos")
 
 checar("CPF de digitos repetidos e invalido", not documento_valido("11111111111"))
 checar("CPF com digito errado e invalido", not documento_valido("12345678900"))
@@ -635,7 +668,7 @@ checar("letras no lugar do documento sao invalidas", not documento_valido("abcde
 
 
 # ==========================================================================
-print("\n17. Transmissao: as travas")
+print("\n18. Transmissao: as travas")
 
 from nfse.transmissao import transmitir  # noqa: E402
 from nfse.envio import EnvioIndisponivel, interpretar_retorno  # noqa: E402
@@ -674,7 +707,7 @@ checar("ambiente do XML e lido corretamente",
 
 
 # ==========================================================================
-print("\n18. Retorno estranho da prefeitura")
+print("\n19. Retorno estranho da prefeitura")
 
 casos = [
     ("resposta vazia", "", False),
@@ -704,7 +737,7 @@ checar("a mensagem de erro chega legivel, sem &lt;",
 
 
 # ==========================================================================
-print("\n19. Configuracao incompleta")
+print("\n20. Configuracao incompleta")
 
 cfg3 = cfgmod.carregar()
 cfg3.municipio = dict(cfg3.municipio)
