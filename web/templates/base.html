@@ -4,6 +4,16 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block titulo %}Emissor de NFS-e{% endblock %}</title>
+  <script>
+    /* Aplicado antes do CSS de propósito: se o tema fosse ajustado só depois
+       que a página carrega, cada navegação daria um flash branco. */
+    (function () {
+      try {
+        var t = localStorage.getItem("tema");
+        if (t) { document.documentElement.setAttribute("data-tema", t); }
+      } catch (e) { /* navegador sem localStorage: fica o tema do sistema */ }
+    })();
+  </script>
   <link rel="stylesheet" href="{{ url_for('static', filename='estilo.css') }}">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🦷</text></svg>">
 </head>
@@ -17,6 +27,9 @@
         <a href="{{ url_for('consultar_nota') }}" class="{{ 'ativo' if pagina == 'consulta' }}">Consultar nota</a>
         <a href="{{ url_for('configuracao') }}" class="{{ 'ativo' if pagina == 'configuracao' }}">Configuração</a>
         <a href="{{ url_for('ajuda') }}" class="{{ 'ativo' if pagina == 'ajuda' }}">Como usar</a>
+        <button type="button" id="botao-tema" class="botao-tema"
+                onclick="alternarTema()" title="Alternar claro e escuro"
+                aria-label="Alternar entre tema claro e escuro">◐</button>
       </nav>
     </div>
   </header>

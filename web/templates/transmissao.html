@@ -20,12 +20,19 @@
 <div class="faixa {{ 'atencao' if gerado_para == 'producao' else '' }}">
   <span class="icone">{{ '▲' if gerado_para == 'producao' else 'ℹ' }}</span>
   <div>
-    <b>Estas notas foram geradas para {{ 'PRODUÇÃO — valem de verdade' if gerado_para == 'producao' else 'HOMOLOGAÇÃO (teste)' }}</b>
+    <b>
+      {% if gerado_para == 'producao' %}
+      Estas notas valem de verdade
+      {% else %}
+      Estas notas são de teste (homologação)
+      {% endif %}
+    </b>
     <p>
-      O ambiente é escolhido na hora de <b>gerar</b> e fica assinado dentro do
-      XML — não dá para trocar aqui. Só o botão de
-      <b>{{ gerado_para }}</b> abaixo vai funcionar para esta pasta. Para o outro
-      ambiente, mude na Configuração e gere as notas de novo.
+      {% if gerado_para == 'producao' %}
+      Ao transmitir, viram nota fiscal na prefeitura.
+      {% else %}
+      A prefeitura responde de verdade, mas nada aqui vale fiscalmente.
+      {% endif %}
     </p>
   </div>
 </div>
@@ -216,13 +223,20 @@
 </div>
 {% endif %}
 
-<div class="cartao" {% if gerado_para == 'producao' %}style="border-color:#f0c4c0"{% endif %}>
+<div class="cartao" {% if gerado_para == 'producao' %}style="border-color:var(--ruim-borda)"{% endif %}>
   {% if gerado_para == 'producao' %}
-  <h3>Estas notas valem de verdade <span class="selo ruim">produção</span></h3>
+  <h3>
+    {% if arquivos == 1 %}Confirmar o envio{% else %}Enviar valendo{% endif %}
+    <span class="selo ruim">produção</span>
+  </h3>
   <p style="color:var(--tinta-fraca);font-size:14px">
-    Em Vila Velha, cancelar exige processo administrativo na Secretaria de
-    Finanças — não é um clique. Mande <b>uma</b> primeiro e confira em
+    {% if arquivos == 1 %}
+    Esta nota vira nota fiscal na prefeitura. Depois, confira em
     <a href="{{ url_for('consultar_nota') }}">Consultar nota</a>.
+    {% else %}
+    Em Vila Velha, cancelar exige processo administrativo na Secretaria de
+    Finanças — não é um clique.
+    {% endif %}
   </p>
   {% else %}
   <h3>Ambiente de teste <span class="selo bom">homologação</span></h3>
@@ -235,14 +249,20 @@
         {% if gerado_para == 'producao' %}
         onsubmit="return confirm('Isto emite nota fiscal de verdade e não tem desfazer simples. Confirma?')"
         {% endif %}>
+    {% if arquivos > 1 %}
+    {# Com uma nota so a escolha nao existe -- "todas as 1" e ruido. A
+       quantidade ja foi decidida na conferencia, ao escolher o que gerar. #}
     <label style="display:block;margin-bottom:10px">
       <input type="radio" name="quantidade" value="uma" checked>
-      Enviar <b>uma nota só</b> (recomendado da primeira vez)
+      Mandar <b>uma primeiro</b>, para conferir
     </label>
     <label style="display:block;margin-bottom:14px">
       <input type="radio" name="quantidade" value="todas">
-      Enviar todas as {{ arquivos }}
+      Mandar as {{ arquivos }} de uma vez
     </label>
+    {% else %}
+    <input type="hidden" name="quantidade" value="todas">
+    {% endif %}
 
     {% if gerado_para == 'producao' %}
     <label style="display:block;font-size:14px;margin-bottom:6px">

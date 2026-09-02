@@ -15,8 +15,92 @@
   --aviso-claro: #fdf3e2;
   --ruim: #b3261e;
   --ruim-claro: #fdecea;
+  --papel-suave: #fafcfd;
+  --borda-fraca: #eef2f5;
+  --sobre-cor: #ffffff;
+  --info-borda: #bfdde6;
+  --bom-borda: #bfe3d1;
+  --bom-tinta: #14603f;
+  --aviso-borda: #f0dcb4;
+  --aviso-tinta: #7a4900;
+  --ruim-borda: #f3c9c5;
+  --ruim-tinta: #8c1d18;
+  --ruim-forte: #8c1d18;
   --raio: 10px;
   --sombra: 0 1px 2px rgba(18, 33, 46, .06), 0 4px 14px rgba(18, 33, 46, .06);
+}
+
+/* --------------------------------------------------------------------------
+   Modo noturno.
+
+   Segue o tema do sistema por padrao e aceita a escolha manual do botao no
+   cabecalho, que grava em localStorage. Tudo passa por variavel: cor fixa
+   dentro de um bloco de tema e o jeito classico de acabar com texto claro
+   sobre fundo claro em uma tela esquecida.
+   -------------------------------------------------------------------------- */
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-tema="claro"]) {
+    --tinta: #e4ebf0;
+    --tinta-fraca: #9db0bd;
+    --tinta-fantasma: #6f8492;
+    --fundo: #0e1519;
+    --papel: #151f26;
+    --papel-suave: #1a252c;
+    --borda: #27353e;
+    --borda-fraca: #1e2a32;
+    --borda-forte: #3a4b57;
+    --marca: #4fb3d0;
+    --marca-escura: #8ed4e8;
+    --marca-clara: #13303b;
+    --sobre-cor: #08161b;
+    --info-borda: #1d4353;
+    --bom: #43b981;
+    --bom-claro: #102c1f;
+    --bom-borda: #1c4d36;
+    --bom-tinta: #7ddcac;
+    --aviso: #d9a441;
+    --aviso-claro: #2e2410;
+    --aviso-borda: #574318;
+    --aviso-tinta: #e8bd6a;
+    --ruim: #e8776d;
+    --ruim-claro: #331815;
+    --ruim-borda: #5c2a26;
+    --ruim-tinta: #f2a29a;
+    --ruim-forte: #b3261e;
+    --sombra: 0 1px 2px rgba(0, 0, 0, .35), 0 4px 14px rgba(0, 0, 0, .28);
+  }
+}
+
+:root[data-tema="escuro"] {
+  --tinta: #e4ebf0;
+  --tinta-fraca: #9db0bd;
+  --tinta-fantasma: #6f8492;
+  --fundo: #0e1519;
+  --papel: #151f26;
+  --papel-suave: #1a252c;
+  --borda: #27353e;
+  --borda-fraca: #1e2a32;
+  --borda-forte: #3a4b57;
+  --marca: #4fb3d0;
+  --marca-escura: #8ed4e8;
+  --marca-clara: #13303b;
+  --sobre-cor: #08161b;
+  --info-borda: #1d4353;
+  --bom: #43b981;
+  --bom-claro: #102c1f;
+  --bom-borda: #1c4d36;
+  --bom-tinta: #7ddcac;
+  --aviso: #d9a441;
+  --aviso-claro: #2e2410;
+  --aviso-borda: #574318;
+  --aviso-tinta: #e8bd6a;
+  --ruim: #e8776d;
+  --ruim-claro: #331815;
+  --ruim-borda: #5c2a26;
+  --ruim-tinta: #f2a29a;
+  --ruim-forte: #b3261e;
+  --sombra: 0 1px 2px rgba(0, 0, 0, .35), 0 4px 14px rgba(0, 0, 0, .28);
 }
 
 * { box-sizing: border-box; }
@@ -78,8 +162,8 @@ h3 { font-size: 15px; margin: 0 0 8px; }
   font-size: 12px; font-weight: 700;
 }
 .passo.ativo { border-color: var(--marca); color: var(--marca-escura); background: var(--marca-clara); }
-.passo.ativo b { background: var(--marca); color: #fff; }
-.passo.feito b { background: var(--bom); color: #fff; }
+.passo.ativo b { background: var(--marca); color: var(--sobre-cor); }
+.passo.feito b { background: var(--bom); color: var(--sobre-cor); }
 
 /* ---------- area de arrastar ---------- */
 .solta {
@@ -141,14 +225,14 @@ h3 { font-size: 15px; margin: 0 0 8px; }
 }
 table { width: 100%; border-collapse: collapse; font-size: 14px; }
 thead th {
-  text-align: left; padding: 10px 14px; background: #fafcfd;
+  text-align: left; padding: 10px 14px; background: var(--papel-suave);
   border-bottom: 1px solid var(--borda); font-size: 12.5px;
   text-transform: uppercase; letter-spacing: .4px; color: var(--tinta-fraca);
   position: sticky; top: 0; z-index: 5;
 }
-tbody td { padding: 9px 14px; border-bottom: 1px solid #eef2f5; vertical-align: top; }
+tbody td { padding: 9px 14px; border-bottom: 1px solid var(--borda-fraca); vertical-align: top; }
 tbody tr:last-child td { border-bottom: 0; }
-tbody tr:hover { background: #fafcfd; }
+tbody tr:hover { background: var(--papel-suave); }
 td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
 td.mono { font-variant-numeric: tabular-nums; white-space: nowrap; color: var(--tinta-fraca); }
 .rolagem { max-height: 62vh; overflow: auto; }
@@ -171,25 +255,25 @@ td.mono { font-variant-numeric: tabular-nums; white-space: nowrap; color: var(--
 }
 .faixa .icone { font-size: 18px; line-height: 1.3; }
 .faixa b { display: block; }
-.faixa.info { background: var(--marca-clara); border-color: #bfdde6; color: var(--marca-escura); }
-.faixa.bom { background: var(--bom-claro); border-color: #bfe3d1; color: #14603f; }
-.faixa.atencao { background: var(--aviso-claro); border-color: #f0dcb4; color: #7a4900; }
-.faixa.erro { background: var(--ruim-claro); border-color: #f3c9c5; color: #8c1d18; }
+.faixa.info { background: var(--marca-clara); border-color: var(--info-borda); color: var(--marca-escura); }
+.faixa.bom { background: var(--bom-claro); border-color: var(--bom-borda); color: var(--bom-tinta); }
+.faixa.atencao { background: var(--aviso-claro); border-color: var(--aviso-borda); color: var(--aviso-tinta); }
+.faixa.erro { background: var(--ruim-claro); border-color: var(--ruim-borda); color: var(--ruim-tinta); }
 .faixa p { margin: 2px 0 0; font-size: 14px; }
 
 /* ---------- botoes ---------- */
 .botao {
   display: inline-flex; align-items: center; gap: 8px; padding: 11px 22px;
   border-radius: 9px; border: 1px solid transparent; background: var(--marca);
-  color: #fff; font-size: 15px; font-weight: 600; cursor: pointer;
+  color: var(--sobre-cor); font-size: 15px; font-weight: 600; cursor: pointer;
   text-decoration: none; font-family: inherit; transition: .12s;
 }
 .botao:hover { background: var(--marca-escura); }
 .botao:disabled { opacity: .45; cursor: not-allowed; }
 .botao.secundario { background: var(--papel); color: var(--tinta); border-color: var(--borda-forte); }
 .botao.secundario:hover { background: var(--fundo); }
-.botao.perigo { background: #b3261e; }
-.botao.perigo:hover { background: #8c1d18; }
+.botao.perigo { background: var(--ruim); color: var(--sobre-cor); }
+.botao.perigo:hover { background: var(--ruim-forte); }
 .botao.pequeno { padding: 6px 12px; font-size: 13px; }
 .acoes { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-top: 20px; }
 
@@ -205,7 +289,7 @@ input:focus, select:focus { outline: 2px solid var(--marca); outline-offset: -1p
 .pendencia .quem { font-weight: 600; }
 .pendencia .porque { color: var(--tinta-fraca); font-size: 13.5px; margin-top: 2px; }
 .pendencia .valor { margin-left: auto; text-align: right; font-variant-numeric: tabular-nums; }
-.pendencia .corpo { padding: 0 18px 16px; border-top: 1px solid #eef2f5; padding-top: 14px; }
+.pendencia .corpo { padding: 0 18px 16px; border-top: 1px solid var(--borda-fraca); padding-top: 14px; }
 .candidato {
   display: flex; gap: 12px; align-items: center; padding: 9px 12px;
   border: 1px solid var(--borda); border-radius: 8px; margin-bottom: 8px; font-size: 13.5px;
@@ -221,7 +305,7 @@ input:focus, select:focus { outline: 2px solid var(--marca); outline-offset: -1p
 .vazio .icone { font-size: 30px; }
 
 .grade-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px; }
-.linha-dado { display: flex; gap: 12px; padding: 6px 0; border-bottom: 1px solid #eef2f5; font-size: 14px; }
+.linha-dado { display: flex; gap: 12px; padding: 6px 0; border-bottom: 1px solid var(--borda-fraca); font-size: 14px; }
 .linha-dado:last-child { border-bottom: 0; }
 .linha-dado .chave { color: var(--tinta-fraca); min-width: 190px; }
 .linha-dado .valor { font-weight: 500; word-break: break-word; }
@@ -239,7 +323,7 @@ code, .mono-bloco {
   border-radius: 8px; box-shadow: var(--sombra); max-height: 300px;
   overflow: auto; margin-top: 4px;
 }
-.resultados-busca div { padding: 9px 12px; cursor: pointer; font-size: 13.5px; border-bottom: 1px solid #eef2f5; }
+.resultados-busca div { padding: 9px 12px; cursor: pointer; font-size: 13.5px; border-bottom: 1px solid var(--borda-fraca); }
 .resultados-busca div:hover { background: var(--marca-clara); }
 
 @media (max-width: 720px) {
@@ -247,3 +331,19 @@ code, .mono-bloco {
   main { padding: 20px 14px 60px; }
   .linha-dado { flex-direction: column; gap: 0; }
 }
+
+
+/* Botao de tema: discreto no cabecalho, do tamanho dos links do menu. */
+.botao-tema {
+  background: none;
+  border: 1px solid transparent;
+  color: var(--tinta-fraca);
+  font-size: 16px;
+  line-height: 1;
+  padding: 7px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+  margin-left: 4px;
+}
+.botao-tema:hover { background: var(--fundo); color: var(--tinta); }
+.botao-tema:focus-visible { outline: 2px solid var(--marca); outline-offset: 2px; }

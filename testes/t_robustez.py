@@ -467,7 +467,43 @@ checar("selecao vazia e barrada com aviso", "Selecione pelo menos uma nota" in j
 
 
 # ==========================================================================
-print("\n12. Homologacao nao pode bloquear a producao")
+print("\n12. Modo noturno")
+# Cor fixa dentro de um bloco de tema e o jeito classico de acabar com
+# texto claro sobre fundo claro numa tela esquecida. Tudo tem que passar
+# por variavel.
+import glob as _g  # noqa: E402
+import re as _re   # noqa: E402
+
+css = io.open("web/static/estilo.css", encoding="utf-8").read()
+checar("segue o tema do sistema", "prefers-color-scheme: dark" in css)
+checar("e a escolha manual vence o sistema",
+       '[data-tema="escuro"]' in css and ':root:not([data-tema="claro"])' in css)
+
+# cor literal fora do bloco de variaveis
+fixas_css = [l.strip() for l in css.split("\n")
+             if _re.search(r":\s*#[0-9a-fA-F]{3,6}", l)
+             and not l.strip().startswith("--")]
+checar("nenhuma cor fixa solta no CSS", not fixas_css, fixas_css[:3])
+
+fixas_html = []
+for arquivo in _g.glob("web/templates/*.html"):
+    texto = io.open(arquivo, encoding="utf-8").read()
+    for achado in _re.findall(r"(?:background|color)\s*:\s*#[0-9a-fA-F]{3,6}", texto):
+        fixas_html.append("%s: %s" % (os.path.basename(arquivo), achado))
+checar("nem nas telas", not fixas_html, fixas_html[:3])
+
+base_html = io.open("web/templates/base.html", encoding="utf-8").read()
+checar("o tema e aplicado antes do CSS (sem piscar branco)",
+       base_html.index("data-tema") < base_html.index("estilo.css"))
+checar("ha botao para alternar", 'id="botao-tema"' in base_html)
+
+js_tema = io.open("web/static/app.js", encoding="utf-8").read()
+checar("a escolha e guardada na maquina", 'localStorage.setItem("tema"' in js_tema)
+checar("e sem localStorage nao quebra", "catch (e)" in js_tema)
+
+
+# ==========================================================================
+print("\n13. Homologacao nao pode bloquear a producao")
 # O bug que travou a virada para valendo: 276 notas de TESTE marcavam os
 # lancamentos como "ja emitidos", e ao gerar em producao o sistema pulava
 # todos -- nenhuma nota aparecia. Nota de homologacao nao existe
@@ -520,7 +556,7 @@ finally:
 
 
 # ==========================================================================
-print("\n13. Dados de paciente esquisitos no XML")
+print("\n14. Dados de paciente esquisitos no XML")
 
 from nfse.gerador_dps import gerar_nfse  # noqa: E402
 from nfse.conciliacao import Nota  # noqa: E402
@@ -569,7 +605,7 @@ checar("paciente sem documento nao gera CPF vazio no XML",
 
 
 # ==========================================================================
-print("\n14. Valores")
+print("\n15. Valores")
 
 xml = gerar("PACIENTE", valor="0.00")
 valores = etree.fromstring(xml).find(".//n:valores", NS)
@@ -587,7 +623,7 @@ checar("valor alto nao vira notacao cientifica",
 
 
 # ==========================================================================
-print("\n15. Documentos invalidos")
+print("\n16. Documentos invalidos")
 
 checar("CPF de digitos repetidos e invalido", not documento_valido("11111111111"))
 checar("CPF com digito errado e invalido", not documento_valido("12345678900"))
@@ -599,7 +635,7 @@ checar("letras no lugar do documento sao invalidas", not documento_valido("abcde
 
 
 # ==========================================================================
-print("\n16. Transmissao: as travas")
+print("\n17. Transmissao: as travas")
 
 from nfse.transmissao import transmitir  # noqa: E402
 from nfse.envio import EnvioIndisponivel, interpretar_retorno  # noqa: E402
@@ -638,7 +674,7 @@ checar("ambiente do XML e lido corretamente",
 
 
 # ==========================================================================
-print("\n17. Retorno estranho da prefeitura")
+print("\n18. Retorno estranho da prefeitura")
 
 casos = [
     ("resposta vazia", "", False),
@@ -668,7 +704,7 @@ checar("a mensagem de erro chega legivel, sem &lt;",
 
 
 # ==========================================================================
-print("\n18. Configuracao incompleta")
+print("\n19. Configuracao incompleta")
 
 cfg3 = cfgmod.carregar()
 cfg3.municipio = dict(cfg3.municipio)

@@ -1,3 +1,37 @@
+/* --------------------------------------------------------------------------
+   Tema claro/escuro.
+
+   Sem escolha salva, segue o sistema. O botao alterna e grava em
+   localStorage -- por maquina, que e o certo aqui: o programa e local e quem
+   usa a clinica de manha nao e quem mexe nele de noite.
+   -------------------------------------------------------------------------- */
+
+function temaAtual() {
+  var salvo = null;
+  try { salvo = localStorage.getItem("tema"); } catch (e) { /* sem storage */ }
+  if (salvo) { return salvo; }
+  return window.matchMedia("(prefers-color-scheme: dark)").matches
+    ? "escuro" : "claro";
+}
+
+function alternarTema() {
+  var novo = temaAtual() === "escuro" ? "claro" : "escuro";
+  document.documentElement.setAttribute("data-tema", novo);
+  try { localStorage.setItem("tema", novo); } catch (e) { /* sem storage */ }
+  desenharBotaoTema();
+}
+
+function desenharBotaoTema() {
+  var botao = document.getElementById("botao-tema");
+  if (!botao) { return; }
+  var escuro = temaAtual() === "escuro";
+  botao.textContent = escuro ? "☀" : "☾";
+  botao.title = escuro ? "Mudar para claro" : "Mudar para escuro";
+}
+
+document.addEventListener("DOMContentLoaded", desenharBotaoTema);
+
+
 /* Interacoes da tela. Sem framework: o app roda offline na maquina da clinica. */
 
 function tamanhoLegivel(bytes) {
