@@ -1,0 +1,156 @@
+{% extends "base.html" %}
+{% set pagina = 'inicio' %}
+{% block conteudo %}
+
+<div class="passos">
+  <div class="passo ativo"><b>1</b> Trazer os relatórios</div>
+  <div class="passo"><b>2</b> Conferir</div>
+  <div class="passo"><b>3</b> Gerar as notas</div>
+</div>
+
+<h1>Trazer os relatórios do TechCare</h1>
+<p class="legenda">
+  Arraste os PDFs aqui de uma vez — o sistema reconhece sozinho qual é qual e
+  de qual unidade vieram.
+  {% if bases %}
+  O cadastro de clientes já está salvo, então no dia a dia bastam os
+  <b>dois caixas</b>.
+  {% else %}
+  Na primeira vez, mande também o <b>cadastro de clientes</b>: ele fica salvo
+  e não precisa ser enviado de novo.
+  {% endif %}
+</p>
+
+{% set erros = diagnostico | selectattr('nivel', 'equalto', 'erro') | list %}
+{% if erros %}
+<div class="faixa erro">
+  <span class="icone">■</span>
+  <div>
+    <b>Há {{ erros | length }} problema(s) de configuração que impedem emitir valendo</b>
+    <p>{{ erros | map(attribute='titulo') | join(' · ') }} —
+       veja em <a href="{{ url_for('configuracao') }}">Configuração</a>.</p>
+  </div>
+</div>
+{% endif %}
+
+<form id="formulario" class="cartao" style="padding:24px">
+  <label class="solta" id="solta">
+    <input type="file" id="arquivos" name="arquivos" multiple accept=".pdf,application/pdf">
+    <div class="icone">📄</div>
+    <h3>Arraste os PDFs aqui</h3>
+    <p>ou clique para escolher — pode selecionar todos de uma vez</p>
+  </label>
+
+  <div class="lista-arquivos" id="lista"></div>
+
+  <div id="explicacao" class="faixa info" style="margin-top:18px; display:none">
+    <span class="icone">›</span>
+    <div>
+      <b>Quais relatórios exportar do TechCare</b>
+      <p>
+        <b>Caixa da clínica</b> e <b>Caixa de contratos</b> (o mesmo período nos
+        dois), pelo menu Caixa &rsaquo; Lançamentos.
+      </p>
+      <p>
+        O <b>Cadastro de clientes</b> (“Clientes e Fornecedores”) só quando
+        houver paciente novo — o sistema compara com a base salva e guarda só
+        quem ainda não estava lá.
+      </p>
+    </div>
+  </div>
+
+  <div id="mensagem"></div>
+
+  <div class="acoes">
+    <button type="submit" class="botao" id="enviar" disabled>Conferir os lançamentos</button>
+    <span id="dica" style="color:var(--tinta-fraca);font-size:14px">
+      {% if bases %}Selecione os dois caixas.{% else %}Selecione os dois caixas e o cadastro de clientes.{% endif %}
+    </span>
+  </div>
+</form>
+
+{% if lotes %}
+<h2>Conferências recentes</h2>
+<div class="moldura-tabela">
+  <table>
+    <thead>
+      <tr><th>Quando</th><th>Arquivos</th><th>Unidade</th><th>Situação</th><th></th></tr>
+    </thead>
+    <tbody>
+      {% for l in lotes %}
+      <tr>
+        <td class="mono">{{ l.criado_em.replace('T', ' ')[:16] }}</td>
+        <td>{{ l.detalhes | map(attribute='arquivo') | join(', ') }}</td>
+        <td>{{ unidades.get(l.unidade, {}).get('apelido') or l.unidade or '—' }}</td>
+        <td>
+          {% if l.estado == 'pronto' %}<span class="selo bom">pronta</span>
+          {% elif l.estado == 'erro' %}<span class="selo ruim">erro</span>
+          {% else %}<span class="selo aviso">lendo</span>{% endif %}
+        </td>
+        <td class="num"><a class="botao pequeno secundario" href="{{ url_for('conferencia', lote_id=l.id) }}">Abrir</a></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+<h2>Situação do sistema</h2>
+<div class="grade-2">
+  <div class="cartao">
+    <h3>Numeração das notas</h3>
+    {% if controle.unidades %}
+      {% for unidade, numero in controle.unidades.items() %}
+      <div class="linha-dado"><span class="chave">{{ unidade }}</span><span class="valor">última nota nº {{ numero }}</span></div>
+      {% endfor %}
+    {% else %}
+      <p style="color:var(--tinta-fraca);margin:0">Nenhuma nota emitida valendo ainda.</p>
+    {% endif %}
+    <div class="linha-dado"><span class="chave">Notas já registradas</span><span class="valor">{{ controle.emitidas }}</span></div>
+  </div>
+  <div class="cartao">
+    <h3>Base de clientes</h3>
+    {% if bases %}
+      {% for chave, b in bases.items() %}
+      <div class="linha-dado">
+        <span class="chave">{{ unidades.get(chave, {}).get('apelido') or chave }}</span>
+        <span class="valor">
+          {{ '{:,}'.format(b.total).replace(',', '.') }} pessoas
+          <span style="color:var(--tinta-fantasma)">
+            · atualizada em {{ b.atualizada_em.replace('T', ' ')[:16] }}
+          </span>
+        </span>
+      </div>
+      {% endfor %}
+      <p style="margin:12px 0 0"><a href="{{ url_for('clientes') }}">Ver a base →</a></p>
+    {% else %}
+      <p style="color:var(--tinta-fraca);margin:0">
+        Ainda vazia. Mande o relatório “Clientes e Fornecedores” junto na
+        primeira vez.
+      </p>
+    {% endif %}
+  </div>
+
+  <div class="cartao">
+    <h3>Pontos de atenção</h3>
+    {% set alertas = diagnostico | rejectattr('nivel', 'equalto', 'info') | list %}
+    {% if alertas %}
+      {% for d in alertas[:4] %}
+      <div class="linha-dado">
+        <span class="chave">
+          <span class="selo {{ 'ruim' if d.nivel == 'erro' else 'aviso' }}">{{ d.nivel }}</span>
+        </span>
+        <span class="valor">{{ d.titulo }}</span>
+      </div>
+      {% endfor %}
+    {% else %}
+      <p style="color:var(--bom);margin:0">Tudo certo por aqui.</p>
+    {% endif %}
+    <p style="margin:12px 0 0"><a href="{{ url_for('configuracao') }}">Ver tudo em Configuração →</a></p>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>iniciarEnvio();</script>
+{% endblock %}

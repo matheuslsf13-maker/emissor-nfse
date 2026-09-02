@@ -1,0 +1,119 @@
+{% extends "base.html" %}
+{% set pagina = 'clientes' %}
+{% block titulo %}Base de clientes{% endblock %}
+{% block conteudo %}
+
+<h1>Base de clientes</h1>
+<p class="legenda">
+  O cadastro do TechCare fica salvo aqui, uma base por unidade. No dia a dia
+  bastam os dois caixas; mande o relatório “Clientes e Fornecedores” de novo
+  só quando houver paciente novo — o sistema compara com o que já tem e guarda
+  apenas a diferença.
+</p>
+
+<div class="faixa info">
+  <span class="icone">›</span>
+  <div>
+    <b>Nada é apagado</b>
+    <p>
+      Um paciente que sumiu do relatório continua na base, porque ele ainda
+      pode aparecer no caixa de um mês anterior. Correções (CPF arrumado,
+      endereço novo) são aplicadas por cima do cadastro existente.
+    </p>
+  </div>
+</div>
+
+{% for chave, b in bases.items() %}
+<h2>{{ b.apelido }}</h2>
+
+{% if not b.existe %}
+<div class="cartao vazio">
+  <div class="icone">—</div>
+  <h3>Base ainda vazia</h3>
+  <p>
+    Mande o relatório “Clientes e Fornecedores” desta unidade junto com os
+    caixas, uma vez. Depois disso ele fica salvo.
+  </p>
+</div>
+{% else %}
+  {% set r = b.resumo %}
+  <div class="numeros">
+    <div class="numero destaque">
+      <div class="rotulo">Pessoas na base</div>
+      <div class="valor">{{ '{:,}'.format(r.total).replace(',', '.') }}</div>
+      <div class="nota">acumuladas desde a primeira importação</div>
+    </div>
+    <div class="numero">
+      <div class="rotulo">Com CPF/CNPJ válido</div>
+      <div class="valor">{{ '{:,}'.format(r.com_documento_valido).replace(',', '.') }}</div>
+      <div class="nota">podem virar tomador de nota</div>
+    </div>
+    <div class="numero {{ 'alerta' if r.sem_documento_valido }}">
+      <div class="rotulo">Sem documento válido</div>
+      <div class="valor">{{ '{:,}'.format(r.sem_documento_valido).replace(',', '.') }}</div>
+      <div class="nota">travam se aparecerem no caixa</div>
+    </div>
+    <div class="numero">
+      <div class="rotulo">Importações</div>
+      <div class="valor">{{ r.importacoes }}</div>
+      <div class="nota">última em {{ r.atualizada_em.replace('T', ' ')[:16] }}</div>
+    </div>
+  </div>
+
+  {% if b.historico %}
+  <h3 style="margin-top:24px">Histórico de importações</h3>
+  <div class="moldura-tabela">
+    <table>
+      <thead>
+        <tr>
+          <th>Quando</th><th>Arquivo</th>
+          <th class="num">Lidos</th><th class="num">Novos</th>
+          <th class="num">Atualizados</th><th class="num">Sem mudança</th>
+          <th class="num">Total depois</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for h in b.historico %}
+        <tr>
+          <td class="mono">{{ h.em.replace('T', ' ')[:16] }}</td>
+          <td style="font-size:13px">{{ h.origem or '—' }}</td>
+          <td class="num">{{ h.lidos }}</td>
+          <td class="num"><b>{{ h.novos }}</b></td>
+          <td class="num">{{ h.atualizados }}</td>
+          <td class="num" style="color:var(--tinta-fantasma)">{{ h.iguais }}</td>
+          <td class="num">{{ h.total_depois }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+
+  <p style="margin-top:12px;color:var(--tinta-fraca);font-size:13.5px">
+    Arquivo: <code>{{ b.caminho }}</code> — faça backup junto com
+    <code>dados/controle.json</code>.
+  </p>
+{% endif %}
+{% endfor %}
+
+<h2>Como uma pessoa é reconhecida</h2>
+<div class="cartao">
+  <p>Quando chega um relatório novo, cada cadastro é comparado assim:</p>
+  <div class="linha-dado">
+    <span class="chave">1. Mesmo CPF/CNPJ válido</span>
+    <span class="valor">É a mesma pessoa. Dados atualizados por cima.</span>
+  </div>
+  <div class="linha-dado">
+    <span class="chave">2. Mesmo nome + nascimento</span>
+    <span class="valor">
+      Também é a mesma pessoa — é isso que permite reconhecer alguém cujo
+      <b>CPF foi corrigido</b> no TechCare. Sem essa regra, corrigir um CPF
+      inválido criaria um cadastro novo e o errado ficaria para sempre.
+    </span>
+  </div>
+  <div class="linha-dado">
+    <span class="chave">3. Nenhum dos dois</span>
+    <span class="valor">Entra como pessoa nova.</span>
+  </div>
+</div>
+{% endblock %}

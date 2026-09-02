@@ -1,0 +1,31 @@
+# Configuracao REAL das clinicas: CNPJ, inscricao municipal, telefone, email.
+# O repositorio versiona so o empresas.exemplo.json, com dados ficticios.
+config/empresas.json
+config/remendo-*.json
+
+# Manual INTERNO: traz CNPJ, endereco e os numeros reais das clinicas.
+# A face publica do projeto e o README.md. Este continua na maquina e
+# vai dentro do pacote entregue a clinica -- so nao vai ao repositorio.
+LEIA-ME.md
+
+# Certificados digitais e senhas: nunca versionar.
+config/certificados/*.pfx
+config/certificados/*.p12
+config/certificados/*.pem
+config/senhas.bat
+
+# Dados de pacientes e controle de numeracao.
+dados/
+entrada/
+*.PDF
+*.pdf
+
+__pycache__/
+*.pyc
+.venv/
+
+# Pacotes gerados: refeitos por empacotar.py e publicar.py
+distribuicao/
+publicacao/
+dados/versoes/
+dados/sessao.chave

@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block titulo %}Lendo os relatórios…{% endblock %}
+{% block conteudo %}
+<div class="passos">
+  <div class="passo feito"><b>1</b> Trazer os relatórios</div>
+  <div class="passo ativo"><b>2</b> Conferir</div>
+  <div class="passo"><b>3</b> Gerar as notas</div>
+</div>
+
+<h1>Lendo os relatórios</h1>
+<p class="legenda">
+  O cadastro de clientes tem milhares de páginas, então a primeira leitura leva
+  alguns minutos. Nas próximas vezes, com o mesmo arquivo, é instantâneo.
+  Pode deixar esta janela aberta.
+</p>
+
+<div class="cartao">
+  <p id="etapa" style="font-weight:600;margin:0 0 12px">Preparando…</p>
+  <div class="barra"><div id="barra" style="width:2%"></div></div>
+  <p style="color:var(--tinta-fraca);font-size:13.5px;margin:14px 0 0">
+    Arquivos: {{ lote.detalhes | map(attribute='arquivo') | join(' · ') }}
+  </p>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>acompanhar("{{ lote.id }}");</script>
+{% endblock %}

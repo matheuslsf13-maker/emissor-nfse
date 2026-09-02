@@ -1,0 +1,128 @@
+{% extends "base.html" %}
+{% block titulo %}Consultar uma nota{% endblock %}
+{% block conteudo %}
+
+<h1>Consultar uma nota na prefeitura</h1>
+<p class="legenda">
+  Pergunta direto ao sistema da prefeitura se a nota existe e o que está
+  registrado nela. Serve quando o paciente liga perguntando, e serve para
+  conferir a primeira nota depois de transmitir.
+</p>
+
+{% if erro %}
+<div class="faixa erro">
+  <span class="icone">■</span>
+  <div><b>Não deu para consultar</b><p>{{ erro }}</p></div>
+</div>
+{% endif %}
+
+<div class="cartao">
+  <form method="post">
+    <label style="display:block;font-size:14px;margin-bottom:6px">
+      <b>Chave de acesso</b> — os 50 números que a prefeitura devolveu
+    </label>
+    <input type="text" name="chave" value="{{ chave }}" autocomplete="off"
+           placeholder="00000000000000000000000000000000000000000000000000"
+           style="width:100%;max-width:620px;font-family:monospace;font-size:13px">
+    <div style="margin-top:12px;display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+      <label style="font-size:14px">
+        Clínica:
+        <select name="unidade">
+          {% for chave_u, dados in cfg.unidades.items() %}
+          <option value="{{ chave_u }}" {{ 'selected' if chave_u == unidade }}>
+            {{ dados.apelido or chave_u }}
+          </option>
+          {% endfor %}
+        </select>
+      </label>
+      <button class="botao" type="submit">Consultar</button>
+      <span class="selo neutro">ambiente: {{ ambiente }}</span>
+    </div>
+  </form>
+</div>
+
+{% if resultado %}
+  {% if resultado.encontrada %}
+  <div class="faixa bom"><span class="icone">✓</span><div>
+    <b>A nota está registrada na prefeitura</b>
+    <p>Isto é a resposta do sistema deles, não do nosso — é a confirmação
+       independente de que a nota existe.</p>
+  </div></div>
+
+  <div class="numeros">
+    <div class="numero destaque">
+      <div class="rotulo">Nota fiscal nº</div>
+      <div class="valor">{{ resultado.numero }}</div>
+      <div class="nota">{{ resultado.situacao|lower|replace('_',' ') }}</div>
+    </div>
+    <div class="numero">
+      <div class="rotulo">Valor</div>
+      <div class="valor" style="font-size:22px">{{ resultado.valor | dinheiro }}</div>
+      <div class="nota">registrado na prefeitura</div>
+    </div>
+    <div class="numero">
+      <div class="rotulo">Emitida em</div>
+      <div class="valor" style="font-size:20px">{{ resultado.emitida_em[:10] | data_br }}</div>
+      <div class="nota">&nbsp;</div>
+    </div>
+  </div>
+
+  <div class="cartao">
+    <table>
+      <tr><th style="width:190px">Paciente</th><td>{{ resultado.tomador }}</td></tr>
+      {% if resultado.documento_tomador %}
+      <tr><th>CPF/CNPJ</th><td>{{ resultado.documento_tomador | documento }}</td></tr>
+      {% endif %}
+      <tr><th>Chave de acesso</th>
+          <td class="mono" style="font-size:12.5px">{{ resultado.chave }}</td></tr>
+    </table>
+  </div>
+
+  {% if resultado.xml_nota %}
+  <details style="margin-top:14px">
+    <summary style="cursor:pointer;color:var(--marca)">Ver o XML que a prefeitura guardou</summary>
+    <code class="mono-bloco" style="margin-top:8px">{{ resultado.xml_nota }}</code>
+  </details>
+  {% endif %}
+
+  {% else %}
+  <div class="faixa atencao"><span class="icone">▲</span><div>
+    <b>A prefeitura não devolveu essa nota</b>
+    <p>{{ resultado.mensagem or 'Confira se a chave está completa e se o ambiente é o mesmo em que a nota foi emitida — nota de homologação não existe em produção, e vice-versa.' }}</p>
+  </div></div>
+  <details style="margin-top:14px">
+    <summary style="cursor:pointer;color:var(--marca)">Ver a resposta completa</summary>
+    <code class="mono-bloco" style="margin-top:8px">{{ resultado.bruto }}</code>
+  </details>
+  {% endif %}
+{% endif %}
+
+{% if recentes %}
+<h2>Notas transmitidas por este sistema</h2>
+<p class="legenda">Clique na chave para consultar.</p>
+<div class="moldura-tabela">
+  <table>
+    <thead>
+      <tr><th>Nota nº</th><th>Quando</th><th>Valor</th><th>Ambiente</th><th>Chave</th></tr>
+    </thead>
+    <tbody>
+      {% for n in recentes %}
+      <tr>
+        <td><b>{{ n.numero_nota or '—' }}</b></td>
+        <td>{{ (n.transmitida_em or '')[:10] | data_br }}</td>
+        <td>{{ n.valor | dinheiro }}</td>
+        <td><span class="selo {{ 'ruim' if n.ambiente == 'producao' else 'neutro' }}">{{ n.ambiente }}</span></td>
+        <td class="mono" style="font-size:11.5px">
+          {% if n.chave_acesso %}
+          <a href="{{ url_for('consultar_nota', chave=n.chave_acesso) }}">{{ n.chave_acesso }}</a>
+          {% else %}—{% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+<p style="margin-top:22px"><a href="{{ url_for('inicio') }}">← Voltar ao início</a></p>
+{% endblock %}

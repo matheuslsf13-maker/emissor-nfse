@@ -1,0 +1,227 @@
+{
+  "_leia_me": [
+    "Toda a configuracao do sistema esta neste arquivo. Nada de CNPJ, endereco",
+    "ou aliquota esta escrito no codigo, para dar conta de novas unidades sem",
+    "reescrever o programa.",
+    "Campos marcados com CONFIRMAR ainda nao foram validados contra documento",
+    "oficial. A tela Configuracao avisa enquanto eles existirem."
+  ],
+  "municipio_emitente": {
+    "codigo_ibge": "3205200",
+    "nome": "VILA VELHA",
+    "uf": "ES",
+    "padrao": "nacional",
+    "provedor": "SIL Tecnologia",
+    "versao_aplicativo": "SilTecnologia_v1.00",
+    "ambiente_gerador": "1",
+    "documentacao": "https://interface.siltecnologia.com.br/notafiscalnacional/",
+    "endpoints": {
+      "homologacao": "http://tributacao.vilavelha.es.gov.br:8080/tbwhomologacao/services/NotaFiscalNacional",
+      "producao": "https://tributacao.vilavelha.es.gov.br/tbw/services/NotaFiscalNacional"
+    },
+    "_wsdl": [
+      "Contrato lido do WSDL dos dois ambientes em 29/08/2026 (identicos).",
+      "",
+      "O servidor publica varios servicos no mesmo caminho /services/:",
+      "  WSEntrada, WSSaida, WSUtil, WSInterface  -> interfaces genericas da SIL",
+      "  Abrasf10, Abrasf23, Abrasf24            -> protocolo ABRASF (legado)",
+      "  NotaFiscalNacional                      -> padrao nacional, e o nosso",
+      "",
+      "NotaFiscalNacional expoe quatro operacoes, SOAP 1.1 document/literal,",
+      "soapAction vazio, todas recebendo so <xml> e devolvendo <return>:",
+      "  NotaFiscalNacionalGerar       emitir",
+      "  NotaFiscalNacionalConsultar   consultar",
+      "  NotaFiscalNacionalCancelar    cancelar",
+      "  NotaFiscalNacionalSubstituir  substituir",
+      "",
+      "NAO ha usuario nem senha no envelope: a unica credencial e o certificado",
+      "que assina o XML. Por isso a 'habilitacao' e a prefeitura credenciar o",
+      "CNPJ para emitir por WebService -- o certificado sozinho nao basta."
+    ],
+    "operacao_soap": "NotaFiscalNacionalGerar",
+    "operacoes": {
+      "gerar": "NotaFiscalNacionalGerar",
+      "consultar": "NotaFiscalNacionalConsultar",
+      "cancelar": "NotaFiscalNacionalCancelar",
+      "substituir": "NotaFiscalNacionalSubstituir"
+    },
+    "namespace_soap": "http://webservices.sil.com/",
+    "_permitir_envio": [
+      "Ligado em 29/08/2026: a clinica informou que o credenciamento junto a",
+      "prefeitura ja saiu. Desligue se precisar bloquear a transmissao."
+    ],
+    "permitir_envio": true
+  },
+  "_outros_municipios": {
+    "_leia_me": [
+      "Verificado em 30/08/2026: Cariacica usa o MESMO provedor (SIL), o mesmo",
+      "caminho /tbw/services/ e o mesmo servico NotaFiscalNacional, com as",
+      "mesmas quatro operacoes e o mesmo parametro unico <xml>.",
+      "Para atender uma unidade em Cariacica basta trocar municipio_emitente",
+      "por este bloco e acrescentar a unidade -- o codigo nao muda."
+    ],
+    "cariacica": {
+      "codigo_ibge": "3201308",
+      "nome": "CARIACICA",
+      "uf": "ES",
+      "padrao": "nacional",
+      "provedor": "SIL Tecnologia",
+      "versao_aplicativo": "SilTecnologia_v1.00",
+      "ambiente_gerador": "1",
+      "endpoints": {
+        "homologacao": "https://homologtributacao.cariacica.es.gov.br/tbw/services/NotaFiscalNacional",
+        "producao": "https://sistemas.cariacica.es.gov.br/tbw/services/NotaFiscalNacional"
+      },
+      "operacao_soap": "NotaFiscalNacionalGerar",
+      "operacoes": {
+        "gerar": "NotaFiscalNacionalGerar",
+        "consultar": "NotaFiscalNacionalConsultar",
+        "cancelar": "NotaFiscalNacionalCancelar",
+        "substituir": "NotaFiscalNacionalSubstituir"
+      },
+      "namespace_soap": "http://webservices.sil.com/",
+      "permitir_envio": false,
+      "_atencao": "A aliquota de ISS e o item de servico de Cariacica precisam ser confirmados: os de servico neste arquivo valem para Vila Velha."
+    }
+  },
+  "servico": {
+    "_origem": "Confirmado por NFS-e reais de 07/2026 e pela tela de emissao do portal.",
+    "codigo_tributacao_nacional": "041201",
+    "descricao_tributacao_nacional": "Odontologia",
+    "codigo_nbs": "123012300",
+    "item_lista_abrasf": "04.12",
+    "descricao": "Tratamento odontologico",
+    "aliquota_iss": 2.0,
+    "tributacao_issqn": "1",
+    "retencao_issqn": "1",
+    "_convencao": "tributacao_issqn 1 = operacao tributavel. retencao_issqn 1 = NAO retido (2 seria retido pelo tomador). opcao_simples_nacional 1 = NAO optante.",
+    "opcao_simples_nacional": "1",
+    "regime_especial": "0",
+    "municipio_prestacao": "3205200",
+    "municipio_incidencia": "3205200"
+  },
+  "ibscbs": {
+    "_leia_me": [
+      "A Nota Tecnica SE/CGNFS-e n. 009 preve obrigatoriedade dos grupos",
+      "IBS/CBS a partir de 03/08/2026. O grupo esta implementado; ligue",
+      "'emitir' apos o contador confirmar o codigo de classificacao.",
+      "200029 = servicos de saude humana (Anexo III), reducao de 60%",
+      "200052 = profissoes intelectuais, reducao de 30%",
+      "A diferenca entre 60% e 30% e grande demais para assumir."
+    ],
+    "emitir": false,
+    "cst": "000",
+    "codigo_classificacao_tributaria": "200029",
+    "confirmado_pelo_contador": false,
+    "aliquota_cbs": 0.9
+  },
+  "faturamento": {
+    "_regra": [
+      "Uma nota por recebimento, pelo valor pago (decisao da clinica).",
+      "O caixa e o registro do que entrou; cada lancamento vira uma nota",
+      "daquele valor. Quatro parcelas no mes = quatro notas."
+    ],
+    "emitir_particulares": true,
+    "emitir_convenios": false,
+    "serie": "00001",
+    "ambiente": "homologacao",
+    "_secoes": [
+      "A classificacao e SEMPRE pelo nome da secao. O codigo numerico se",
+      "repete entre os dois caixas com significados diferentes: 54 e",
+      "'MANUT ORTO - CARTAO DEBITO' na clinica e 'REC ODC - BOLETO' nos",
+      "contratos."
+    ],
+    "secoes_que_emitem": [
+      "VENDA - CARTAO CREDITO",
+      "VENDA - CARTAO DEBITO",
+      "VENDA - PIX",
+      "MANUT ORTO - PIX",
+      "MANUT ORTO - CARTAO CRED",
+      "MANUT ORTO - CARTAO DEBITO",
+      "REC CRED - PIX",
+      "REC CRED - BOLETO",
+      "REC CRED CARTAO CRED",
+      "REC CRED CARTAO DEBITO",
+      "REC ODC - PIX",
+      "REC ODC - BOLETO",
+      "REC ODC - CARTAO CREDITO",
+      "REC ODC - CARTAO DEBITO",
+      "REC TX ADESAO - PIX",
+      "REC TX ADESAO - CARTAO",
+      "REC TX ADESAO - CARTAO DEBITO"
+    ],
+    "palavras_que_bloqueiam": [
+      "DINHEIRO",
+      "ENVELOPE"
+    ],
+    "prefixos_convenio": [
+      "AMIL",
+      "UNIMED ODONTO",
+      "UNIMED",
+      "ODONTO ART"
+    ],
+    "convenios": {
+      "AMIL": {
+        "nome": "AMIL ASSISTENCIA MEDICA INTERNACIONAL SA",
+        "cnpj": "29309127000179",
+        "cep": "04711130",
+        "logradouro": "AV DOUTOR CHUCRI ZAIDAN",
+        "numero": "SN",
+        "bairro": "VILA SAO FRANCISCO",
+        "cidade": "SAO PAULO",
+        "uf": "SP"
+      }
+    }
+  },
+  "unidades": {
+    "unidade_a": {
+      "apelido": "Unidade A",
+      "razao_social": "CLINICA ODONTOLOGICA EXEMPLO LTDA",
+      "cnpj": "00000000000191",
+      "inscricao_municipal": "99999",
+      "empresa_no_relatorio": "CLINICA ODONTOLOGICA EXEMPLO - UNIDADE A",
+      "endereco": {
+        "logradouro": "AVENIDA EXEMPLO",
+        "numero": "100",
+        "complemento": "LOJA A",
+        "bairro": "CENTRO",
+        "codigo_municipio": "3205200",
+        "uf": "ES",
+        "cep": "29100000"
+      },
+      "telefone": "2700000000",
+      "email": "unidade-a@exemplo.com.br",
+      "certificado": "unidade_a.pfx",
+      "variavel_senha": "CERT_SENHA_UNIDADE_A"
+    },
+    "unidade_b": {
+      "apelido": "Unidade B",
+      "razao_social": "SEGUNDA CLINICA EXEMPLO LTDA",
+      "cnpj": "00000000000272",
+      "inscricao_municipal": "88888",
+      "empresa_no_relatorio": "SEGUNDA CLINICA EXEMPLO - UNIDADE B",
+      "endereco": {
+        "logradouro": "PRACA EXEMPLO",
+        "numero": "200",
+        "complemento": "",
+        "bairro": "BAIRRO EXEMPLO",
+        "codigo_municipio": "3205200",
+        "uf": "ES",
+        "cep": "29111000"
+      },
+      "telefone": "2700000001",
+      "email": "unidade-b@exemplo.com.br",
+      "certificado": "unidade_b.pfx",
+      "variavel_senha": "CERT_SENHA_UNIDADE_B"
+    }
+  },
+  "atualizacao": {
+    "_leia": [
+      "Endereco de onde o sistema busca atualizacoes publicadas pelo",
+      "responsavel. Deixe em branco para desligar a verificacao.",
+      "Gere o pacote com: python publicar.py 1.1.0"
+    ],
+    "manifesto": "",
+    "verificar_ao_abrir": true
+  }
+}

@@ -1,0 +1,357 @@
+{% extends "base.html" %}
+{% block titulo %}Conferência — {{ r.competencia }}{% endblock %}
+{% block conteudo %}
+
+<div class="passos">
+  <div class="passo feito"><b>1</b> Trazer os relatórios</div>
+  <div class="passo ativo"><b>2</b> Conferir</div>
+  <div class="passo"><b>3</b> Gerar as notas</div>
+</div>
+
+<h1>{{ unidade.apelido }} — competência {{ r.competencia | replace('-', '/') }}</h1>
+<p class="legenda">
+  Período dos relatórios: {{ r.periodo_inicio | data_br }} a {{ r.periodo_fim | data_br }}.
+  {{ r.total_lancamentos }} lançamentos lidos nos caixas, cruzados com
+  {{ '{:,}'.format(total_cadastro).replace(',', '.') }} cadastros de clientes.
+  <b>Nada foi gerado ainda.</b>
+</p>
+
+{% if request.args.get('erro') == 'confirmacao' %}
+<div class="faixa erro"><span class="icone">■</span><div>
+  <b>Emissão cancelada</b>
+  <p>Para emitir valendo é preciso digitar EMITIR no campo de confirmação.</p>
+</div></div>
+{% endif %}
+
+{% if lote.importacao %}
+{% set imp = lote.importacao %}
+<div class="faixa {{ 'bom' if imp.novos or imp.atualizados else 'info' }}">
+  <span class="icone">{{ '✓' if imp.novos or imp.atualizados else '›' }}</span>
+  <div>
+    <b>Base de clientes atualizada</b>
+    <p>
+      Do relatório <code>{{ imp.origem }}</code>: <b>{{ imp.novos }}</b> pessoa(s)
+      nova(s), <b>{{ imp.atualizados }}</b> com dados alterados,
+      {{ imp.iguais }} sem mudança. A base ficou com
+      {{ '{:,}'.format(imp.total_depois).replace(',', '.') }} pessoas.
+    </p>
+    {% if imp.amostra_atualizados %}
+    <details style="margin-top:6px">
+      <summary style="cursor:pointer">
+        {{ imp.amostra_atualizados | length }} cadastro(s) tiveram o CPF/CNPJ alterado — vale conferir
+      </summary>
+      <div style="margin-top:8px">
+        {% for a in imp.amostra_atualizados %}
+        <div style="font-size:13.5px;padding:3px 0">
+          <b>{{ a.nome }}</b>
+          {% for m in a.mudancas if m.campo == 'documento' %}
+            — {{ m.de }} → <b>{{ m.para }}</b>
+          {% endfor %}
+        </div>
+        {% endfor %}
+      </div>
+    </details>
+    {% endif %}
+    {% if imp.amostra_novos %}
+    <details style="margin-top:6px">
+      <summary style="cursor:pointer">Ver quem entrou</summary>
+      <div style="margin-top:8px">
+        {% for n in imp.amostra_novos %}
+        <div style="font-size:13.5px;padding:3px 0">
+          {{ n.nome }} — {{ n.documento }}
+          {% if not n.valido %}<span class="selo ruim">CPF inválido</span>{% endif %}
+        </div>
+        {% endfor %}
+        {% if imp.novos > imp.amostra_novos | length %}
+        <div style="color:var(--tinta-fantasma);font-size:13px;padding-top:6px">
+          …e mais {{ imp.novos - (imp.amostra_novos | length) }}.
+        </div>
+        {% endif %}
+      </div>
+    </details>
+    {% endif %}
+  </div>
+</div>
+{% endif %}
+
+<div class="numeros">
+  <div class="numero destaque">
+    <div class="rotulo">Vão virar nota</div>
+    <div class="valor">{{ r.notas | length }}</div>
+    <div class="nota">R$ {{ brl(r.valor_total) }}</div>
+  </div>
+  <div class="numero {{ 'alerta' if r.pendencias else '' }}">
+    <div class="rotulo">Travados</div>
+    <div class="valor">{{ r.pendencias | length }}</div>
+    <div class="nota">R$ {{ brl(r.valor_pendente) }} esperando conferência</div>
+  </div>
+  <div class="numero">
+    <div class="rotulo">Não geram nota</div>
+    <div class="valor">{{ r.descartes.values() | map(attribute='qtde') | sum }}</div>
+    <div class="nota">por regra da clínica</div>
+  </div>
+  <div class="numero">
+    <div class="rotulo">Cobertura automática</div>
+    <div class="valor">{{ '%.0f' % r.cobertura }}%</div>
+    <div class="nota">dos lançamentos que deveriam virar nota</div>
+  </div>
+</div>
+
+{% if r.secoes_desconhecidas %}
+<div class="faixa atencao" style="margin-top:18px">
+  <span class="icone">▲</span>
+  <div>
+    <b>Apareceu seção de caixa que ninguém configurou</b>
+    <p>
+      Estas seções existem no relatório mas não estão na lista de “gera nota”
+      nem na de bloqueio. Por segurança <b>não geraram nota</b>. Se deviam
+      gerar, alguém precisa acrescentá-las em <code>config/empresas.json</code>.
+    </p>
+    {% for secao, d in r.secoes_desconhecidas.items() %}
+    <p style="margin-top:4px">
+      <b>{{ secao }}</b> — {{ d.qtde }} lançamento(s), R$ {{ brl(d.valor) }}
+      (caixa {{ d.caixa | lower }})
+    </p>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+{% if r.avisos %}
+<div class="faixa atencao" style="margin-top:18px">
+  <span class="icone">▲</span>
+  <div>
+    <b>A leitura do caixa não fechou com o total impresso no relatório</b>
+    {% for a in r.avisos %}<p>{{ a }}</p>{% endfor %}
+  </div>
+</div>
+{% endif %}
+
+<div class="abas">
+  <button data-aba="notas" class="ativa" onclick="trocarAba('notas')">
+    Vão virar nota <span class="conta">{{ r.notas | length }}</span>
+  </button>
+  <button data-aba="pendencias" onclick="trocarAba('pendencias')">
+    Travados <span class="conta">{{ r.pendencias | length }}</span>
+  </button>
+  <button data-aba="fora" onclick="trocarAba('fora')">
+    Não geram nota <span class="conta">{{ r.descartes.values() | map(attribute='qtde') | sum }}</span>
+  </button>
+  <button data-aba="resumo" onclick="trocarAba('resumo')">Resumo por seção</button>
+</div>
+
+<!-- ------------------------------------------------ NOTAS -->
+<section class="painel ativo" data-aba="notas">
+  <div style="display:flex;gap:12px;align-items:center;margin-bottom:12px;flex-wrap:wrap">
+    <input type="search" id="filtro" placeholder="Buscar por paciente, CPF ou seção…" style="min-width:320px">
+    <span id="filtro-conta" style="color:var(--tinta-fraca);font-size:13.5px">{{ r.notas | length }} linha(s)</span>
+    {% set ajustadas = r.notas | selectattr('ajustes') | list %}
+    {% if ajustadas %}
+    <span class="selo marca" title="Casos em que o sistema resolveu nome truncado ou cidade com erro de digitação.">
+      {{ ajustadas | length }} com ajuste automático
+    </span>
+    {% endif %}
+  </div>
+
+  <div class="moldura-tabela">
+    <div class="rolagem">
+      <table id="tabela-notas">
+        <thead>
+          <tr>
+            <th>Data</th><th>Paciente</th><th>CPF/CNPJ</th>
+            <th>Cidade</th><th>Seção do caixa</th><th class="num">Valor</th><th>Origem</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for n in r.notas %}
+          <tr>
+            <td class="mono">{{ n.data | data_br }}</td>
+            <td>
+              {{ n.tomador.nome }}
+              {% if n.ajustes %}
+              <div style="color:var(--aviso);font-size:12.5px">
+                {% for a in n.ajustes %}{{ a }}{% if not loop.last %}<br>{% endif %}{% endfor %}
+              </div>
+              {% endif %}
+            </td>
+            <td class="mono">{{ formatar_documento(n.tomador.documento) }}</td>
+            <td>{{ n.tomador.cidade }}/{{ n.tomador.uf }}</td>
+            <td style="color:var(--tinta-fraca)">{{ n.secao }}</td>
+            <td class="num">{{ brl(n.valor_decimal) }}</td>
+            <td>
+              {% if n.origem_cruzamento == 'cpf' %}<span class="selo bom">CPF do boleto</span>
+              {% elif n.origem_cruzamento == 'nome' %}<span class="selo neutro">nome</span>
+              {% elif n.origem_cruzamento == 'prefixo' %}<span class="selo aviso">nome truncado</span>
+              {% elif n.origem_cruzamento == 'manual' %}<span class="selo marca">você escolheu</span>
+              {% else %}<span class="selo neutro">{{ n.origem_cruzamento }}</span>{% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- ------------------------------------------------ PENDENCIAS -->
+<section class="painel" data-aba="pendencias">
+  {% if not r.pendencias %}
+  <div class="cartao vazio">
+    <div class="icone">✓</div>
+    <h3>Nenhum lançamento travado</h3>
+    <p>Todos os pacientes foram encontrados no cadastro com CPF válido e endereço completo.</p>
+  </div>
+  {% else %}
+  <div class="faixa info">
+    <span class="icone">›</span>
+    <div>
+      <b>Estes lançamentos não viram nota até serem resolvidos</b>
+      <p>
+        O sistema nunca chuta o CPF de um paciente. Resolva no TechCare e exporte
+        os relatórios de novo, ou aponte aqui embaixo qual cadastro é o certo.
+      </p>
+    </div>
+  </div>
+
+  {% for p in r.pendencias %}
+  <div class="pendencia">
+    <header>
+      <div>
+        <div class="quem">{{ p.nome }}</div>
+        <div class="porque">
+          <b>{{ p.titulo }}.</b> {{ p.orientacao }}
+        </div>
+        <div class="porque" style="font-size:12.5px">
+          {{ p.data | data_br }} · {{ p.secao }} · caixa {{ p.caixa | lower }} · lançamento {{ p.lancto }}
+        </div>
+      </div>
+      <div class="valor">
+        <div style="font-weight:600">R$ {{ brl(p.valor) }}</div>
+        <span class="selo aviso">travado</span>
+      </div>
+    </header>
+    <div class="corpo">
+      {% if p.candidatos %}
+      <h3 style="font-size:13.5px;color:var(--tinta-fraca)">Cadastros parecidos encontrados</h3>
+      {% for c in p.candidatos %}
+      <div class="candidato">
+        <div class="info">
+          <b>{{ c.nome }}</b> — {{ c.documento_formatado }}
+          {% if not c.valido %}<span class="selo ruim">CPF inválido</span>{% endif %}
+          <div class="endereco">{{ c.endereco }}{% if c.nascimento %} · nasc. {{ c.nascimento }}{% endif %}</div>
+        </div>
+        <button class="botao pequeno {{ 'secundario' if not c.valido }}"
+                onclick="escolherCadastro('{{ lote.id }}', '{{ p.id }}', '{{ c.documento }}', {{ 'true' if c.valido else 'false' }})">
+          É este
+        </button>
+      </div>
+      {% endfor %}
+      {% endif %}
+
+      <div class="busca-caixa" style="margin-top:10px">
+        <input type="search" id="busca-{{ p.id }}" placeholder="Procurar outro cadastro por nome ou CPF…" style="width:100%">
+        <div class="resultados-busca" id="resultados-{{ p.id }}"></div>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+  {% endif %}
+</section>
+
+<!-- ------------------------------------------------ FORA -->
+<section class="painel" data-aba="fora">
+  <div class="faixa info">
+    <span class="icone">›</span>
+    <div>
+      <b>Nada sai sem explicação</b>
+      <p>Todo lançamento que não virou nota aparece aqui, com a regra que o excluiu.</p>
+    </div>
+  </div>
+  <div class="moldura-tabela">
+    <table>
+      <thead><tr><th>Motivo</th><th class="num">Lançamentos</th><th class="num">Valor</th></tr></thead>
+      <tbody>
+        {% for motivo, d in r.descartes.items() | sort(attribute='1.qtde', reverse=true) %}
+        <tr>
+          <td>{{ motivo }}</td>
+          <td class="num">{{ d.qtde }}</td>
+          <td class="num">{{ brl(d.valor) }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ------------------------------------------------ RESUMO -->
+<section class="painel" data-aba="resumo">
+  <div class="moldura-tabela">
+    <table>
+      <thead><tr><th>Seção do caixa</th><th class="num">Notas</th><th class="num">Valor</th></tr></thead>
+      <tbody>
+        {% for s in r.por_secao() %}
+        <tr><td>{{ s.secao }}</td><td class="num">{{ s.qtde }}</td><td class="num">{{ brl(s.valor) }}</td></tr>
+        {% endfor %}
+      </tbody>
+      <tfoot>
+        <tr style="font-weight:700;background:#fafcfd">
+          <td>Total</td><td class="num">{{ r.notas | length }}</td><td class="num">{{ brl(r.valor_total) }}</td>
+        </tr>
+      </tfoot>
+    </table>
+  </div>
+</section>
+
+<!-- ------------------------------------------------ GERAR -->
+<h2>Gerar as notas</h2>
+
+<div class="grade-2">
+  <div class="cartao">
+    <h3>Modo teste <span class="selo bom">recomendado</span></h3>
+    <p style="color:var(--tinta-fraca);font-size:14px">
+      Gera e assina os XMLs sem consumir a numeração. Pode rodar quantas vezes
+      quiser — serve para conferir antes de valer.
+    </p>
+    <form method="post" action="{{ url_for('gerar', lote_id=lote.id) }}">
+      <input type="hidden" name="modo" value="teste">
+      <button class="botao" type="submit">Gerar em modo teste</button>
+    </form>
+  </div>
+
+  <div class="cartao" style="border-color:#f0dcb4">
+    <h3>Emitir valendo</h3>
+    {% if not envio.pronto %}
+    <p style="color:var(--tinta-fraca);font-size:14px">
+      O envio automático à prefeitura ainda não está liberado
+      ({{ envio.faltando | join('; ') }}). Mesmo assim, gerar valendo já
+      consome a numeração — só faça quando for transmitir de verdade.
+    </p>
+    {% endif %}
+    <form method="post" action="{{ url_for('gerar', lote_id=lote.id) }}"
+          onsubmit="return confirmarEmissao(event)">
+      <input type="hidden" name="modo" value="valendo">
+      <label style="display:block;font-size:14px;margin-bottom:6px">
+        Para confirmar, digite <b>EMITIR</b>:
+      </label>
+      <input type="text" name="confirmacao" id="confirmacao" placeholder="EMITIR"
+             autocomplete="off" style="width:160px">
+      <button class="botao perigo" type="submit" style="margin-left:8px">
+        Emitir valendo
+      </button>
+    </form>
+  </div>
+</div>
+
+<p style="margin-top:22px">
+  <a href="{{ url_for('inicio') }}">← Trazer outros relatórios</a>
+</p>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  filtrarTabela("filtro", "tabela-notas");
+  {% for p in r.pendencias %}
+  prepararBusca("{{ lote.id }}", "{{ p.id }}");
+  {% endfor %}
+</script>
+{% endblock %}

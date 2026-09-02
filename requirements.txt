@@ -1,0 +1,14 @@
+# Emissor de NFS-e - dependencias
+#
+# pdfplumber  le os PDFs do TechCare com as coordenadas de cada palavra,
+#             que e o que permite separar as colunas do relatorio.
+# lxml        monta o XML e faz a canonicalizacao C14N da assinatura.
+# cryptography abre o certificado A1 (.pfx) e assina em RSA-SHA256.
+# Flask       serve a tela local.
+# requests    envio ao WebService municipal (quando for liberado).
+
+pdfplumber>=0.11
+lxml>=5.0
+cryptography>=42.0
+Flask>=3.0
+requests>=2.31

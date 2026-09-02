@@ -1,0 +1,183 @@
+{% extends "base.html" %}
+{% set pagina = 'ajuda' %}
+{% block titulo %}Como usar{% endblock %}
+{% block conteudo %}
+
+<h1>Como usar, do começo ao fim</h1>
+<p class="legenda">
+  Este guia é para quem opera no dia a dia. Não precisa entender nada de nota
+  fiscal para seguir os passos.
+</p>
+
+<div class="cartao">
+  <h2 style="margin-top:0">Passo 1 — Exportar do TechCare</h2>
+  <p>No dia a dia são <b>dois relatórios</b>, sempre do mesmo período:</p>
+  <ol>
+    <li><b>Caixa da clínica</b> — menu Caixa &rsaquo; Lançamentos, empresa “…- CLINICA”.</li>
+    <li><b>Caixa de contratos</b> — o mesmo relatório, empresa “…- CONTRATOS”.</li>
+  </ol>
+  <p>
+    O <b>Cadastro de clientes</b> (“Clientes e Fornecedores”) só na primeira vez,
+    ou quando houver <b>paciente novo</b>. Ele fica salvo na
+    <a href="{{ url_for('clientes') }}">base de clientes</a>; mandando de novo,
+    o sistema compara e guarda só quem ainda não estava lá.
+  </p>
+  <p style="color:var(--tinta-fraca)">
+    Salve em uma pasta fácil de achar, tipo a Área de Trabalho.
+  </p>
+</div>
+
+<div class="cartao">
+  <h2 style="margin-top:0">Passo 2 — Trazer para o sistema</h2>
+  <p>
+    Na tela <a href="{{ url_for('inicio') }}">Início</a>, arraste os três PDFs de
+    uma vez. O sistema reconhece sozinho qual é qual, de qual unidade vieram e
+    qual é a competência.
+  </p>
+  <p>
+    A primeira leitura do cadastro de clientes demora alguns minutos (são
+    milhares de páginas). Depois disso, o mesmo arquivo abre na hora.
+  </p>
+</div>
+
+<div class="cartao">
+  <h2 style="margin-top:0">Passo 3 — Conferir</h2>
+  <p>A tela de conferência tem quatro abas:</p>
+  <div class="linha-dado"><span class="chave">Vão virar nota</span><span class="valor">
+    Cada lançamento com o paciente já identificado, CPF e endereço conferidos.</span></div>
+  <div class="linha-dado"><span class="chave">Travados</span><span class="valor">
+    Lançamentos que <b>não</b> viram nota porque o sistema não tem certeza de quem é
+    o paciente. Ele nunca chuta um CPF.</span></div>
+  <div class="linha-dado"><span class="chave">Não geram nota</span><span class="valor">
+    Dinheiro, envelope, saídas de caixa e convênios — com a contagem e o motivo.</span></div>
+  <div class="linha-dado"><span class="chave">Resumo por seção</span><span class="valor">
+    Quanto entra por forma de pagamento. Bom para bater com o relatório do caixa.</span></div>
+
+  <h3 style="margin-top:20px">Como resolver um travado</h3>
+  <p>Duas saídas, nesta ordem de preferência:</p>
+  <ol>
+    <li><b>Corrigir no TechCare</b> (cadastrar a pessoa, arrumar o CPF) e exportar
+        os relatórios de novo. É o certo, porque conserta a origem.</li>
+    <li><b>Apontar aqui</b> qual cadastro é o correto, quando é só um homônimo ou
+        um nome escrito diferente. Vale para essa conferência.</li>
+  </ol>
+</div>
+
+<div class="cartao">
+  <h2 style="margin-top:0">Passo 4 — Gerar</h2>
+  <div class="grade-2">
+    <div>
+      <h3><span class="selo bom">Modo teste</span></h3>
+      <p>Gera e assina os XMLs sem gastar numeração. <b>Use sempre este primeiro.</b>
+         Pode repetir quantas vezes quiser.</p>
+    </div>
+    <div>
+      <h3><span class="selo ruim">Emitir valendo</span></h3>
+      <p>Consome a numeração de forma permanente e registra cada nota.
+         Não tem desfazer — por isso pede para digitar EMITIR.</p>
+    </div>
+  </div>
+  <p>
+    Nos dois casos os arquivos ficam na pasta <code>dados/saida/</code> e dá para
+    baixar tudo em um .zip, junto com um <code>RELATORIO.txt</code> que lista o
+    que foi gerado e o que ficou de fora.
+  </p>
+</div>
+
+<div class="cartao">
+  <h2 style="margin-top:0">Passo 5 — Transmitir</h2>
+  <p>
+    Depois de gerar valendo, aparece o botão <b>Transmitir para a prefeitura</b>.
+    É a transmissão que faz a nota existir: a prefeitura devolve o número e o
+    código de verificação, e é isso que o paciente recebe.
+  </p>
+  <div class="linha-dado"><span class="chave">Homologação</span><span class="valor">
+    Ambiente de testes. Nada vale fiscalmente. <b>Comece sempre por aqui.</b></span></div>
+  <div class="linha-dado"><span class="chave">Produção</span><span class="valor">
+    Vale de verdade. Pede para digitar PRODUCAO. Em Vila Velha, cancelar exige
+    processo administrativo.</span></div>
+  <p style="margin-top:12px">
+    Na primeira vez, mande <b>uma nota só</b>. A tela mostra a resposta completa
+    da prefeitura — se estiver certa, aí sim manda o resto.
+  </p>
+  <p style="color:var(--tinta-fraca)">
+    O que já foi aceito não é reenviado. O que foi recusado pode ser reenviado
+    depois de corrigir, sem gerar tudo de novo.
+  </p>
+</div>
+
+<h2>Perguntas que sempre aparecem</h2>
+
+<div class="cartao">
+  <h3>Preciso mandar o cadastro de clientes toda vez?</h3>
+  <p style="color:var(--tinta-fraca)">
+    Não. Ele fica salvo. Mande de novo só quando houver paciente novo, ou
+    quando você tiver corrigido algum cadastro no TechCare — aí o sistema
+    aplica a correção por cima e avisa na tela o que mudou.
+  </p>
+</div>
+
+<div class="cartao">
+  <h3>Por que aquele lançamento em dinheiro não virou nota?</h3>
+  <p style="color:var(--tinta-fraca)">
+    É regra da clínica: <b>nenhuma</b> seção com DINHEIRO gera nota, em nenhuma
+    categoria. Aparece contado na aba “Não geram nota”.
+  </p>
+</div>
+
+<div class="cartao">
+  <h3>E os convênios (Amil, Unimed, Odonto Art)?</h3>
+  <p style="color:var(--tinta-fraca)">
+    Convênio recebe <b>uma nota consolidada por mês</b>, com o convênio como
+    tomador — não uma nota por paciente. Nesta fase está desligado; quando ligar,
+    o sistema já soma tudo em uma nota só.
+  </p>
+</div>
+
+<div class="cartao">
+  <h3>Rodei duas vezes. Vai duplicar nota?</h3>
+  <p style="color:var(--tinta-fraca)">
+    Não. Cada nota fica marcada pelo lançamento do caixa que a originou; se o
+    mesmo lançamento aparecer de novo, ele é pulado e o aviso aparece na tela.
+    Isso vale também no modo teste, para o teste mostrar o mesmo que sairia
+    valendo.
+  </p>
+</div>
+
+<div class="cartao">
+  <h3>Apareceu “sem certificado”. Posso mandar assim?</h3>
+  <p style="color:var(--tinta-fraca)">
+    Não. Sem o certificado A1 os XMLs saem sem assinatura — servem para conferir,
+    não para transmitir. Veja em
+    <a href="{{ url_for('configuracao') }}">Configuração</a> o que está faltando.
+  </p>
+</div>
+
+<div class="cartao">
+  <h3>O sistema já manda a nota para a prefeitura?</h3>
+  <p style="color:var(--tinta-fraca)">
+    Manda, no passo 5. Gerar e transmitir são separados de propósito: dá para
+    gerar tudo, conferir com calma, e só então enviar. XML sem assinatura
+    digital o sistema se recusa a transmitir.
+  </p>
+</div>
+
+<div class="cartao">
+  <h3>Uma nota para cada pagamento</h3>
+  <p style="color:var(--tinta-fraca)">
+    A regra é simples: cada valor que entrou no caixa vira uma nota, pelo valor
+    que foi pago. Se o mesmo paciente pagou quatro parcelas no mês, saem quatro
+    notas. Nada é somado nem dividido.
+  </p>
+</div>
+
+<div class="cartao" style="border-color:#f0dcb4">
+  <h3>Antes de emitir valendo pela primeira vez</h3>
+  <p style="color:var(--tinta-fraca)">
+    Recomendação: rodar o sistema <b>em paralelo</b> com a emissão manual por
+    um período, comparando os totais, antes de substituir o processo. Em Vila
+    Velha, cancelar uma nota exige processo administrativo.
+  </p>
+</div>
+
+{% endblock %}

@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block titulo %}Não deu para ler{% endblock %}
+{% block conteudo %}
+<h1>Não deu para ler estes relatórios</h1>
+
+<div class="faixa erro">
+  <span class="icone">■</span>
+  <div>
+    <b>{{ lote.erro }}</b>
+    <p>
+      Confira se os arquivos são mesmo os relatórios do TechCare em PDF
+      (Caixa &rsaquo; Lançamentos e Clientes e Fornecedores) e se não estão
+      protegidos por senha.
+    </p>
+  </div>
+</div>
+
+<div class="acoes">
+  <a class="botao" href="{{ url_for('inicio') }}">Tentar de novo</a>
+  <a class="botao secundario" href="{{ url_for('ajuda') }}">Ver como exportar</a>
+</div>
+
+{% if lote.detalhe_erro %}
+<h2>Detalhe técnico</h2>
+<p class="legenda">Se precisar pedir ajuda, mande esta parte junto.</p>
+<code class="mono-bloco">{{ lote.detalhe_erro }}</code>
+{% endif %}
+{% endblock %}

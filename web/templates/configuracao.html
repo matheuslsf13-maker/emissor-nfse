@@ -1,0 +1,309 @@
+{% extends "base.html" %}
+{% set pagina = 'configuracao' %}
+{% block titulo %}Configuração{% endblock %}
+{% block conteudo %}
+
+<h1>Configuração</h1>
+<p class="legenda">
+  Tudo que o sistema sabe sobre as clínicas está em
+  <code>config/empresas.json</code>. Nada de CNPJ, endereço ou alíquota está
+  escrito dentro do programa — é o que permite acrescentar uma unidade nova sem
+  mexer no código.
+</p>
+
+<h2>O que falta antes de emitir valendo</h2>
+{% if not diagnostico %}
+<div class="faixa bom"><span class="icone">✓</span><div><b>Nada pendente.</b></div></div>
+{% endif %}
+{% for d in diagnostico %}
+<div class="faixa {{ 'erro' if d.nivel == 'erro' else ('atencao' if d.nivel == 'atencao' else 'info') }}">
+  <span class="icone">{{ '■' if d.nivel == 'erro' else ('▲' if d.nivel == 'atencao' else '›') }}</span>
+  <div><b>{{ d.titulo }}</b><p>{{ d.detalhe }}</p></div>
+</div>
+{% endfor %}
+
+<h2>Unidades</h2>
+<div class="grade-2">
+  {% for chave, u in cfg.unidades.items() %}
+  <div class="cartao">
+    <h3>{{ u.apelido }}</h3>
+    <div class="linha-dado"><span class="chave">Razão social</span><span class="valor">{{ u.razao_social }}</span></div>
+    <div class="linha-dado"><span class="chave">CNPJ</span><span class="valor">{{ u.cnpj }}</span></div>
+    <div class="linha-dado"><span class="chave">Inscrição municipal</span><span class="valor">{{ u.inscricao_municipal }}</span></div>
+    <div class="linha-dado"><span class="chave">Endereço</span><span class="valor">
+      {{ u.endereco.logradouro }}, {{ u.endereco.numero }}
+      {%- if u.endereco.complemento %} {{ u.endereco.complemento }}{% endif %} —
+      {{ u.endereco.bairro }} — CEP {{ u.endereco.cep }}
+    </span></div>
+    <div class="linha-dado"><span class="chave">E-mail</span><span class="valor">{{ u.email }}</span></div>
+
+    {% set c = certificados[chave] %}
+    <div class="linha-dado"><span class="chave">Certificado A1</span><span class="valor">
+      {% if not c.existe %}
+        <span class="selo ruim">não encontrado</span> — coloque <code>{{ c.arquivo }}</code> em <code>config/certificados/</code>
+      {% elif not c.senha_definida %}
+        <span class="selo aviso">senha não definida</span> — variável <code>{{ c.variavel }}</code>
+      {% elif c.erro %}
+        <span class="selo ruim">erro</span> {{ c.erro }}
+      {% elif c.vencido %}
+        <span class="selo ruim">vencido em {{ c.validade }}</span>
+      {% else %}
+        <span class="selo bom">válido até {{ c.validade }}</span>
+      {% endif %}
+    </span></div>
+    {% if c.titular %}
+    <div class="linha-dado"><span class="chave">Titular do certificado</span><span class="valor" style="font-size:13px">{{ c.titular }}</span></div>
+    {% endif %}
+  </div>
+  {% endfor %}
+</div>
+
+<h2>Dados fiscais do serviço</h2>
+<div class="cartao">
+  <div class="linha-dado"><span class="chave">Código nacional (cTribNac)</span><span class="valor">{{ cfg.servico.codigo_tributacao_nacional }} — {{ cfg.servico.descricao_tributacao_nacional }}</span></div>
+  <div class="linha-dado"><span class="chave">Código NBS</span><span class="valor">{{ cfg.servico.codigo_nbs }}</span></div>
+  <div class="linha-dado"><span class="chave">Descrição na nota</span><span class="valor">{{ cfg.servico.descricao }}</span></div>
+  <div class="linha-dado"><span class="chave">Alíquota de ISS</span><span class="valor">{{ cfg.servico.aliquota_iss }}%</span></div>
+  <div class="linha-dado"><span class="chave">ISS retido?</span><span class="valor">
+    {{ 'Não retido' if cfg.servico.retencao_issqn == '1' else 'RETIDO — confira!' }}
+  </span></div>
+  <div class="linha-dado"><span class="chave">Simples Nacional</span><span class="valor">
+    {{ 'Não optante' if cfg.servico.opcao_simples_nacional == '1' else 'Optante' }}
+  </span></div>
+  <div class="linha-dado"><span class="chave">IBS/CBS</span><span class="valor">
+    {% if cfg.ibscbs.emitir %}
+      <span class="selo bom">ligado</span> classificação {{ cfg.ibscbs.codigo_classificacao_tributaria }}
+    {% else %}
+      <span class="selo neutro">desligado</span>
+    {% endif %}
+  </span></div>
+</div>
+
+<h2>Regras de faturamento</h2>
+<div class="grade-2">
+  <div class="cartao">
+    <h3>Seções que geram nota</h3>
+    <p style="font-size:13.5px;color:var(--tinta-fraca);margin-top:0">
+      A classificação é sempre pelo <b>nome</b> da seção. O código numérico não
+      serve: <code>54</code> é “MANUT ORTO - CARTAO DEBITO” no caixa da clínica e
+      “REC ODC - BOLETO” no de contratos.
+    </p>
+    {% for s in cfg.faturamento.secoes_que_emitem %}
+      <span class="selo neutro" style="margin:2px 2px 2px 0;display:inline-block">{{ s }}</span>
+    {% endfor %}
+  </div>
+  <div class="cartao">
+    <h3>O que nunca gera nota</h3>
+    {% for p in cfg.faturamento.palavras_que_bloqueiam %}
+      <span class="selo ruim" style="margin:2px 2px 2px 0;display:inline-block">qualquer seção com {{ p }}</span>
+    {% endfor %}
+    <div class="linha-dado" style="margin-top:10px">
+      <span class="chave">Particulares</span>
+      <span class="valor">{{ 'emitindo' if cfg.faturamento.emitir_particulares else 'desligado' }}</span>
+    </div>
+    <div class="linha-dado">
+      <span class="chave">Convênios</span>
+      <span class="valor">
+        {{ 'emitindo (nota consolidada)' if cfg.faturamento.emitir_convenios else 'desligado nesta fase' }}
+      </span>
+    </div>
+    <div class="linha-dado">
+      <span class="chave">Convênios reconhecidos</span>
+      <span class="valor">{{ cfg.faturamento.prefixos_convenio | join(', ') }}</span>
+    </div>
+  </div>
+</div>
+
+<h2>Numeração das notas</h2>
+<div class="cartao">
+  <div class="faixa atencao" style="margin-bottom:16px">
+    <span class="icone">▲</span>
+    <div>
+      <b>Não apague <code>dados/controle.db</code></b>
+      <p>
+        É esse arquivo que guarda o último número usado e quais notas já saíram.
+        Perdê-lo faz a numeração recomeçar, e a prefeitura rejeita número repetido.
+      </p>
+    </div>
+  </div>
+  {% for chave, u in cfg.unidades.items() %}
+  <form method="post" action="{{ url_for('ajustar_numeracao') }}"
+        style="display:flex;gap:10px;align-items:center;margin-bottom:10px">
+    <input type="hidden" name="unidade" value="{{ chave }}">
+    <span style="min-width:150px">{{ u.apelido }}</span>
+    <span style="color:var(--tinta-fraca)">última nota nº</span>
+    <input type="text" name="ultimo" value="{{ controle.unidades.get(chave, 0) }}" style="width:110px">
+    <button class="botao pequeno secundario" type="submit">Ajustar</button>
+  </form>
+  {% endfor %}
+  <p style="font-size:13.5px;color:var(--tinta-fraca);margin-bottom:0">
+    Ajuste só se a clínica já emitiu notas fora do sistema e a numeração precisa
+    continuar de onde parou. Série usada: <code>{{ cfg.faturamento.serie }}</code>
+    (a prefeitura usa 49999 na emissão manual, por isso não colidem).
+  </p>
+</div>
+
+<h2>Backup</h2>
+<div class="cartao">
+  <p>
+    Três coisas não podem ser perdidas, e só uma delas é insubstituível:
+  </p>
+  <div class="linha-dado">
+    <span class="chave"><code>dados/controle.db</code></span>
+    <span class="valor">
+      <b>Insubstituível.</b> Guarda a numeração e quais notas já foram emitidas
+      e transmitidas. Sem ele a numeração recomeça e a prefeitura rejeita tudo.
+    </span>
+  </div>
+  <div class="linha-dado">
+    <span class="chave"><code>dados/clientes/</code></span>
+    <span class="valor">
+      A base de pacientes. Se perder, dá para refazer reexportando o cadastro
+      do TechCare — leva alguns minutos, não é tragédia.
+    </span>
+  </div>
+  <div class="linha-dado">
+    <span class="chave"><code>config/empresas.json</code></span>
+    <span class="valor">CNPJ, endereços, alíquota, regras. Refazível, mas dá trabalho.</span>
+  </div>
+  <div class="linha-dado">
+    <span class="chave"><code>dados/saida/</code></span>
+    <span class="valor">
+      Os XMLs emitidos. São documento fiscal — guarde por 5 anos. Não entram no
+      zip por causa do tamanho; copie a pasta junto, de tempos em tempos.
+    </span>
+  </div>
+
+  <div class="faixa atencao" style="margin:16px 0 0">
+    <span class="icone">▲</span>
+    <div>
+      <b>Os certificados ficam de fora do backup, de propósito</b>
+      <p>
+        Um <code>.pfx</code> com a senha do lado, num arquivo que circula por
+        e-mail ou pen drive, é exatamente como uma assinatura digital vaza.
+        Guarde os certificados e o <code>senhas.bat</code> separadamente, em
+        lugar seguro.
+      </p>
+    </div>
+  </div>
+
+  <form method="post" action="{{ url_for('backup') }}" style="margin-top:16px">
+    <button class="botao" type="submit">Baixar backup agora (.zip)</button>
+  </form>
+  <p style="margin:12px 0 0;color:var(--tinta-fraca);font-size:13.5px">
+    Faça isso depois de cada emissão valendo. Guarde em outro lugar — pen drive,
+    Google Drive, o que for. Backup na mesma máquina não salva de HD queimado.
+  </p>
+</div>
+
+<h2>Envio à prefeitura</h2>
+<div class="cartao">
+  {% if envio.pronto %}
+  <div class="faixa bom"><span class="icone">✓</span><div><b>Envio liberado</b>
+    <p>Ambiente {{ envio.ambiente }} — {{ envio.url }}</p></div></div>
+  {% else %}
+  <div class="faixa atencao">
+    <span class="icone">▲</span>
+    <div>
+      <b>O envio automático ainda não está ligado</b>
+      <p>Falta: {{ envio.faltando | join('; ') }}.</p>
+    </div>
+  </div>
+  {% endif %}
+  <div class="linha-dado"><span class="chave">Município emitente</span><span class="valor">{{ cfg.municipio.nome }} ({{ cfg.municipio.codigo_ibge }})</span></div>
+  <div class="linha-dado"><span class="chave">Padrão do XML</span><span class="valor">{{ cfg.municipio.padrao }} — provedor {{ cfg.municipio.provedor }}</span></div>
+  <div class="linha-dado"><span class="chave">Ambiente escolhido</span><span class="valor">{{ cfg.faturamento.ambiente }}</span></div>
+  <div class="linha-dado"><span class="chave">Homologação</span><span class="valor" style="font-size:12.5px">{{ cfg.municipio.endpoints.homologacao or '—' }}</span></div>
+  <div class="linha-dado"><span class="chave">Produção</span><span class="valor" style="font-size:12.5px">{{ cfg.municipio.endpoints.producao or 'a confirmar com a prefeitura' }}</span></div>
+</div>
+
+<h2>Versão e atualização</h2>
+
+{% if atualizacao %}
+  {% if atualizacao.erro_aplicar %}
+  <div class="faixa erro"><span class="icone">■</span><div>
+    <b>A atualização não foi aplicada</b><p>{{ atualizacao.erro_aplicar }}</p>
+  </div></div>
+  {% elif atualizacao.aplicado %}
+  <div class="faixa bom"><span class="icone">✓</span><div>
+    <b>{{ atualizacao.mensagem }}</b>
+    {% if atualizacao.aplicado.config %}
+    <p>Configuração ajustada: {{ atualizacao.aplicado.config | join('; ') }}</p>
+    {% endif %}
+    <p style="font-size:13px">A versão anterior ficou guardada — dá para voltar.</p>
+  </div></div>
+  {% elif atualizacao.novidade %}
+  <div class="faixa atencao"><span class="icone">▲</span><div>
+    <b>Existe uma versão nova: {{ atualizacao.disponivel }}</b>
+    <p>{{ atualizacao.notas or 'Sem descrição do que mudou.' }}</p>
+  </div></div>
+  {% elif atualizacao.mensagem %}
+  <div class="faixa"><span class="icone">ℹ</span><div><p>{{ atualizacao.mensagem }}</p></div></div>
+  {% endif %}
+{% endif %}
+
+<div class="cartao">
+  <div class="linha-dado">
+    <span class="chave">Versão instalada</span>
+    <span class="valor"><b>{{ versao }}</b></span>
+  </div>
+  {% if atualizacao and atualizacao.disponivel %}
+  <div class="linha-dado">
+    <span class="chave">Disponível no servidor</span>
+    <span class="valor">{{ atualizacao.disponivel }}
+      {% if atualizacao.publicado_em %}
+      <span style="color:var(--tinta-fantasma);font-size:12.5px">
+        publicada em {{ atualizacao.publicado_em[:10] | data_br }}</span>
+      {% endif %}
+    </span>
+  </div>
+  {% endif %}
+
+  <div style="margin-top:14px;display:flex;gap:10px;flex-wrap:wrap">
+    <form method="post" action="{{ url_for('procurar_atualizacao') }}">
+      <button class="botao secundario" type="submit">Procurar atualizações</button>
+    </form>
+    {% if atualizacao and atualizacao.novidade %}
+    <form method="post" action="{{ url_for('aplicar_atualizacao') }}"
+          onsubmit="return confirm('Baixar e instalar a versão {{ atualizacao.disponivel }}? Seus dados, certificados e a numeração não são tocados.')">
+      <button class="botao" type="submit">
+        Instalar a versão {{ atualizacao.disponivel }}
+      </button>
+    </form>
+    {% endif %}
+  </div>
+
+  <p style="color:var(--tinta-fraca);font-size:13.5px;margin-top:14px">
+    A atualização troca <b>só o programa</b>. A numeração das notas, a base de
+    clientes, os certificados e esta configuração ficam como estão — e a versão
+    anterior é guardada antes de qualquer troca.
+  </p>
+</div>
+
+{% if versoes_guardadas %}
+<details style="margin-top:14px">
+  <summary style="cursor:pointer;color:var(--marca)">
+    Voltar para uma versão anterior ({{ versoes_guardadas | length }} guardada(s))
+  </summary>
+  <div class="cartao" style="margin-top:10px">
+    <p style="color:var(--tinta-fraca);font-size:13.5px">
+      Use se uma atualização deixou o sistema com problema. Volta só o
+      programa; os dados continuam onde estão.
+    </p>
+    {% for v in versoes_guardadas %}
+    <form method="post" action="{{ url_for('reverter_atualizacao') }}"
+          style="display:flex;gap:10px;align-items:center;margin-bottom:8px"
+          onsubmit="return confirm('Voltar o programa para {{ v }}?')">
+      <input type="hidden" name="versao" value="{{ v }}">
+      <code style="flex:1">{{ v }}</code>
+      <button class="botao secundario" type="submit">Voltar para esta</button>
+    </form>
+    {% endfor %}
+  </div>
+</details>
+{% endif %}
+
+<p style="margin-top:20px;color:var(--tinta-fraca);font-size:13.5px">
+  Arquivo de configuração: <code>{{ caminho_config }}</code>
+</p>
+{% endblock %}

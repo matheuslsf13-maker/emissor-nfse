@@ -1,0 +1,194 @@
+{% extends "base.html" %}
+{% block titulo %}Transmitir para a prefeitura{% endblock %}
+{% block conteudo %}
+
+<div class="passos">
+  <div class="passo feito"><b>1</b> Trazer os relatórios</div>
+  <div class="passo feito"><b>2</b> Conferir</div>
+  <div class="passo feito"><b>3</b> Gerar as notas</div>
+  <div class="passo ativo"><b>4</b> Transmitir</div>
+</div>
+
+<h1>Transmitir para a prefeitura</h1>
+<p class="legenda">
+  Pasta <code>{{ pasta }}</code> — {{ arquivos }} nota(s) assinada(s) prontas.
+  Só o que a prefeitura aceitar vira nota de verdade, com número e código de
+  verificação para entregar ao paciente.
+</p>
+
+{% if gerado_para %}
+<div class="faixa {{ 'atencao' if gerado_para == 'producao' else '' }}">
+  <span class="icone">{{ '▲' if gerado_para == 'producao' else 'ℹ' }}</span>
+  <div>
+    <b>Estas notas foram geradas para {{ 'PRODUÇÃO — valem de verdade' if gerado_para == 'producao' else 'HOMOLOGAÇÃO (teste)' }}</b>
+    <p>
+      O ambiente é escolhido na hora de <b>gerar</b> e fica assinado dentro do
+      XML — não dá para trocar aqui. Só o botão de
+      <b>{{ gerado_para }}</b> abaixo vai funcionar para esta pasta. Para o outro
+      ambiente, mude na Configuração e gere as notas de novo.
+    </p>
+  </div>
+</div>
+{% endif %}
+
+{% if erro %}
+<div class="faixa erro">
+  <span class="icone">■</span>
+  <div><b>Não deu para transmitir</b><p>{{ erro }}</p></div>
+</div>
+{% endif %}
+
+{% if resultado %}
+  {% set aceitas = resultado.aceitas %}
+  {% set recusadas = resultado.recusadas %}
+
+  {% if aceitas and not recusadas %}
+  <div class="faixa bom"><span class="icone">✓</span><div>
+    <b>{{ aceitas | length }} nota(s) aceita(s) pela prefeitura</b>
+    <p>Ambiente <b>{{ resultado.ambiente }}</b>. O número devolvido já ficou gravado.</p>
+  </div></div>
+  {% elif recusadas %}
+  <div class="faixa atencao"><span class="icone">▲</span><div>
+    <b>{{ recusadas | length }} nota(s) não foram aceitas</b>
+    <p>
+      Nada foi perdido: os XMLs continuam na pasta e podem ser reenviados
+      depois de corrigir. Veja o retorno da prefeitura abaixo — é ele que diz
+      o que precisa mudar.
+    </p>
+  </div></div>
+  {% endif %}
+
+  <div class="numeros">
+    <div class="numero destaque">
+      <div class="rotulo">Aceitas</div>
+      <div class="valor">{{ aceitas | length }}</div>
+      <div class="nota">viraram nota fiscal</div>
+    </div>
+    <div class="numero {{ 'ruim' if recusadas }}">
+      <div class="rotulo">Recusadas</div>
+      <div class="valor">{{ recusadas | length }}</div>
+      <div class="nota">podem ser reenviadas</div>
+    </div>
+    <div class="numero">
+      <div class="rotulo">Ainda não enviadas</div>
+      <div class="valor">{{ resultado.nao_enviadas }}</div>
+      <div class="nota">{{ 'aguardando você conferir esta' if resultado.nao_enviadas else '—' }}</div>
+    </div>
+    <div class="numero">
+      <div class="rotulo">Já transmitidas antes</div>
+      <div class="valor">{{ resultado.puladas | length }}</div>
+      <div class="nota">puladas para não duplicar</div>
+    </div>
+  </div>
+
+  <h2>Retorno da prefeitura</h2>
+  <p class="legenda">
+    Esta é a resposta crua do WebService. Na primeira transmissão ela é o que
+    mostra o formato exato do retorno — vale ler inteira.
+  </p>
+
+  {% for e in resultado.enviadas %}
+  <div class="cartao" style="border-left:4px solid {{ 'var(--bom)' if e.aceita else 'var(--ruim)' }}">
+    <div style="display:flex;gap:12px;align-items:baseline;flex-wrap:wrap">
+      <b>DPS nº {{ e.numero_dps }}</b>
+      <span class="selo {{ 'bom' if e.aceita else 'ruim' }}">
+        {{ 'aceita' if e.aceita else 'recusada' }}
+      </span>
+      {% if e.http %}<span class="selo neutro">HTTP {{ e.http }}</span>{% endif %}
+      {% if e.numero_nota %}<span class="selo marca">nota nº {{ e.numero_nota }}</span>{% endif %}
+      {% if e.codigo_verificacao %}<span class="selo marca">cód. {{ e.codigo_verificacao }}</span>{% endif %}
+      {% if e.chave_acesso %}<span class="selo neutro" style="font-family:monospace;font-size:11px">{{ e.chave_acesso }}</span>{% endif %}
+      <span style="margin-left:auto;color:var(--tinta-fantasma);font-size:12.5px">{{ e.arquivo }}</span>
+    </div>
+    {% if e.erro %}<p style="color:var(--ruim);margin:8px 0 0">{{ e.erro }}</p>{% endif %}
+    {% if e.mensagem %}<p style="margin:8px 0 0">{{ e.mensagem }}</p>{% endif %}
+    {% if e.bruto %}
+    <details style="margin-top:10px">
+      <summary style="cursor:pointer;color:var(--marca)">Ver a resposta completa</summary>
+      <code class="mono-bloco" style="margin-top:8px">{{ e.bruto }}</code>
+    </details>
+    {% endif %}
+  </div>
+  {% endfor %}
+
+  {% if resultado.puladas %}
+  <h2>Puladas</h2>
+  <div class="moldura-tabela">
+    <table>
+      <thead><tr><th>Arquivo</th><th>Motivo</th></tr></thead>
+      <tbody>
+        {% for p in resultado.puladas %}
+        <tr><td class="mono" style="font-size:12.5px">{{ p.arquivo }}</td><td>{{ p.motivo }}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+{% endif %}
+
+<h2>{{ 'Transmitir o restante' if resultado else 'Transmitir' }}</h2>
+
+{% if not envio.pronto %}
+<div class="faixa atencao">
+  <span class="icone">▲</span>
+  <div>
+    <b>O envio está desligado na configuração</b>
+    <p>Falta: {{ envio.faltando | join('; ') }}.</p>
+  </div>
+</div>
+{% endif %}
+
+<div class="grade-2">
+  <div class="cartao">
+    <h3>Homologação <span class="selo bom">comece por aqui</span></h3>
+    <p style="color:var(--tinta-fraca);font-size:14px">
+      Ambiente de testes da prefeitura. Nada emitido aqui vale fiscalmente —
+      é onde se descobre se o XML está certo, sem risco.
+    </p>
+    <form method="post" action="{{ url_for('transmitir_lote', pasta=pasta) }}">
+      <input type="hidden" name="ambiente" value="homologacao">
+      <label style="display:block;margin-bottom:10px">
+        <input type="radio" name="quantidade" value="uma" checked> Enviar <b>uma nota só</b> (recomendado da primeira vez)
+      </label>
+      <label style="display:block;margin-bottom:14px">
+        <input type="radio" name="quantidade" value="todas"> Enviar todas as {{ arquivos }}
+      </label>
+      <button class="botao" type="submit"
+              {{ 'disabled title="Esta pasta foi gerada para produção"' if gerado_para == 'producao' }}>
+        Transmitir em homologação
+      </button>
+    </form>
+  </div>
+
+  <div class="cartao" style="border-color:#f3c9c5">
+    <h3>Produção <span class="selo ruim">vale de verdade</span></h3>
+    <p style="color:var(--tinta-fraca);font-size:14px">
+      Gera nota fiscal real. Em Vila Velha, cancelar exige processo
+      administrativo na Secretaria de Finanças — não é um clique.
+      <b>Só depois de a homologação passar limpa.</b>
+    </p>
+    <form method="post" action="{{ url_for('transmitir_lote', pasta=pasta) }}"
+          onsubmit="return confirm('Isto emite nota fiscal de verdade e não tem desfazer simples. Confirma?')">
+      <input type="hidden" name="ambiente" value="producao">
+      <label style="display:block;margin-bottom:10px">
+        <input type="radio" name="quantidade" value="uma" checked> Enviar <b>uma nota só</b>
+      </label>
+      <label style="display:block;margin-bottom:12px">
+        <input type="radio" name="quantidade" value="todas"> Enviar todas as {{ arquivos }}
+      </label>
+      <label style="display:block;font-size:14px;margin-bottom:6px">
+        Para confirmar, digite <b>PRODUCAO</b>:
+      </label>
+      <input type="text" name="confirmacao" placeholder="PRODUCAO" autocomplete="off" style="width:170px">
+      <button class="botao perigo" type="submit" style="margin-left:8px"
+              {{ 'disabled title="Esta pasta foi gerada para homologação"' if gerado_para and gerado_para != 'producao' }}>
+        Transmitir
+      </button>
+    </form>
+  </div>
+</div>
+
+<p style="margin-top:22px">
+  <a href="{{ url_for('inicio') }}">← Voltar ao início</a>
+</p>
+{% endblock %}

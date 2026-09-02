@@ -1,0 +1,135 @@
+{% extends "base.html" %}
+{% block titulo %}Notas geradas{% endblock %}
+{% block conteudo %}
+
+<div class="passos">
+  <div class="passo feito"><b>1</b> Trazer os relatórios</div>
+  <div class="passo feito"><b>2</b> Conferir</div>
+  <div class="passo ativo"><b>3</b> Gerar as notas</div>
+</div>
+
+{% if saida.simulacao %}
+<h1>Pronto — {{ saida.geradas | length }} notas geradas em modo teste</h1>
+<div class="faixa info">
+  <span class="icone">›</span>
+  <div>
+    <b>Nada foi consumido</b>
+    <p>A numeração não avançou e nada foi transmitido. Pode gerar de novo à vontade.</p>
+  </div>
+</div>
+{% else %}
+<h1>{{ saida.geradas | length }} notas emitidas valendo</h1>
+<div class="faixa bom">
+  <span class="icone">✓</span>
+  <div>
+    <b>A numeração foi consumida e registrada</b>
+    <p>
+      Cada nota ficou gravada em <code>dados/controle.json</code>. Se você rodar
+      de novo o mesmo período, elas serão puladas automaticamente.
+    </p>
+  </div>
+</div>
+{% endif %}
+
+{% if saida.aviso_certificado %}
+<div class="faixa atencao">
+  <span class="icone">▲</span>
+  <div>
+    <b>Assinatura digital</b>
+    <p>{{ saida.aviso_certificado }}</p>
+  </div>
+</div>
+{% endif %}
+
+{% if saida.erros %}
+<div class="faixa erro">
+  <span class="icone">■</span>
+  <div>
+    <b>{{ saida.erros | length }} nota(s) não puderam ser geradas</b>
+    {% for e in saida.erros %}<p>{{ e.tomador }}: {{ e.erro }}</p>{% endfor %}
+  </div>
+</div>
+{% endif %}
+
+{% if saida.puladas %}
+<div class="faixa atencao">
+  <span class="icone">▲</span>
+  <div>
+    <b>{{ saida.puladas | length }} lançamento(s) pulados por já terem nota</b>
+    {% for p in saida.puladas[:10] %}<p>{{ p.tomador }} — {{ p.motivo }}</p>{% endfor %}
+  </div>
+</div>
+{% endif %}
+
+<div class="numeros" style="margin-top:18px">
+  <div class="numero destaque">
+    <div class="rotulo">Notas no arquivo</div>
+    <div class="valor">{{ saida.geradas | length }}</div>
+    <div class="nota">R$ {{ brl(saida.valor_total) }}</div>
+  </div>
+  <div class="numero">
+    <div class="rotulo">Assinadas digitalmente</div>
+    <div class="valor">{{ saida.geradas | selectattr('assinada') | list | length }}</div>
+    <div class="nota">{{ 'certificado ativo' if saida.assinatura_ativa else 'sem certificado' }}</div>
+  </div>
+  <div class="numero">
+    <div class="rotulo">Numeração usada</div>
+    <div class="valor">
+      {% if saida.geradas %}{{ saida.geradas[0].numero }}–{{ saida.geradas[-1].numero }}{% else %}—{% endif %}
+    </div>
+    <div class="nota">{{ 'não consumida (teste)' if saida.simulacao else 'consumida' }}</div>
+  </div>
+</div>
+
+<div class="acoes">
+  <a class="botao secundario" href="{{ url_for('baixar_zip', pasta=pasta_nome) }}">
+    Baixar todos os XMLs (.zip)
+  </a>
+  {% if not saida.simulacao %}
+  <a class="botao" href="{{ url_for('tela_transmitir', pasta=pasta_nome) }}">
+    Transmitir para a prefeitura →
+  </a>
+  {% endif %}
+  <a class="botao secundario" href="{{ url_for('conferencia', lote_id=lote.id) }}">Voltar à conferência</a>
+  <span style="color:var(--tinta-fraca);font-size:13.5px">
+    Os arquivos também ficam em <code>{{ pasta_relativa }}</code>
+  </span>
+</div>
+
+<h2>Notas geradas</h2>
+<div style="margin-bottom:12px">
+  <input type="search" id="filtro" placeholder="Buscar…" style="min-width:300px">
+  <span id="filtro-conta" style="color:var(--tinta-fraca);font-size:13.5px">{{ saida.geradas | length }} linha(s)</span>
+</div>
+<div class="moldura-tabela">
+  <div class="rolagem">
+    <table id="tabela-geradas">
+      <thead>
+        <tr><th class="num">Nº</th><th>Data</th><th>Paciente</th><th>CPF/CNPJ</th>
+            <th class="num">Valor</th><th>Assinatura</th><th>Arquivo</th></tr>
+      </thead>
+      <tbody>
+        {% for n in saida.geradas %}
+        <tr>
+          <td class="num">{{ n.numero }}</td>
+          <td class="mono">{{ n.data | data_br }}</td>
+          <td>{{ n.tomador }}</td>
+          <td class="mono">{{ n.documento | documento }}</td>
+          <td class="num">{{ brl(n.valor) }}</td>
+          <td>
+            {% if n.assinada %}<span class="selo bom">válida</span>
+            {% elif saida.assinatura_ativa %}<span class="selo ruim">falhou</span>
+            {% else %}<span class="selo neutro">sem certificado</span>{% endif %}
+          </td>
+          <td class="mono" style="font-size:12px">{{ n.arquivo }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>filtrarTabela("filtro", "tabela-geradas");</script>
+{% endblock %}
