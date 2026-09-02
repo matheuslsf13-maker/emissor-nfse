@@ -135,6 +135,103 @@ def interpretar_consulta(bruto: str) -> dict:
     return resposta
 
 
+NS_NFSE = "{http://www.sped.fazenda.gov.br/nfse}"
+
+
+def _t(no, caminho: str) -> str:
+    """Texto de um caminho relativo, ou vazio. Sem levantar excecao."""
+    if no is None:
+        return ""
+    achado = no.find(caminho.replace("/", "/" + NS_NFSE).lstrip("/")
+                     if caminho.startswith("/") else
+                     NS_NFSE + caminho.replace("/", "/" + NS_NFSE))
+    return (achado.text or "").strip() if achado is not None else ""
+
+
+def dados_para_impressao(xml_nota: str) -> dict:
+    """Extrai do XML os campos que aparecem no documento impresso.
+
+    A NFS-e que vale e o XML; o papel e apenas o **documento auxiliar** --
+    uma representacao. Por isso da para gerar aqui, com os mesmos dados que
+    a prefeitura devolveu, em vez de mandar o operador ao portal digitar 50
+    digitos para depois imprimir.
+    """
+    from lxml import etree
+
+    if not xml_nota:
+        return {}
+    try:
+        raiz = etree.fromstring(xml_nota.encode("utf-8"))
+    except Exception:  # noqa: BLE001
+        return {}
+
+    info = raiz if etree.QName(raiz).localname == "infNFSe" else raiz.find(
+        NS_NFSE + "infNFSe")
+    if info is None:
+        return {}
+
+    emit = info.find(NS_NFSE + "emit")
+    ender = emit.find(NS_NFSE + "enderNac") if emit is not None else None
+    valores = info.find(NS_NFSE + "valores")
+    dps = info.find(NS_NFSE + "DPS/" + NS_NFSE + "infDPS")
+    toma = dps.find(NS_NFSE + "toma") if dps is not None else None
+    toma_end = toma.find(NS_NFSE + "end") if toma is not None else None
+    toma_nac = toma_end.find(NS_NFSE + "endNac") if toma_end is not None else None
+    serv = dps.find(NS_NFSE + "serv/" + NS_NFSE + "cServ") if dps is not None else None
+
+    def texto(no, tag):
+        if no is None:
+            return ""
+        achado = no.find(NS_NFSE + tag)
+        return (achado.text or "").strip() if achado is not None else ""
+
+    return {
+        "chave": (info.get("Id") or "").replace("NFS", "", 1),
+        "numero": texto(info, "nNFSe"),
+        "emitida_em": texto(info, "dhProc"),
+        "municipio": texto(info, "xLocEmi"),
+        "situacao": "NFS-e Gerada" if texto(info, "cStat") == "100" else texto(info, "cStat"),
+        "ambiente": texto(dps, "tpAmb"),
+        "serie": texto(dps, "serie"),
+        "numero_dps": texto(dps, "nDPS"),
+        "competencia": texto(dps, "dCompet"),
+        "prestador": {
+            "nome": texto(emit, "xNome"),
+            "cnpj": texto(emit, "CNPJ") or texto(emit, "CPF"),
+            "im": texto(emit, "IM"),
+            "fone": texto(emit, "fone"),
+            "email": texto(emit, "email"),
+            "logradouro": texto(ender, "xLgr"),
+            "numero": texto(ender, "nro"),
+            "complemento": texto(ender, "xCpl"),
+            "bairro": texto(ender, "xBairro"),
+            "uf": texto(ender, "UF"),
+            "cep": texto(ender, "CEP"),
+        },
+        "tomador": {
+            "nome": texto(toma, "xNome"),
+            "documento": texto(toma, "CPF") or texto(toma, "CNPJ"),
+            "logradouro": texto(toma_end, "xLgr"),
+            "numero": texto(toma_end, "nro"),
+            "bairro": texto(toma_end, "xBairro"),
+            "cep": texto(toma_nac, "CEP"),
+        },
+        "servico": {
+            "codigo": texto(serv, "cTribNac"),
+            "descricao": texto(serv, "xDescServ"),
+            "nbs": texto(serv, "cNBS"),
+            "tributacao": texto(info, "xTribNac"),
+        },
+        "valores": {
+            "base": texto(valores, "vBC"),
+            "aliquota": texto(valores, "pAliqAplic"),
+            "iss": texto(valores, "vISSQN"),
+            "liquido": texto(valores, "vLiq"),
+            "retido": texto(valores, "vTotalRet"),
+        },
+    }
+
+
 def consultar(config, unidade: str, chave_acesso: str = "", dps: str = "",
               timeout: int = 60) -> dict:
     """Consulta uma nota. Assina o pedido com o certificado da unidade."""

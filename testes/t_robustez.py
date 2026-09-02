@@ -487,18 +487,22 @@ css = io.open("web/static/estilo.css", encoding="utf-8").read()
 checar("segue o tema do sistema", "prefers-color-scheme: dark" in css)
 checar("e a escolha manual vence o sistema",
        '[data-tema="escuro"]' in css and ':root:not([data-tema="claro"])' in css)
-
-# Cor literal fora do bloco de variaveis. O @media print e a excecao
-# legitima: papel nao tem tema escuro, e preto sobre branco ali nao e
-# descuido, e a escolha certa.
-sem_print = _re.sub(r"@media print\s*\{.*?\n}", "", css, flags=_re.S)
-fixas_css = [l.strip() for l in sem_print.split(chr(10))
+# Cor literal fora do bloco de variaveis. Duas excecoes legitimas, e as duas
+# sao PAPEL: o `@media print` e o documento auxiliar da nota (.danfse), que
+# e entregue ao paciente e tem que sair preto no branco mesmo com a tela no
+# escuro. O resto da interface passa por variavel, sem excecao.
+so_tela = _re.sub(r"@media print\s*\{.*?\n}", "", css, flags=_re.S)
+marca_papel = "Documento auxiliar da NFS-e (o que vai para o papel)"
+if marca_papel in so_tela:
+    so_tela = so_tela[:so_tela.index(marca_papel)]
+fixas_css = [l.strip() for l in so_tela.split(chr(10))
              if _re.search(r":\s*#[0-9a-fA-F]{3,6}", l)
              and not l.strip().startswith("--")]
-checar("nenhuma cor fixa solta no CSS (fora da impressao)",
-       not fixas_css, fixas_css[:3])
-checar("e a impressao usa preto no branco, de proposito",
-       "@media print" in css and "#fff" in css)
+checar("nenhuma cor fixa solta na INTERFACE", not fixas_css, fixas_css[:3])
+checar("e o papel usa preto no branco, de proposito",
+       "@media print" in css and marca_papel in css)
+
+
 
 fixas_html = []
 for arquivo in _g.glob("web/templates/*.html"):
@@ -667,7 +671,62 @@ checar("copiar a chave tem caminho que sempre funciona",
 
 
 # ==========================================================================
-print("\n16. Homologacao nao pode bloquear a producao")
+print("\n16. Imprimir a nota sem ir ao portal")
+# A NFS-e que vale e o XML; o papel e so a representacao dele. Como a
+# consulta ja devolve o XML completo, da para montar o documento aqui --
+# em vez de mandar o operador ao portal digitar 50 digitos so para
+# conseguir imprimir.
+from nfse.consulta import dados_para_impressao as _dpi  # noqa: E402
+
+XML_NOTA = """<NFSe xmlns="http://www.sped.fazenda.gov.br/nfse">
+<infNFSe Id="NFS12345678901234567890123456789012345678901234567890">
+<xLocEmi>VILA VELHA</xLocEmi><nNFSe>8966</nNFSe><cStat>100</cStat>
+<dhProc>2026-09-02T00:00:00-03:00</dhProc><xTribNac>Odontologia.</xTribNac>
+<emit><CNPJ>11222333000181</CNPJ><IM>92494</IM><xNome>CLINICA X</xNome>
+<enderNac><xLgr>RUA A</xLgr><nro>1</nro><xBairro>CENTRO</xBairro>
+<UF>ES</UF><CEP>29100000</CEP></enderNac><email>x@y.com</email></emit>
+<valores><vBC>30.00</vBC><pAliqAplic>2.00</pAliqAplic>
+<vISSQN>0.60</vISSQN><vLiq>30.00</vLiq></valores>
+<DPS><infDPS><tpAmb>1</tpAmb><serie>00001</serie><nDPS>1</nDPS>
+<dCompet>2026-08-01</dCompet>
+<toma><CPF>12345678909</CPF><xNome>PACIENTE TESTE</xNome>
+<end><endNac><CEP>29127041</CEP></endNac><xLgr>RUA B</xLgr>
+<nro>330</nro><xBairro>BAIRRO</xBairro></end></toma>
+<serv><cServ><cTribNac>041201</cTribNac>
+<xDescServ>Tratamento odontologico</xDescServ>
+<cNBS>123012300</cNBS></cServ></serv>
+</infDPS></DPS></infNFSe></NFSe>"""
+
+_d = _dpi(XML_NOTA)
+checar("extrai o numero da nota", _d["numero"] == "8966", _d.get("numero"))
+checar("e a chave, tirando o prefixo NFS",
+       _d["chave"] == "1" + "2345678901234567890123456789012345678901234567890"[:49],
+       _d.get("chave"))
+checar("traz o prestador completo",
+       _d["prestador"]["nome"] == "CLINICA X"
+       and _d["prestador"]["cnpj"] == "11222333000181")
+checar("o tomador com documento e endereco",
+       _d["tomador"]["nome"] == "PACIENTE TESTE"
+       and _d["tomador"]["logradouro"] == "RUA B")
+checar("o servico e o codigo nacional",
+       _d["servico"]["codigo"] == "041201")
+checar("e os valores para o rodape",
+       _d["valores"]["liquido"] == "30.00" and _d["valores"]["iss"] == "0.60")
+checar("sabe se e producao ou teste", _d["ambiente"] == "1")
+
+checar("XML vazio nao quebra", _dpi("") == {})
+checar("XML invalido nao quebra", _dpi("<nao> e xml") == {})
+
+checar("chave com tamanho errado devolve 404",
+       cliente.get("/nota/123/imprimir").status_code == 404)
+
+css_imp = io.open("web/static/estilo.css", encoding="utf-8").read()
+checar("na impressao sobra so o documento",
+       ".so-tela { display: none !important; }" in css_imp)
+
+
+# ==========================================================================
+print("\n17. Homologacao nao pode bloquear a producao")
 # O bug que travou a virada para valendo: 276 notas de TESTE marcavam os
 # lancamentos como "ja emitidos", e ao gerar em producao o sistema pulava
 # todos -- nenhuma nota aparecia. Nota de homologacao nao existe
@@ -720,7 +779,7 @@ finally:
 
 
 # ==========================================================================
-print("\n17. Dados de paciente esquisitos no XML")
+print("\n18. Dados de paciente esquisitos no XML")
 
 from nfse.gerador_dps import gerar_nfse  # noqa: E402
 from nfse.conciliacao import Nota  # noqa: E402
@@ -769,7 +828,7 @@ checar("paciente sem documento nao gera CPF vazio no XML",
 
 
 # ==========================================================================
-print("\n18. Valores")
+print("\n19. Valores")
 
 xml = gerar("PACIENTE", valor="0.00")
 valores = etree.fromstring(xml).find(".//n:valores", NS)
@@ -787,7 +846,7 @@ checar("valor alto nao vira notacao cientifica",
 
 
 # ==========================================================================
-print("\n19. Documentos invalidos")
+print("\n20. Documentos invalidos")
 
 checar("CPF de digitos repetidos e invalido", not documento_valido("11111111111"))
 checar("CPF com digito errado e invalido", not documento_valido("12345678900"))
@@ -799,7 +858,7 @@ checar("letras no lugar do documento sao invalidas", not documento_valido("abcde
 
 
 # ==========================================================================
-print("\n20. Transmissao: as travas")
+print("\n21. Transmissao: as travas")
 
 from nfse.transmissao import transmitir  # noqa: E402
 from nfse.envio import EnvioIndisponivel, interpretar_retorno  # noqa: E402
@@ -838,7 +897,7 @@ checar("ambiente do XML e lido corretamente",
 
 
 # ==========================================================================
-print("\n21. Retorno estranho da prefeitura")
+print("\n22. Retorno estranho da prefeitura")
 
 casos = [
     ("resposta vazia", "", False),
@@ -868,7 +927,7 @@ checar("a mensagem de erro chega legivel, sem &lt;",
 
 
 # ==========================================================================
-print("\n22. Configuracao incompleta")
+print("\n23. Configuracao incompleta")
 
 cfg3 = cfgmod.carregar()
 cfg3.municipio = dict(cfg3.municipio)

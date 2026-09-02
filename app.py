@@ -43,7 +43,7 @@ from nfse.pdf import ler_linhas
 from nfse.transmissao import (ambiente_do_xml, listar_xmls,
                               transmitir)
 from nfse import atualizacao as atualizacao_mod
-from nfse.consulta import consultar
+from nfse.consulta import consultar, dados_para_impressao
 from nfse.util import brl, chave_nome
 
 app = Flask(__name__, template_folder="web/templates", static_folder="web/static")
@@ -1076,6 +1076,42 @@ def consultar_nota():
                            erro=erro, chave=chave, unidade=unidade,
                            recentes=recentes,
                            ambiente=cfg.faturamento.get("ambiente", ""))
+
+
+@app.get("/nota/<chave>/imprimir")
+def imprimir_nota(chave: str):
+    """Monta o documento auxiliar da nota, para imprimir ou salvar em PDF.
+
+    A NFS-e que vale e o XML; o papel e apenas a representacao dele. Como a
+    consulta ja devolve o XML completo, da para montar aqui -- em vez de
+    mandar o operador ao portal digitar 50 digitos so para conseguir
+    imprimir.
+    """
+    chave = "".join(c for c in chave if c.isdigit())
+    if len(chave) != 50:
+        abort(404)
+
+    cfg = cfgmod.carregar()
+    unidade = request.args.get("unidade") or next(iter(cfg.unidades))
+    try:
+        resposta = consultar(cfg, unidade, chave_acesso=chave)
+    except Exception as falha:  # noqa: BLE001
+        abort(502, "Não consegui consultar a nota na prefeitura: %s" % falha)
+
+    dados = dados_para_impressao(resposta.get("xml_nota", ""))
+    if not dados:
+        abort(404, "A prefeitura não devolveu esta nota. Confira a chave e o "
+                   "ambiente — nota de teste não existe em produção.")
+
+    fone = telefone_do_paciente(unidade, dados["tomador"]["documento"])
+    link = whatsapp.link(
+        {"tomador": dados["tomador"]["nome"],
+         "numero_nota": dados["numero"],
+         "valor": dados["valores"]["liquido"],
+         "chave_acesso": dados["chave"]},
+        cfg.unidades.get(unidade, {}), fone) if dados["ambiente"] == "1" else ""
+
+    return render_template("danfse.html", d=dados, whatsapp=link)
 
 
 @app.post("/backup")

@@ -167,6 +167,17 @@ conferir a primeira nota de produção.
 
 A tela também lista as últimas notas transmitidas — é só clicar na chave.
 
+### Imprimir ou salvar a nota
+
+Na lista, cada nota tem o botão **imprimir**. Ele monta o documento aqui
+mesmo — **não precisa ir ao portal nem digitar a chave**.
+
+Na tela que abrir, use **Imprimir / salvar em PDF**:
+
+- para **papel**, escolha a impressora;
+- para **mandar ao paciente**, escolha **"Salvar como PDF"** e depois anexe
+  o arquivo na conversa do WhatsApp.
+
 ### Avisar o paciente
 
 Na lista, cada nota emitida **valendo** tem o botão **Avisar no WhatsApp**.

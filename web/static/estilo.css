@@ -490,3 +490,74 @@ tbody tr { transition: background .1s; }
   .cartao, .numero { box-shadow: none; border-color: #999; }
   body { background: #fff; color: #000; font-size: 11pt; }
 }
+
+
+/* --------------------------------------------------------------------------
+   Documento auxiliar da NFS-e (o que vai para o papel)
+
+   Preto sobre branco, sempre: papel nao tem tema, e o documento pode ser
+   entregue ao paciente ou anexado a uma prestacao de contas.
+   -------------------------------------------------------------------------- */
+
+.danfse {
+  background: #fff;
+  color: #111;
+  border: 1px solid #ccc;
+  border-radius: var(--raio);
+  padding: 28px 32px;
+  max-width: 820px;
+  font-size: 13.5px;
+  line-height: 1.5;
+}
+.danfse-topo {
+  display: flex; justify-content: space-between; align-items: flex-start;
+  gap: 20px; border-bottom: 2px solid #111; padding-bottom: 14px;
+}
+.danfse-titulo { font-size: 17px; font-weight: 700; letter-spacing: -.2px; }
+.danfse-sub { font-size: 12.5px; color: #555; margin-top: 2px; }
+.danfse-numero { text-align: right; white-space: nowrap; }
+.danfse-numero span { display: block; font-size: 11px; color: #555;
+                      text-transform: uppercase; letter-spacing: .6px; }
+.danfse-numero b { font-size: 26px; letter-spacing: -.5px; }
+
+.danfse-bloco { padding: 14px 0; border-bottom: 1px solid #ddd; }
+.danfse-cabecalho {
+  font-size: 11px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .8px; color: #555; margin-bottom: 6px;
+}
+.danfse-rotulo {
+  font-size: 10.5px; text-transform: uppercase; letter-spacing: .6px;
+  color: #666; margin-bottom: 2px;
+}
+.danfse-nome { font-size: 15px; font-weight: 600; }
+.danfse-linha { color: #333; }
+.danfse-nota { font-size: 11.5px; color: #666; margin-top: 4px; }
+.danfse-chave {
+  font-family: "Cascadia Mono", Consolas, monospace;
+  font-size: 14px; letter-spacing: .4px; word-break: break-all; margin-top: 2px;
+}
+
+.danfse-grade {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 14px; padding: 14px 0; border-bottom: 1px solid #ddd;
+}
+
+.danfse-valores {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 14px; padding: 16px 0;
+}
+.danfse-dinheiro {
+  font-size: 16px; font-weight: 600; font-variant-numeric: tabular-nums;
+}
+.danfse-total .danfse-dinheiro { font-size: 22px; }
+
+.danfse-rodape {
+  border-top: 2px solid #111; padding-top: 12px;
+  font-size: 11.5px; color: #555;
+}
+
+/* Na impressao sobra so o documento. */
+@media print {
+  .so-tela { display: none !important; }
+  .danfse { border: none; padding: 0; max-width: none; }
+}

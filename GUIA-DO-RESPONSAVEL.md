@@ -164,10 +164,20 @@ pronto. Três decisões:
 - **Nada é enviado sozinho.** O link só abre o WhatsApp; quem aperta enviar
   é a pessoa. Disparo automático para paciente é outra categoria de decisão.
 - **Só notas de produção.** Nota de teste não existe para o paciente.
-- **A mensagem leva a chave, não um PDF.** O `wa.me` não aceita anexo, e o
-  portal nacional não serve o DANFSe por URL (testado: 404). Um PDF gerado
-  por nós seria documento não-oficial circulando — com a chave, o paciente
-  baixa o oficial.
+- **A mensagem leva a chave, não um PDF.** O `wa.me` não aceita anexo. Para
+  mandar o arquivo, use **imprimir → salvar como PDF** e anexe na conversa.
+
+### Imprimir a nota sem ir ao portal
+
+A NFS-e que vale é o **XML**; o papel é apenas o *documento auxiliar* — uma
+representação. Como a consulta já devolve o XML completo (prestador,
+tomador, serviço, valores), o sistema monta o documento sozinho, e o
+navegador imprime ou salva em PDF.
+
+Isso evita o caminho antigo: ir ao portal, digitar 50 dígitos, baixar. O
+portal nacional não aceita a chave pela URL (testado) e a prefeitura não
+serve o DANFSe por endereço direto (404) — então gerar aqui era a única
+saída que não passava por digitação manual.
 
 O telefone vem da base de clientes, cruzado pelo CPF da nota. Sem número
 válido, o botão não aparece.

@@ -1,0 +1,155 @@
+{% extends "base.html" %}
+{% block titulo %}Nota fiscal nº {{ d.numero }}{% endblock %}
+{% block conteudo %}
+
+{#
+  Documento auxiliar da NFS-e, montado com os dados que a prefeitura
+  devolveu na consulta. A nota que vale e o XML eletronico; o papel e uma
+  representacao dele -- por isso da para gerar aqui, em vez de mandar o
+  operador ao portal digitar 50 digitos so para conseguir imprimir.
+#}
+
+<div class="so-tela">
+  <div class="passos" style="margin-bottom:18px">
+    <div class="passo feito"><b>✓</b> Nota emitida</div>
+    <div class="passo ativo"><b>→</b> Imprimir ou salvar</div>
+  </div>
+
+  <div class="faixa info" style="margin-bottom:18px">
+    <span class="icone">›</span>
+    <div>
+      <b>Para imprimir ou salvar em PDF</b>
+      <p>
+        Use <b>Ctrl + P</b> (ou o botão abaixo). Na janela que abrir, escolha
+        a impressora — ou <b>“Salvar como PDF”</b>, para mandar ao paciente.
+      </p>
+    </div>
+  </div>
+
+  <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:22px">
+    <button class="botao" type="button" onclick="window.print()">
+      Imprimir / salvar em PDF
+    </button>
+    <a class="botao secundario" href="{{ url_for('consultar_nota', chave=d.chave) }}">
+      ← Voltar à consulta
+    </a>
+    {% if whatsapp %}
+    <a class="botao secundario" href="{{ whatsapp }}" target="_blank" rel="noopener">
+      Avisar no WhatsApp
+    </a>
+    {% endif %}
+  </div>
+</div>
+
+<div class="danfse">
+  <header class="danfse-topo">
+    <div>
+      <div class="danfse-titulo">Documento Auxiliar da NFS-e</div>
+      <div class="danfse-sub">
+        Município de {{ d.municipio | title }} · Padrão Nacional
+      </div>
+    </div>
+    <div class="danfse-numero">
+      <span>Nota fiscal nº</span>
+      <b>{{ d.numero }}</b>
+    </div>
+  </header>
+
+  <section class="danfse-bloco">
+    <div class="danfse-rotulo">Chave de acesso</div>
+    <div class="danfse-chave">{{ d.chave }}</div>
+    <div class="danfse-nota">
+      A autenticidade pode ser conferida em nfse.gov.br/consultapublica
+    </div>
+  </section>
+
+  <div class="danfse-grade">
+    <div>
+      <div class="danfse-rotulo">Emitida em</div>
+      <div>{{ d.emitida_em[:10] | data_br }}</div>
+    </div>
+    <div>
+      <div class="danfse-rotulo">Competência</div>
+      <div>{{ d.competencia[:10] | data_br }}</div>
+    </div>
+    <div>
+      <div class="danfse-rotulo">DPS nº / série</div>
+      <div>{{ d.numero_dps }} / {{ d.serie }}</div>
+    </div>
+    <div>
+      <div class="danfse-rotulo">Situação</div>
+      <div>{{ d.situacao }}</div>
+    </div>
+  </div>
+
+  <section class="danfse-bloco">
+    <div class="danfse-cabecalho">Prestador do serviço</div>
+    <div class="danfse-nome">{{ d.prestador.nome }}</div>
+    <div class="danfse-linha">
+      CNPJ {{ d.prestador.cnpj | documento }}
+      {% if d.prestador.im %}· Inscrição municipal {{ d.prestador.im }}{% endif %}
+    </div>
+    <div class="danfse-linha">
+      {{ d.prestador.logradouro }}, {{ d.prestador.numero }}
+      {%- if d.prestador.complemento %} — {{ d.prestador.complemento }}{% endif %}
+      · {{ d.prestador.bairro }} · CEP {{ d.prestador.cep }}
+    </div>
+    {% if d.prestador.email %}
+    <div class="danfse-linha">{{ d.prestador.email }}</div>
+    {% endif %}
+  </section>
+
+  <section class="danfse-bloco">
+    <div class="danfse-cabecalho">Tomador do serviço</div>
+    <div class="danfse-nome">{{ d.tomador.nome }}</div>
+    <div class="danfse-linha">{{ d.tomador.documento | documento }}</div>
+    {% if d.tomador.logradouro %}
+    <div class="danfse-linha">
+      {{ d.tomador.logradouro }}, {{ d.tomador.numero }}
+      · {{ d.tomador.bairro }}
+      {%- if d.tomador.cep %} · CEP {{ d.tomador.cep }}{% endif %}
+    </div>
+    {% endif %}
+  </section>
+
+  <section class="danfse-bloco">
+    <div class="danfse-cabecalho">Serviço prestado</div>
+    <div class="danfse-nome">{{ d.servico.descricao }}</div>
+    <div class="danfse-linha">
+      Código de tributação nacional {{ d.servico.codigo }}
+      {% if d.servico.nbs %}· NBS {{ d.servico.nbs }}{% endif %}
+    </div>
+    {% if d.servico.tributacao %}
+    <div class="danfse-linha">{{ d.servico.tributacao }}</div>
+    {% endif %}
+  </section>
+
+  <section class="danfse-valores">
+    <div>
+      <div class="danfse-rotulo">Base de cálculo</div>
+      <div class="danfse-dinheiro">R$ {{ d.valores.base | dinheiro }}</div>
+    </div>
+    <div>
+      <div class="danfse-rotulo">Alíquota do ISS</div>
+      <div class="danfse-dinheiro">{{ d.valores.aliquota }}%</div>
+    </div>
+    <div>
+      <div class="danfse-rotulo">ISS apurado</div>
+      <div class="danfse-dinheiro">R$ {{ d.valores.iss | dinheiro }}</div>
+    </div>
+    <div class="danfse-total">
+      <div class="danfse-rotulo">Valor total da nota</div>
+      <div class="danfse-dinheiro">R$ {{ d.valores.liquido | dinheiro }}</div>
+    </div>
+  </section>
+
+  <footer class="danfse-rodape">
+    Documento auxiliar da Nota Fiscal de Serviço eletrônica. A NFS-e que tem
+    validade é o documento eletrônico, conferível pela chave de acesso acima.
+    {% if d.ambiente != '1' %}
+    <br><b>AMBIENTE DE TESTE — sem valor fiscal.</b>
+    {% endif %}
+  </footer>
+</div>
+
+{% endblock %}
