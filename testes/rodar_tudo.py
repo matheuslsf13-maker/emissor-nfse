@@ -74,6 +74,12 @@ checar("total de lancamentos = %d" % ESPERADO["lancamentos"],
 
 print("\n3. Conciliacao")
 cfg, caixas, cadastro, r = carregar_tudo()
+
+# O teste fixa o ambiente em vez de herdar o da configuracao: a numeracao e a
+# antiduplicidade sao separadas por ambiente, entao herdar tornaria o
+# resultado dependente de como a maquina esta configurada no momento.
+AMBIENTE_TESTE = "homologacao"
+cfg.faturamento["ambiente"] = AMBIENTE_TESTE
 checar("unidade reconhecida pelo cabecalho", r.unidade == "gloria", r.unidade)
 checar("competencia 2026-08", r.competencia == "2026-08", r.competencia)
 checar("notas previstas = %d" % ESPERADO["notas"],
@@ -212,7 +218,8 @@ try:
                len(s2.puladas) == ESPERADO["notas"])
         with Controle(controle_real) as _c:
             checar("numeracao nao avancou",
-                   _c.ultimo_numero("gloria") == ESPERADO["notas"])
+                   _c.ultimo_numero("gloria", AMBIENTE_TESTE) == ESPERADO["notas"],
+                   _c.ultimo_numero("gloria", AMBIENTE_TESTE))
     finally:
         cfgmod.PASTA_CERTIFICADOS = pasta_certs_real
         if senha_real is None:

@@ -426,7 +426,60 @@ finally:
 
 
 # ==========================================================================
-print("\n11. Dados de paciente esquisitos no XML")
+print("\n11. Homologacao nao pode bloquear a producao")
+# O bug que travou a virada para valendo: 276 notas de TESTE marcavam os
+# lancamentos como "ja emitidos", e ao gerar em producao o sistema pulava
+# todos -- nenhuma nota aparecia. Nota de homologacao nao existe
+# fiscalmente e nao pode impedir a emissao real.
+pasta_amb = tempfile.mkdtemp(prefix="nfse-amb-")
+try:
+    db_amb = os.path.join(pasta_amb, "controle.db")
+    with Controle(db_amb) as c:
+        chave_homolog = c.chave("gloria", "CLINICA:1:2", "homologacao")
+        chave_prod = c.chave("gloria", "CLINICA:1:2", "producao")
+        checar("a chave muda com o ambiente", chave_homolog != chave_prod)
+
+        n = c.proximo_numero("gloria", "homologacao")
+        c.registrar(chave_homolog, numero=n, arquivo="a.xml",
+                    descricao="teste", ambiente="homologacao")
+
+        checar("o lancamento consta emitido em homologacao",
+               c.ja_emitida(chave_homolog) is not None)
+        checar("*** e NAO consta emitido em producao ***",
+               c.ja_emitida(chave_prod) is None,
+               "nota de teste nao pode impedir a nota real")
+
+        for _ in range(4):
+            c.proximo_numero("gloria", "homologacao")
+        checar("homologacao avancou a propria contagem",
+               c.ultimo_numero("gloria", "homologacao") == 5)
+        checar("*** e a producao continua zerada ***",
+               c.ultimo_numero("gloria", "producao") == 0,
+               "teste nao gasta numero de nota real")
+
+        primeiro_real = c.proximo_numero("gloria", "producao")
+        checar("a primeira nota de producao e a numero 1",
+               primeiro_real == 1, primeiro_real)
+
+    # migracao: chave antiga, sem ambiente, ganha o ambiente que foi gravado
+    db_velho = os.path.join(pasta_amb, "velho.db")
+    with Controle(db_velho) as c:
+        c.registrar("gloria|CLINICA:9:9", numero=1, arquivo="v.xml",
+                    descricao="antiga")
+        c.registrar_transmissao("gloria|CLINICA:9:9", numero_nota="800",
+                                codigo_verificacao="", chave_acesso="K",
+                                ambiente="homologacao")
+    with Controle(db_velho) as c:
+        checar("chave antiga foi migrada com o ambiente",
+               c.ja_emitida("gloria|homologacao|CLINICA:9:9") is not None)
+        checar("e o lancamento fica livre para producao",
+               c.ja_emitida("gloria|producao|CLINICA:9:9") is None)
+finally:
+    shutil.rmtree(pasta_amb, ignore_errors=True)
+
+
+# ==========================================================================
+print("\n12. Dados de paciente esquisitos no XML")
 
 from nfse.gerador_dps import gerar_nfse  # noqa: E402
 from nfse.conciliacao import Nota  # noqa: E402
@@ -475,7 +528,7 @@ checar("paciente sem documento nao gera CPF vazio no XML",
 
 
 # ==========================================================================
-print("\n12. Valores")
+print("\n13. Valores")
 
 xml = gerar("PACIENTE", valor="0.00")
 valores = etree.fromstring(xml).find(".//n:valores", NS)
@@ -493,7 +546,7 @@ checar("valor alto nao vira notacao cientifica",
 
 
 # ==========================================================================
-print("\n13. Documentos invalidos")
+print("\n14. Documentos invalidos")
 
 checar("CPF de digitos repetidos e invalido", not documento_valido("11111111111"))
 checar("CPF com digito errado e invalido", not documento_valido("12345678900"))
@@ -505,7 +558,7 @@ checar("letras no lugar do documento sao invalidas", not documento_valido("abcde
 
 
 # ==========================================================================
-print("\n14. Transmissao: as travas")
+print("\n15. Transmissao: as travas")
 
 from nfse.transmissao import transmitir  # noqa: E402
 from nfse.envio import EnvioIndisponivel, interpretar_retorno  # noqa: E402
@@ -544,7 +597,7 @@ checar("ambiente do XML e lido corretamente",
 
 
 # ==========================================================================
-print("\n15. Retorno estranho da prefeitura")
+print("\n16. Retorno estranho da prefeitura")
 
 casos = [
     ("resposta vazia", "", False),
@@ -574,7 +627,7 @@ checar("a mensagem de erro chega legivel, sem &lt;",
 
 
 # ==========================================================================
-print("\n16. Configuracao incompleta")
+print("\n17. Configuracao incompleta")
 
 cfg3 = cfgmod.carregar()
 cfg3.municipio = dict(cfg3.municipio)

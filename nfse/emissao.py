@@ -110,13 +110,17 @@ def emitir(resultado_conciliacao, config, simular: bool = True,
     # Em modo teste a numeracao nao e gravada, mas ainda precisa avancar: cada
     # nota tem que sair com o numero que teria de verdade, ou o Id do DPS
     # repetiria e a conferencia nao serviria para nada.
-    proximo_simulado = controle.ultimo_numero(unidade_chave)
+    # O ambiente separa tudo: chave de antiduplicidade e numeracao. Nota de
+    # homologacao e teste e nao pode marcar o atendimento como emitido, senao
+    # a virada para producao encontraria tudo "ja feito".
+    ambiente = config.faturamento.get("ambiente", "homologacao")
+    proximo_simulado = controle.ultimo_numero(unidade_chave, ambiente)
 
     for nota in resultado_conciliacao.notas:
         if apenas is not None and nota.id not in apenas:
             continue
 
-        chave = Controle.chave(unidade_chave, nota.id)
+        chave = Controle.chave(unidade_chave, nota.id, ambiente)
         # A checagem vale tambem no modo teste: o teste tem que mostrar
         # exatamente o que sairia valendo, sem surpresa depois.
         anterior = controle.ja_emitida(chave)
@@ -134,7 +138,7 @@ def emitir(resultado_conciliacao, config, simular: bool = True,
             proximo_simulado += 1
             numero = proximo_simulado
         else:
-            numero = controle.proximo_numero(unidade_chave)
+            numero = controle.proximo_numero(unidade_chave, ambiente)
         try:
             xml = gerar_nfse(nota, unidade, config, numero)
             assinada = False
@@ -162,6 +166,7 @@ def emitir(resultado_conciliacao, config, simular: bool = True,
                 competencia=competencia,
                 valor=nota.valor,
                 secao=nota.secao,
+                ambiente=ambiente,
             )
 
         saida.geradas.append(NotaGerada(

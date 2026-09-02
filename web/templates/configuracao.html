@@ -126,15 +126,29 @@
       </p>
     </div>
   </div>
+  <p style="font-size:14px;color:var(--tinta-fraca)">
+    <b>Cada ambiente tem a própria contagem</b>, do mesmo jeito que a
+    prefeitura mantém dois bancos separados. As notas de teste não gastam
+    números da produção.
+  </p>
+
   {% for chave, u in cfg.unidades.items() %}
-  <form method="post" action="{{ url_for('ajustar_numeracao') }}"
-        style="display:flex;gap:10px;align-items:center;margin-bottom:10px">
-    <input type="hidden" name="unidade" value="{{ chave }}">
-    <span style="min-width:150px">{{ u.apelido }}</span>
-    <span style="color:var(--tinta-fraca)">última nota nº</span>
-    <input type="text" name="ultimo" value="{{ controle.unidades.get(chave, 0) }}" style="width:110px">
-    <button class="botao pequeno secundario" type="submit">Ajustar</button>
-  </form>
+    {% for amb in ['homologacao', 'producao'] %}
+    <form method="post" action="{{ url_for('ajustar_numeracao') }}"
+          style="display:flex;gap:10px;align-items:center;margin-bottom:8px">
+      <input type="hidden" name="unidade" value="{{ chave }}">
+      <input type="hidden" name="ambiente" value="{{ amb }}">
+      <span style="min-width:150px">
+        {{ u.apelido }}
+        <span class="selo {{ 'ruim' if amb == 'producao' else 'neutro' }}"
+              style="font-size:11px">{{ amb }}</span>
+      </span>
+      <span style="color:var(--tinta-fraca)">última nota nº</span>
+      <input type="text" name="ultimo" style="width:110px"
+             value="{{ controle.por_ambiente.get(chave, {}).get(amb, 0) }}">
+      <button class="botao pequeno secundario" type="submit">Ajustar</button>
+    </form>
+    {% endfor %}
   {% endfor %}
   <p style="font-size:13.5px;color:var(--tinta-fraca);margin-bottom:0">
     Ajuste só se a clínica já emitiu notas fora do sistema e a numeração precisa

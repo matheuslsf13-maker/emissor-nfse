@@ -107,6 +107,41 @@ class Controle:
                 % (caminho, erro)
             )
         self._migrar_do_json()
+        self._migrar_chaves_com_ambiente()
+
+    def _migrar_chaves_com_ambiente(self) -> None:
+        """Põe o ambiente nas chaves gravadas antes da separação.
+
+        Até a versão 1.6 a chave era `unidade|lancamento`, sem ambiente --
+        e por isso uma nota de teste marcava o atendimento como emitido para
+        sempre, impedindo a emissão real do mesmo lançamento. Este banco
+        tinha 276 notas de homologação travando a virada para produção.
+
+        O ambiente de cada registro vem do que foi gravado na transmissão.
+        Para o que nunca foi transmitido, assume homologação: produção exige
+        confirmação digitada em dois lugares, então ninguém gera lá sem
+        saber, e errar para o lado do teste nunca cria nota fiscal a mais.
+        """
+        linhas = self._conexao.execute(
+            "SELECT chave, ambiente FROM emitidas").fetchall()
+        renomear = []
+        for linha in linhas:
+            chave = linha["chave"] or ""
+            if chave.count("|") != 1:
+                continue                      # já tem ambiente, ou é estranha
+            unidade, lancamento = chave.split("|", 1)
+            ambiente = linha["ambiente"] or "homologacao"
+            renomear.append(("%s|%s|%s" % (unidade, ambiente, lancamento), chave))
+        if not renomear:
+            return
+        with _TRAVA, self._conexao:
+            for nova, antiga in renomear:
+                # INSERT OR IGNORE + DELETE seria mais simples, mas perderia
+                # o registro se a chave nova ja existisse. UPDATE falha alto
+                # nesse caso, que e o que se quer: nao apagar historico.
+                self._conexao.execute(
+                    "UPDATE OR IGNORE emitidas SET chave = ? WHERE chave = ?",
+                    (nova, antiga))
 
     # -- migração ----------------------------------------------------------
     def _migrar_do_json(self) -> None:
@@ -138,14 +173,29 @@ class Controle:
         os.replace(self.caminho_json, self.caminho_json + ".migrado")
 
     # -- numeração ---------------------------------------------------------
-    def ultimo_numero(self, unidade: str) -> int:
+    def ultimo_numero(self, unidade: str, ambiente: str = "") -> int:
         linha = self._conexao.execute(
-            "SELECT ultimo_numero FROM unidades WHERE unidade = ?", (unidade,)
+            "SELECT ultimo_numero FROM unidades WHERE unidade = ?",
+            (self._linha_unidade(unidade, ambiente),)
         ).fetchone()
         return int(linha["ultimo_numero"]) if linha else 0
 
-    def proximo_numero(self, unidade: str) -> int:
+    @staticmethod
+    def _linha_unidade(unidade: str, ambiente: str = "") -> str:
+        """Chave da numeração: separada por ambiente, como na prefeitura.
+
+        Homologação e produção são bancos distintos do lado dela, com
+        sequências independentes. Compartilhar a contagem aqui faria a
+        produção começar no número em que os testes pararam -- 279, no caso
+        real -- sem nenhum motivo fiscal.
+        """
+        if not ambiente or ambiente == "homologacao":
+            return unidade
+        return "%s@%s" % (unidade, ambiente)
+
+    def proximo_numero(self, unidade: str, ambiente: str = "") -> int:
         """Reserva o próximo número e grava. Só o modo valendo chama isto."""
+        unidade = self._linha_unidade(unidade, ambiente)
         with _TRAVA, self._conexao:
             self._conexao.execute(
                 "INSERT INTO unidades (unidade, ultimo_numero) VALUES (?, 1) "
@@ -158,8 +208,10 @@ class Controle:
                 (unidade,),
             ).fetchone()["ultimo_numero"])
 
-    def ajustar_numeracao(self, unidade: str, ultimo: int) -> None:
+    def ajustar_numeracao(self, unidade: str, ultimo: int,
+                          ambiente: str = "") -> None:
         """Usado quando a clínica já emitiu notas por fora do sistema."""
+        unidade = self._linha_unidade(unidade, ambiente)
         with _TRAVA, self._conexao:
             self._conexao.execute(
                 "INSERT INTO unidades (unidade, ultimo_numero) VALUES (?, ?) "
@@ -169,8 +221,8 @@ class Controle:
 
     # -- antiduplicidade ---------------------------------------------------
     @staticmethod
-    def chave(unidade: str, lancamento: str) -> str:
-        """Identidade de um atendimento: unidade + lançamento do caixa.
+    def chave(unidade: str, lancamento: str, ambiente: str = "") -> str:
+        """Identidade de um atendimento: unidade + ambiente + lançamento.
 
         Não é CPF + competência + valor: o mesmo paciente paga o mesmo valor
         várias vezes no mês -- quatro parcelas de R$ 70,00 no mesmo dia são
@@ -179,8 +231,20 @@ class Controle:
 
         O número do lançamento é estável entre reexportações do relatório,
         então rodar de novo o mesmo período continua sendo seguro.
+
+        **O ambiente entra na chave porque homologação é teste.** Nota de
+        homologação não existe fiscalmente; deixá-la marcar o atendimento
+        como "já emitido" impediria a emissão real do mesmo lançamento --
+        foi o que travou a virada para produção depois de 276 notas de
+        teste. Cada ambiente tem sua própria contagem, do mesmo jeito que a
+        prefeitura mantém dois bancos separados.
+
+        Sem ambiente, devolve a chave no formato antigo: os registros
+        anteriores à separação continuam encontráveis.
         """
-        return "%s|%s" % (unidade, lancamento)
+        if not ambiente:
+            return "%s|%s" % (unidade, lancamento)
+        return "%s|%s|%s" % (unidade, ambiente, lancamento)
 
     def ja_emitida(self, chave: str):
         linha = self._conexao.execute(
@@ -290,8 +354,28 @@ class Controle:
             "SELECT COUNT(*) AS emitidas, "
             "COALESCE(SUM(transmitida), 0) AS transmitidas FROM emitidas"
         ).fetchone()
+        # A tela precisa mostrar os dois ambientes lado a lado: depois da
+        # separacao, "gloria = 279" sozinho engana -- sao 279 notas de TESTE,
+        # e a producao esta zerada.
+        por_ambiente = {}
+        for linha_unidade, ultimo in unidades.items():
+            if "@" in linha_unidade:
+                unidade, ambiente = linha_unidade.split("@", 1)
+            else:
+                unidade, ambiente = linha_unidade, "homologacao"
+            por_ambiente.setdefault(unidade, {})[ambiente] = ultimo
+
+        contagem = {}
+        for linha in self._conexao.execute(
+                "SELECT COALESCE(ambiente, 'homologacao') AS amb, COUNT(*) AS q, "
+                "COALESCE(SUM(transmitida), 0) AS t FROM emitidas GROUP BY amb"):
+            contagem[linha["amb"]] = {"emitidas": int(linha["q"]),
+                                      "transmitidas": int(linha["t"])}
+
         return {
             "unidades": unidades,
+            "por_ambiente": por_ambiente,
+            "contagem_por_ambiente": contagem,
             "emitidas": int(totais["emitidas"]),
             "transmitidas": int(totais["transmitidas"]),
         }

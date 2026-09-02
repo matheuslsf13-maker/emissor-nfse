@@ -885,9 +885,10 @@ def trocar_ambiente():
 def ajustar_numeracao():
     unidade = request.form.get("unidade", "")
     ultimo = request.form.get("ultimo", "0")
+    ambiente = request.form.get("ambiente", "")
     with Controle(os.path.join(cfgmod.PASTA_DADOS, "controle.db")) as controle:
         try:
-            controle.ajustar_numeracao(unidade, int(ultimo))
+            controle.ajustar_numeracao(unidade, int(ultimo), ambiente)
         except (TypeError, ValueError):
             pass
     return redirect(url_for("configuracao"))
