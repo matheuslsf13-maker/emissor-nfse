@@ -327,7 +327,41 @@ finally:
 
 
 # ==========================================================================
-print("\n8. Dados de paciente esquisitos no XML")
+print("\n8. Atualizacao instalada com o programa ainda aberto")
+# Os templates recarregam sozinhos; o codigo Python nao. Entre instalar e
+# reiniciar, o sistema fica com tela nova e logica velha -- pior do que a
+# versao antiga inteira, porque o erro que aparece nao tem relacao obvia com
+# a atualizacao. O aviso tem que estar em TODA tela, nao so na de
+# Configuracao, senao some assim que a operadora navega.
+caminho_versao = os.path.join(cfgmod.RAIZ, "VERSAO")
+original = None
+try:
+    with open(caminho_versao, encoding="utf-8") as fh:
+        original = fh.read()
+
+    corpo = cliente.get("/").data.decode("utf-8", "replace")
+    checar("sem atualizacao pendente, nao ha aviso",
+           "falta fechar e abrir" not in corpo)
+
+    with open(caminho_versao, "w", encoding="utf-8") as fh:
+        fh.write("99.0.0" + chr(10))
+
+    for rota in ("/", "/configuracao", "/clientes", "/ajuda"):
+        corpo = cliente.get(rota).data.decode("utf-8", "replace")
+        checar("aviso de reinicio aparece em %s" % rota,
+               "falta fechar e abrir" in corpo)
+
+    corpo = cliente.get("/").data.decode("utf-8", "replace")
+    checar("e diz qual versao esta rodando e qual foi instalada",
+           "99.0.0" in corpo and appmod.VERSAO_EM_EXECUCAO in corpo)
+finally:
+    if original is not None:
+        with open(caminho_versao, "w", encoding="utf-8") as fh:
+            fh.write(original)
+
+
+# ==========================================================================
+print("\n9. Dados de paciente esquisitos no XML")
 
 from nfse.gerador_dps import gerar_nfse  # noqa: E402
 from nfse.conciliacao import Nota  # noqa: E402
@@ -376,7 +410,7 @@ checar("paciente sem documento nao gera CPF vazio no XML",
 
 
 # ==========================================================================
-print("\n9. Valores")
+print("\n10. Valores")
 
 xml = gerar("PACIENTE", valor="0.00")
 valores = etree.fromstring(xml).find(".//n:valores", NS)
@@ -394,7 +428,7 @@ checar("valor alto nao vira notacao cientifica",
 
 
 # ==========================================================================
-print("\n10. Documentos invalidos")
+print("\n11. Documentos invalidos")
 
 checar("CPF de digitos repetidos e invalido", not documento_valido("11111111111"))
 checar("CPF com digito errado e invalido", not documento_valido("12345678900"))
@@ -406,7 +440,7 @@ checar("letras no lugar do documento sao invalidas", not documento_valido("abcde
 
 
 # ==========================================================================
-print("\n11. Transmissao: as travas")
+print("\n12. Transmissao: as travas")
 
 from nfse.transmissao import transmitir  # noqa: E402
 from nfse.envio import EnvioIndisponivel, interpretar_retorno  # noqa: E402
@@ -445,7 +479,7 @@ checar("ambiente do XML e lido corretamente",
 
 
 # ==========================================================================
-print("\n12. Retorno estranho da prefeitura")
+print("\n13. Retorno estranho da prefeitura")
 
 casos = [
     ("resposta vazia", "", False),
@@ -475,7 +509,7 @@ checar("a mensagem de erro chega legivel, sem &lt;",
 
 
 # ==========================================================================
-print("\n13. Configuracao incompleta")
+print("\n14. Configuracao incompleta")
 
 cfg3 = cfgmod.carregar()
 cfg3.municipio = dict(cfg3.municipio)

@@ -55,7 +55,7 @@ PRESERVAR = (
 # onde quiser: e arquivo baixado da internet.
 PERMITIDOS = ("app.py", "nfse/", "web/", "testes/", "LEIA-ME.md",
               "COMO-USAR.md", "requirements.txt", "VERSAO", "Iniciar.bat",
-              "instalar.bat", "publicar.bat")
+              "instalar.bat")
 
 
 class ErroAtualizacao(Exception):

@@ -21,7 +21,21 @@
     </div>
   </header>
   <main>
-    {% block conteudo %}{% endblock %}
+    {% if reinicio_pendente %}
+  <div class="faixa atencao" style="margin-bottom:18px">
+    <span class="icone">▲</span>
+    <div>
+      <b>Atualização instalada — falta fechar e abrir o programa</b>
+      <p>
+        A versão <b>{{ reinicio_pendente.instalada }}</b> já está no
+        computador, mas o programa continua rodando a
+        <b>{{ reinicio_pendente.rodando }}</b>. Feche a janela preta e abra de
+        novo; até lá, parte do sistema é a versão nova e parte é a antiga.
+      </p>
+    </div>
+  </div>
+  {% endif %}
+  {% block conteudo %}{% endblock %}
   </main>
   <script src="{{ url_for('static', filename='app.js') }}"></script>
   {% block scripts %}{% endblock %}

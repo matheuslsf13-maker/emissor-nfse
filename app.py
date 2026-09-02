@@ -71,6 +71,31 @@ def _segredo_da_sessao() -> bytes:
 
 app.secret_key = _segredo_da_sessao()
 
+# Versao que este processo carregou. Se o arquivo VERSAO mudar depois disso,
+# uma atualizacao foi instalada e o programa ainda esta rodando o codigo
+# antigo -- os templates recarregam sozinhos, o Python nao. Esse meio-termo e
+# pior do que a versao antiga inteira: tela nova com logica velha da erro
+# estranho, dificil de diagnosticar a distancia.
+VERSAO_EM_EXECUCAO = atualizacao_mod.versao_instalada()
+
+
+@app.context_processor
+def _versao_pendente():
+    """Deixa o aviso de reinicio visivel em TODAS as telas.
+
+    O aviso que aparecia so na tela de Configuracao sumia assim que a
+    operadora navegava para outro lugar, e ela seguia usando o programa pela
+    metade sem saber.
+    """
+    try:
+        no_disco = atualizacao_mod.versao_instalada()
+    except Exception:  # noqa: BLE001
+        return {"reinicio_pendente": None}
+    if no_disco != VERSAO_EM_EXECUCAO:
+        return {"reinicio_pendente": {"rodando": VERSAO_EM_EXECUCAO,
+                                      "instalada": no_disco}}
+    return {"reinicio_pendente": None}
+
 # Estado dos lotes em memoria. O app e local e de um usuario so; os arquivos
 # ficam em disco, entao reiniciar o servidor nao perde o trabalho -- basta
 # reabrir o lote, que e reconciliado na hora.
