@@ -71,7 +71,8 @@ BIBLIOTECAS = ["flask", "lxml", "cryptography", "requests", "pdfplumber"]
 
 COPIAR_PASTAS = ("nfse", "web", "testes")
 COPIAR_ARQUIVOS = ("app.py", "LEIA-ME.md", "COMO-USAR.md",
-                   "requirements.txt", "VERSAO", "publicar.py")
+                   "requirements.txt", "VERSAO", "publicar.py",
+                   "publicar.bat")
 
 INICIAR_BAT = r"""@echo off
 title Emissor de NFS-e - NAO FECHE esta janela
