@@ -542,7 +542,68 @@ checar("os dois manuais entram no pacote da clinica",
 
 
 # ==========================================================================
-print("\n14. Homologacao nao pode bloquear a producao")
+print("\n14. Planilha para o contador")
+# O RELATORIO.txt serve para olhar rapido, mas nao da para filtrar nem
+# cruzar com o razao. E os totais tem que ser FORMULA: um numero fixo
+# mentiria em silencio se o contador filtrasse uma linha.
+from nfse import planilha as _plan  # noqa: E402
+from nfse.conciliacao import Resultado as _Res  # noqa: E402
+import inspect as _i2  # noqa: E402
+
+checar("gerar() recebe a aliquota de fora",
+       "aliquota_iss" in _i2.signature(_plan.gerar).parameters)
+
+try:
+    from openpyxl import load_workbook as _carregar
+    import io as _io2
+
+    class _NotaFalsa:
+        def __init__(s, v):
+            s.data = "2026-08-01"; s.valor = v; s.secao = "REC ODC - PIX"
+            s.caixa = "CLINICA"; s.lancto = "1"; s.competencia = "2026-08"
+            s.tomador = {"nome": "PACIENTE", "documento": "12345678909",
+                         "cidade": "VILA VELHA", "uf": "ES"}
+
+    r_falso = _Res(unidade=UNIDADE)
+    r_falso.notas = [_NotaFalsa("10.00"), _NotaFalsa("20.00")]
+    r_falso.total_lancamentos = 5
+    r_falso.descartes = {"Dinheiro": {"qtde": 1, "valor": 7,
+                                      "secoes": {"X - DINHEIRO": {"qtde": 1, "valor": 7}}}}
+    dados = _plan.gerar(r_falso, {"razao_social": "T", "cnpj": "1"},
+                        "2026-08", aliquota_iss=2.0)
+    livro = _carregar(_io2.BytesIO(dados))
+    checar("tem as quatro abas",
+           livro.sheetnames == ["Resumo", "Notas", "Travados", "Não geram nota"],
+           livro.sheetnames)
+
+    resumo = livro["Resumo"]
+    formulas = [resumo.cell(row=l, column=c).value
+                for l in range(1, 15) for c in (2, 3)
+                if isinstance(resumo.cell(row=l, column=c).value, str)
+                and resumo.cell(row=l, column=c).value.startswith("=")]
+    checar("*** os totais sao FORMULA, nao numero fixo ***",
+           len(formulas) >= 6, formulas)
+    checar("e a aba com espaco no nome vai entre aspas",
+           any("'Não geram nota'!" in f for f in formulas), formulas)
+
+    notas = livro["Notas"]
+    checar("o valor vai como NUMERO, para poder somar",
+           isinstance(notas["F2"].value, (int, float)), type(notas["F2"].value))
+    checar("o ISS e formula sobre a linha e a aliquota",
+           notas["G2"].value == "=F2*$K$1", notas["G2"].value)
+    checar("a aliquota fica em celula propria, visivel",
+           abs(notas["K1"].value - 0.02) < 1e-9, notas["K1"].value)
+    checar("o cabecalho fica congelado ao rolar",
+           notas.freeze_panes == "A2", notas.freeze_panes)
+
+    corpo = cliente.get("/lote/nao-existe/planilha")
+    checar("planilha de lote inexistente devolve 404", corpo.status_code == 404)
+except ImportError:
+    checar("openpyxl instalado", False, "rode: pip install openpyxl")
+
+
+# ==========================================================================
+print("\n15. Homologacao nao pode bloquear a producao")
 # O bug que travou a virada para valendo: 276 notas de TESTE marcavam os
 # lancamentos como "ja emitidos", e ao gerar em producao o sistema pulava
 # todos -- nenhuma nota aparecia. Nota de homologacao nao existe
@@ -595,7 +656,7 @@ finally:
 
 
 # ==========================================================================
-print("\n15. Dados de paciente esquisitos no XML")
+print("\n16. Dados de paciente esquisitos no XML")
 
 from nfse.gerador_dps import gerar_nfse  # noqa: E402
 from nfse.conciliacao import Nota  # noqa: E402
@@ -644,7 +705,7 @@ checar("paciente sem documento nao gera CPF vazio no XML",
 
 
 # ==========================================================================
-print("\n16. Valores")
+print("\n17. Valores")
 
 xml = gerar("PACIENTE", valor="0.00")
 valores = etree.fromstring(xml).find(".//n:valores", NS)
@@ -662,7 +723,7 @@ checar("valor alto nao vira notacao cientifica",
 
 
 # ==========================================================================
-print("\n17. Documentos invalidos")
+print("\n18. Documentos invalidos")
 
 checar("CPF de digitos repetidos e invalido", not documento_valido("11111111111"))
 checar("CPF com digito errado e invalido", not documento_valido("12345678900"))
@@ -674,7 +735,7 @@ checar("letras no lugar do documento sao invalidas", not documento_valido("abcde
 
 
 # ==========================================================================
-print("\n18. Transmissao: as travas")
+print("\n19. Transmissao: as travas")
 
 from nfse.transmissao import transmitir  # noqa: E402
 from nfse.envio import EnvioIndisponivel, interpretar_retorno  # noqa: E402
@@ -713,7 +774,7 @@ checar("ambiente do XML e lido corretamente",
 
 
 # ==========================================================================
-print("\n19. Retorno estranho da prefeitura")
+print("\n20. Retorno estranho da prefeitura")
 
 casos = [
     ("resposta vazia", "", False),
@@ -743,7 +804,7 @@ checar("a mensagem de erro chega legivel, sem &lt;",
 
 
 # ==========================================================================
-print("\n20. Configuracao incompleta")
+print("\n21. Configuracao incompleta")
 
 cfg3 = cfgmod.carregar()
 cfg3.municipio = dict(cfg3.municipio)

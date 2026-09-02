@@ -441,6 +441,21 @@
   </div>
 </div>
 
+<div class="cartao" style="margin-top:16px;display:flex;gap:14px;
+     align-items:center;flex-wrap:wrap">
+  <div style="flex:1;min-width:240px">
+    <b>Levar para o contador</b>
+    <p style="color:var(--tinta-fraca);font-size:14px;margin:4px 0 0">
+      Planilha com quatro abas: resumo, as notas que vão sair, as travadas e
+      o que não gera nota. Os totais são fórmulas — filtrar recalcula.
+    </p>
+  </div>
+  <a class="botao secundario"
+     href="{{ url_for('planilha_lote', lote_id=lote.id) }}">
+    Baixar planilha (.xlsx)
+  </a>
+</div>
+
 <p style="color:var(--tinta-fraca);font-size:13.5px;margin-top:14px">
   <b>Dá para escolher quais notas.</b> Na lista <b>Vão virar nota</b>, use as
   caixinhas para marcar só as que quer — o botão passa a dizer quantas vão

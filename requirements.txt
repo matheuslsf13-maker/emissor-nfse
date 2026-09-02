@@ -6,9 +6,11 @@
 # cryptography abre o certificado A1 (.pfx) e assina em RSA-SHA256.
 # Flask       serve a tela local.
 # requests    envio ao WebService municipal (quando for liberado).
+# openpyxl    exporta a conferencia em planilha, para o contador.
 
 pdfplumber>=0.11
 lxml>=5.0
 cryptography>=42.0
 Flask>=3.0
 requests>=2.31
+openpyxl>=3.1

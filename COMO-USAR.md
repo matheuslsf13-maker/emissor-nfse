@@ -105,6 +105,10 @@ verdade, sem precisar lembrar.
 > separadas, como na prefeitura. Testar o mês inteiro e depois emitir valendo
 > é o caminho normal, não retrabalho.
 
+> **Para o contador:** o botão **Baixar planilha (.xlsx)** gera um arquivo
+> com quatro abas — resumo, as notas que vão sair, as travadas e o que não
+> gera nota. Os totais são fórmulas, então filtrar recalcula sozinho.
+
 ### 5. Transmitir
 
 Aqui as notas vão para a prefeitura.

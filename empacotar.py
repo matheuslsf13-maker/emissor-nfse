@@ -67,7 +67,8 @@ URL_PYTHON = ("https://www.python.org/ftp/python/%s/python-%s-embed-amd64.zip"
               % (VERSAO_PYTHON, VERSAO_PYTHON))
 CACHE = os.path.join(RAIZ, "distribuicao", "_cache")
 
-BIBLIOTECAS = ["flask", "lxml", "cryptography", "requests", "pdfplumber"]
+BIBLIOTECAS = ["flask", "lxml", "cryptography", "requests", "pdfplumber",
+               "openpyxl"]
 
 COPIAR_PASTAS = ("nfse", "web", "testes")
 COPIAR_ARQUIVOS = ("app.py", "LEIA-ME.md", "COMO-USAR.md",

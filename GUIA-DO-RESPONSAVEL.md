@@ -156,6 +156,13 @@ Serve para soltar uma nota específica valendo antes de comprometer o resto.
 **A transmissão não pergunta o ambiente** — ele já está assinado dentro de
 cada nota.
 
+### Planilha para o contador
+
+Na conferência, **Baixar planilha (.xlsx)**: quatro abas (resumo, notas,
+travados, não geram nota). Os totais são **fórmulas**, não números fixos —
+se o contador filtrar uma linha, a soma acompanha. Um valor calculado e
+gravado mentiria em silêncio justamente na conferência.
+
 > **A prefeitura aceita uma nota por vez por CNPJ.** Medido contra um
 > servidor que simula a fila: com resposta rápida, 276 notas levam ~2 min;
 > com resposta lenta, ~21 min. Em todos os cenários **100% foram aceitas** —

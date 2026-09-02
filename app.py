@@ -28,6 +28,7 @@ from flask import (Flask, abort, jsonify, redirect, render_template, request,
                    send_file, session, url_for)
 
 from nfse import base_clientes
+from nfse import planilha
 from nfse import config as cfgmod
 from nfse.conciliacao import conciliar
 from nfse.controle import Controle, ControleIlegivel
@@ -645,6 +646,35 @@ def buscar_cliente(lote_id: str):
             if len(achados) >= 25:
                 break
     return jsonify({"resultados": achados})
+
+
+@app.get("/lote/<lote_id>/planilha")
+def planilha_lote(lote_id: str):
+    """Baixa a conferência em .xlsx, para o contador conferir fora do sistema.
+
+    O RELATORIO.txt serve para olhar rápido, mas não dá para filtrar nem
+    cruzar com o razão. Quem confere número trabalha em planilha.
+    """
+    lote = carregar_lote(lote_id)
+    if not lote:
+        abort(404)
+    cfg, _, resultado = conciliar_lote(lote)
+    unidade = cfg.unidade(resultado.unidade)
+    # A competencia do lote so existe quando o operador digitou; a das notas
+    # sempre existe, porque vem do proprio relatorio.
+    competencia = (lote.get("competencia")
+                   or (resultado.notas[0].competencia if resultado.notas else ""))
+    try:
+        dados = planilha.gerar(resultado, unidade, competencia,
+                               aliquota_iss=cfg.servico.get("aliquota_iss", 0))
+    except ImportError:
+        abort(500, "A biblioteca openpyxl não está instalada. "
+                   "Rode o instalar.bat novamente.")
+    nome = "conferencia-%s-%s.xlsx" % (
+        resultado.unidade, competencia.replace("/", "-"))
+    return send_file(io.BytesIO(dados), as_attachment=True, download_name=nome,
+                     mimetype="application/vnd.openxmlformats-officedocument."
+                              "spreadsheetml.sheet")
 
 
 @app.post("/lote/<lote_id>/gerar")
