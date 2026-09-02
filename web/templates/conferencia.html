@@ -145,6 +145,11 @@
   <div style="display:flex;gap:12px;align-items:center;margin-bottom:12px;flex-wrap:wrap">
     <input type="search" id="filtro" placeholder="Buscar por paciente, CPF ou seção…" style="min-width:320px">
     <span id="filtro-conta" style="color:var(--tinta-fraca);font-size:13.5px">{{ r.notas | length }} linha(s)</span>
+    <span id="escolhas-conta" class="selo marca">
+      {{ r.notas | length }} selecionada(s)
+    </span>
+    <button type="button" class="botao pequeno secundario"
+            onclick="marcarTodas(false)">Desmarcar todas</button>
     {% set ajustadas = r.notas | selectattr('ajustes') | list %}
     {% if ajustadas %}
     <span class="selo marca" title="Casos em que o sistema resolveu nome truncado ou cidade com erro de digitação.">
@@ -158,6 +163,11 @@
       <table id="tabela-notas">
         <thead>
           <tr>
+            <th style="width:34px">
+              <input type="checkbox" id="marcar-todas" checked
+                     onclick="marcarTodas(this.checked)"
+                     title="marcar ou desmarcar todas">
+            </th>
             <th>Data</th><th>Paciente</th><th>CPF/CNPJ</th>
             <th>Cidade</th><th>Seção do caixa</th><th class="num">Valor</th><th>Origem</th>
           </tr>
@@ -165,6 +175,10 @@
         <tbody>
           {% for n in r.notas %}
           <tr>
+            <td>
+              <input type="checkbox" class="escolha" value="{{ n.id }}" checked
+                     onclick="contarEscolhas()">
+            </td>
             <td class="mono">{{ n.data | data_br }}</td>
             <td>
               {{ n.tomador.nome }}
@@ -377,25 +391,27 @@
       Monta e assina os XMLs <b>sem consumir numeração</b> e sem falar com a
       prefeitura. Pode repetir quantas vezes quiser.
     </p>
-    <form method="post" action="{{ url_for('gerar', lote_id=lote.id) }}">
+    <form method="post" action="{{ url_for('gerar', lote_id=lote.id) }}"
+          onsubmit="return levarEscolhas(this)">
       <input type="hidden" name="modo" value="simular">
-      <button class="botao secundario" type="submit">Só conferir</button>
+      <button class="botao secundario" type="submit" style="width:100%">
+        Só conferir <span class="quantas"></span>
+      </button>
     </form>
   </div>
 
   <div class="cartao" style="border-color:var(--marca)">
-    <h3>Teste na prefeitura <span class="selo bom">comece aqui</span></h3>
+    <h3>Gerar para teste <span class="selo bom">comece aqui</span></h3>
     <p style="color:var(--tinta-fraca);font-size:14px">
-      Gera para o <b>ambiente de homologação</b> e permite transmitir. A
+      Vai para o <b>ambiente de homologação</b> e pode ser transmitido. A
       prefeitura responde de verdade, mas nada vale fiscalmente — e a
       numeração é separada, não gasta número de nota real.
     </p>
-    <form method="post" action="{{ url_for('gerar', lote_id=lote.id) }}">
+    <form method="post" action="{{ url_for('gerar', lote_id=lote.id) }}"
+          onsubmit="return levarEscolhas(this)">
       <input type="hidden" name="modo" value="homologacao">
-      <button class="botao" type="submit">
-        {% if st and st.homologacao.faltam %}
-          Gerar {{ st.homologacao.faltam }} para teste
-        {% else %}Gerar para teste{% endif %}
+      <button class="botao" type="submit" style="width:100%">
+        Gerar para teste <span class="quantas"></span>
       </button>
     </form>
   </div>
@@ -406,26 +422,31 @@
       Gera <b>nota fiscal de verdade</b>. Em Vila Velha, cancelar exige
       processo administrativo na Secretaria de Finanças.
       {% if not envio.pronto %}
-      <br><b>Atenção:</b> o envio ainda não está liberado
-      ({{ envio.faltando | join('; ') }}), mas gerar já consome a numeração.
+      <br><b>Atenção:</b> o envio ainda não está liberado, mas gerar já
+      consome a numeração.
       {% endif %}
     </p>
     <form method="post" action="{{ url_for('gerar', lote_id=lote.id) }}"
-          onsubmit="return confirmarEmissao(event)">
+          onsubmit="return confirmarEmissao(event) && levarEscolhas(this)">
       <input type="hidden" name="modo" value="producao">
       <label style="display:block;font-size:14px;margin-bottom:6px">
         Para confirmar, digite <b>EMITIR</b>:
       </label>
       <input type="text" name="confirmacao" id="confirmacao" placeholder="EMITIR"
-             autocomplete="off" style="width:150px">
-      <button class="botao perigo" type="submit" style="margin-left:8px">
-        {% if st and st.producao.faltam %}
-          Emitir {{ st.producao.faltam }} valendo
-        {% else %}Emitir valendo{% endif %}
+             autocomplete="off" style="width:100%;margin-bottom:10px">
+      <button class="botao perigo" type="submit" style="width:100%">
+        Emitir valendo <span class="quantas"></span>
       </button>
     </form>
   </div>
 </div>
+
+<p style="color:var(--tinta-fraca);font-size:13.5px;margin-top:14px">
+  <b>Dá para escolher quais notas.</b> Na lista <b>Vão virar nota</b>, use as
+  caixinhas para marcar só as que quer — o botão passa a dizer quantas vão
+  sair. Serve para emitir <b>uma só</b>, de um paciente específico, antes de
+  soltar o mês inteiro.
+</p>
 
 <p style="margin-top:22px">
   <a href="{{ url_for('inicio') }}">← Trazer outros relatórios</a>

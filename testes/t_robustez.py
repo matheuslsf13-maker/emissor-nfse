@@ -438,7 +438,36 @@ for ambiente_config in ("homologacao", "producao"):
 
 
 # ==========================================================================
-print("\n11. Homologacao nao pode bloquear a producao")
+print("\n11. Escolher QUAIS notas emitir")
+# Testar valendo significava emitir o mes inteiro. O operador precisa poder
+# soltar UMA nota especifica -- a de um paciente que ele quer conferir --
+# antes de comprometer as outras 275.
+import inspect as _insp  # noqa: E402
+from nfse.emissao import emitir as _emitir2  # noqa: E402
+
+checar("emitir() aceita uma lista de notas",
+       "apenas" in _insp.signature(_emitir2).parameters)
+
+# a tela precisa oferecer a selecao, senao o parametro nao serve de nada
+import glob as _glob  # noqa: E402
+
+html_conf = io.open("web/templates/conferencia.html", encoding="utf-8").read()
+checar("cada nota tem caixa de selecao", 'class="escolha"' in html_conf)
+checar("ha como marcar e desmarcar todas", 'id="marcar-todas"' in html_conf)
+checar("e os botoes levam a selecao junto",
+       html_conf.count("levarEscolhas(this)") >= 3,
+       "os tres caminhos (conferir, teste, valendo)")
+
+js = io.open("web/static/app.js", encoding="utf-8").read()
+checar("o javascript monta a lista de escolhidas", "function levarEscolhas" in js)
+checar("e so manda quando a selecao e parcial",
+       "ids.length < total" in js,
+       "mandar 276 campos no caso normal seria desperdicio")
+checar("selecao vazia e barrada com aviso", "Selecione pelo menos uma nota" in js)
+
+
+# ==========================================================================
+print("\n12. Homologacao nao pode bloquear a producao")
 # O bug que travou a virada para valendo: 276 notas de TESTE marcavam os
 # lancamentos como "ja emitidos", e ao gerar em producao o sistema pulava
 # todos -- nenhuma nota aparecia. Nota de homologacao nao existe
@@ -491,7 +520,7 @@ finally:
 
 
 # ==========================================================================
-print("\n12. Dados de paciente esquisitos no XML")
+print("\n13. Dados de paciente esquisitos no XML")
 
 from nfse.gerador_dps import gerar_nfse  # noqa: E402
 from nfse.conciliacao import Nota  # noqa: E402
@@ -540,7 +569,7 @@ checar("paciente sem documento nao gera CPF vazio no XML",
 
 
 # ==========================================================================
-print("\n13. Valores")
+print("\n14. Valores")
 
 xml = gerar("PACIENTE", valor="0.00")
 valores = etree.fromstring(xml).find(".//n:valores", NS)
@@ -558,7 +587,7 @@ checar("valor alto nao vira notacao cientifica",
 
 
 # ==========================================================================
-print("\n14. Documentos invalidos")
+print("\n15. Documentos invalidos")
 
 checar("CPF de digitos repetidos e invalido", not documento_valido("11111111111"))
 checar("CPF com digito errado e invalido", not documento_valido("12345678900"))
@@ -570,7 +599,7 @@ checar("letras no lugar do documento sao invalidas", not documento_valido("abcde
 
 
 # ==========================================================================
-print("\n15. Transmissao: as travas")
+print("\n16. Transmissao: as travas")
 
 from nfse.transmissao import transmitir  # noqa: E402
 from nfse.envio import EnvioIndisponivel, interpretar_retorno  # noqa: E402
@@ -609,7 +638,7 @@ checar("ambiente do XML e lido corretamente",
 
 
 # ==========================================================================
-print("\n16. Retorno estranho da prefeitura")
+print("\n17. Retorno estranho da prefeitura")
 
 casos = [
     ("resposta vazia", "", False),
@@ -639,7 +668,7 @@ checar("a mensagem de erro chega legivel, sem &lt;",
 
 
 # ==========================================================================
-print("\n17. Configuracao incompleta")
+print("\n18. Configuracao incompleta")
 
 cfg3 = cfgmod.carregar()
 cfg3.municipio = dict(cfg3.municipio)

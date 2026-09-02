@@ -196,6 +196,76 @@ async function escolherCadastro(loteId, lancamento, documento, valido) {
   window.location.reload();
 }
 
+/* --------------------------------------------------------------------------
+   Escolher quais notas sair.
+
+   O operador precisa poder emitir UMA nota especifica -- a de um paciente
+   que ele quer conferir -- antes de soltar o mes inteiro. Sem isso, testar
+   valendo significava emitir tudo.
+   -------------------------------------------------------------------------- */
+
+function escolhidas() {
+  return Array.from(document.querySelectorAll(".escolha:checked"))
+              .map(function (c) { return c.value; });
+}
+
+function contarEscolhas() {
+  var n = escolhidas().length;
+  var total = document.querySelectorAll(".escolha").length;
+  var conta = document.getElementById("escolhas-conta");
+  if (conta) {
+    conta.textContent = n + " selecionada(s)";
+    conta.style.display = n === total ? "none" : "";
+  }
+  // O botao diz quantas vao sair so quando NAO sao todas: "Emitir valendo"
+  // e mais limpo do que "Emitir 276 valendo" no caso normal.
+  var sufixo = (n === total || n === 0) ? "" : "(" + n + ")";
+  document.querySelectorAll(".quantas").forEach(function (e) {
+    e.textContent = sufixo;
+  });
+  var marcarTudo = document.getElementById("marcar-todas");
+  if (marcarTudo) {
+    marcarTudo.checked = n === total;
+    marcarTudo.indeterminate = n > 0 && n < total;
+  }
+}
+
+function marcarTodas(ligado) {
+  document.querySelectorAll(".escolha").forEach(function (c) {
+    // So mexe no que esta visivel: com um filtro aplicado, "marcar todas"
+    // deve valer para o que esta na tela, nao para a lista inteira.
+    var linha = c.closest("tr");
+    if (!linha || linha.style.display !== "none") { c.checked = ligado; }
+  });
+  contarEscolhas();
+}
+
+function levarEscolhas(formulario) {
+  var ids = escolhidas();
+  var total = document.querySelectorAll(".escolha").length;
+  if (ids.length === 0) {
+    alert("Selecione pelo menos uma nota na lista \"Vão virar nota\".");
+    return false;
+  }
+  formulario.querySelectorAll("input[name='apenas']").forEach(function (e) {
+    e.remove();
+  });
+  // Mandar a lista so quando ela e parcial mantem o caso normal simples.
+  if (ids.length < total) {
+    ids.forEach(function (id) {
+      var campo = document.createElement("input");
+      campo.type = "hidden";
+      campo.name = "apenas";
+      campo.value = id;
+      formulario.appendChild(campo);
+    });
+  }
+  return true;
+}
+
+document.addEventListener("DOMContentLoaded", contarEscolhas);
+
+
 function confirmarEmissao(evento) {
   const campo = document.getElementById("confirmacao");
   if (campo.value.trim().toUpperCase() !== "EMITIR") {

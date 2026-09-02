@@ -664,8 +664,14 @@ def gerar(lote_id: str):
     ) != "EMITIR":
         return redirect(url_for("conferencia", lote_id=lote_id) + "?erro=confirmacao")
 
+    # Lista vazia = todas. O operador pode marcar so algumas na conferencia
+    # para emitir uma nota especifica -- a de um paciente que ele quer
+    # conferir -- antes de soltar o mes inteiro.
+    escolhidas = set(request.form.getlist("apenas")) or None
+
     cfg, _, resultado = conciliar_lote(lote)
-    saida = emitir(resultado, cfg, simular=not valendo, ambiente=ambiente)
+    saida = emitir(resultado, cfg, simular=not valendo, ambiente=ambiente,
+                   apenas=escolhidas)
     lote["ultima_saida"] = saida.pasta
     salvar_lote(lote)
     return render_template(
