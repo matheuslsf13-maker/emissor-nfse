@@ -38,6 +38,56 @@
 </div>
 {% endif %}
 
+{% if andamento and andamento.estado == 'enviando' %}
+<div class="cartao" id="andamento" style="border-left:4px solid var(--marca)">
+  <h3 style="margin-top:0">Transmitindo para a prefeitura…</h3>
+  <p style="color:var(--tinta-fraca);font-size:14px">
+    A prefeitura aceita <b>uma nota por vez</b> por CNPJ, então o envio é
+    feito em fila. Pode deixar esta tela aberta — se fechar, o envio continua.
+  </p>
+
+  <div style="background:var(--fundo);border-radius:20px;height:14px;overflow:hidden;margin:14px 0 8px">
+    <div id="barra" style="height:100%;width:0%;background:var(--marca);
+                           border-radius:20px;transition:width .4s ease"></div>
+  </div>
+
+  <div style="display:flex;gap:18px;flex-wrap:wrap;font-size:14px">
+    <span><b id="feitos">0</b> de <b id="total">?</b> enviadas</span>
+    <span style="color:var(--bom)"><b id="aceitas">0</b> aceitas</span>
+    <span style="color:var(--ruim)"><b id="recusadas">0</b> recusadas</span>
+    <span id="ultimo" style="margin-left:auto;color:var(--tinta-fantasma)"></span>
+  </div>
+</div>
+
+<script>
+(function () {
+  var barra = document.getElementById('barra');
+  if (!barra) return;
+  function passo() {
+    fetch({{ url_for('andamento_transmissao', pasta=pasta) | tojson }})
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (d.estado === 'pronto' || d.estado === 'erro') {
+          location.reload();
+          return;
+        }
+        var total = d.total || 0;
+        var pct = total ? Math.round((d.feitos / total) * 100) : 0;
+        barra.style.width = pct + '%';
+        document.getElementById('feitos').textContent = d.feitos || 0;
+        document.getElementById('total').textContent = total || '?';
+        document.getElementById('aceitas').textContent = d.aceitas || 0;
+        document.getElementById('recusadas').textContent = d.recusadas || 0;
+        document.getElementById('ultimo').textContent = d.ultimo || '';
+        setTimeout(passo, 1200);
+      })
+      .catch(function () { setTimeout(passo, 3000); });
+  }
+  passo();
+})();
+</script>
+{% endif %}
+
 {% if resultado %}
   {% set aceitas = resultado.aceitas %}
   {% set recusadas = resultado.recusadas %}

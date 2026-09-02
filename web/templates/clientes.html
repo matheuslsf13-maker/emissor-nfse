@@ -11,6 +11,144 @@
   apenas a diferença.
 </p>
 
+<h2>Procurar um paciente</h2>
+<div class="cartao">
+  <form method="get" action="{{ url_for('clientes') }}">
+    <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">
+      <label style="flex:1;min-width:230px">
+        <span style="display:block;font-size:13.5px;margin-bottom:5px">Nome ou CPF</span>
+        <input type="text" name="q" value="{{ termo }}" autocomplete="off"
+               placeholder="parte do nome, ou os números do CPF"
+               style="width:100%">
+      </label>
+      <label>
+        <span style="display:block;font-size:13.5px;margin-bottom:5px">Clínica</span>
+        <select name="unidade">
+          {% for ch, dados in cfg.unidades.items() %}
+          <option value="{{ ch }}" {{ 'selected' if ch == unidade }}>
+            {{ dados.apelido or ch }}
+          </option>
+          {% endfor %}
+        </select>
+      </label>
+      <label>
+        <span style="display:block;font-size:13.5px;margin-bottom:5px">Mostrar</span>
+        <select name="filtro">
+          <option value="" {{ 'selected' if not filtro }}>todos</option>
+          <option value="sem_documento" {{ 'selected' if filtro == 'sem_documento' }}>
+            só quem está sem CPF válido
+          </option>
+          <option value="sem_endereco" {{ 'selected' if filtro == 'sem_endereco' }}>
+            só quem está sem endereço
+          </option>
+          <option value="sem_cep" {{ 'selected' if filtro == 'sem_cep' }}>
+            só quem está sem CEP
+          </option>
+        </select>
+      </label>
+      <button class="botao" type="submit">Procurar</button>
+    </div>
+  </form>
+
+  {% set p = bases[unidade].pendencias if unidade in bases else {} %}
+  {% if p and (p.sem_documento or p.sem_endereco or p.sem_cep) %}
+  <p style="margin:14px 0 0;font-size:14px;color:var(--tinta-fraca)">
+    Atalhos:
+    {% if p.sem_documento %}
+    <a href="{{ url_for('clientes', unidade=unidade, filtro='sem_documento') }}">
+      {{ p.sem_documento }} sem CPF válido</a>{% if p.sem_endereco or p.sem_cep %} ·{% endif %}
+    {% endif %}
+    {% if p.sem_endereco %}
+    <a href="{{ url_for('clientes', unidade=unidade, filtro='sem_endereco') }}">
+      {{ p.sem_endereco }} sem endereço</a>{% if p.sem_cep %} ·{% endif %}
+    {% endif %}
+    {% if p.sem_cep %}
+    <a href="{{ url_for('clientes', unidade=unidade, filtro='sem_cep') }}">
+      {{ p.sem_cep }} sem CEP</a>
+    {% endif %}
+  </p>
+  {% endif %}
+</div>
+
+{% if termo or filtro %}
+  {% if achados %}
+  <p class="legenda" style="margin-top:16px">
+    {{ quantos }} encontrado(s){% if quantos > achados|length %} —
+    mostrando os {{ achados|length }} primeiros, refine a busca para ver
+    outros{% endif %}.
+    {% if filtro %}
+    <b>Corrija no TechCare</b> e mande o relatório de clientes de novo: o
+    sistema compara e atualiza só quem mudou.
+    {% endif %}
+  </p>
+  <div class="moldura-tabela">
+    <table>
+      <thead>
+        <tr><th>Paciente</th><th>CPF / CNPJ</th><th>Endereço</th><th>Falta</th></tr>
+      </thead>
+      <tbody>
+        {% for c in achados %}
+        <tr>
+          <td><b>{{ c.nome }}</b>
+            {% if c.nascimento %}
+            <div style="color:var(--tinta-fantasma);font-size:12.5px">
+              nasc. {{ c.nascimento }}</div>
+            {% endif %}
+          </td>
+          <td class="mono" style="font-size:13px">
+            {% if c.documento_ok %}
+              {{ c.documento | documento }}
+            {% elif c.documento %}
+              <span style="color:var(--ruim)">{{ c.documento }}</span>
+            {% else %}
+              <span style="color:var(--tinta-fantasma)">—</span>
+            {% endif %}
+          </td>
+          <td style="font-size:13.5px">
+            {% if c.logradouro %}
+              {{ c.logradouro }}{% if c.numero %}, {{ c.numero }}{% endif %}
+              <div style="color:var(--tinta-fantasma);font-size:12.5px">
+                {{ c.bairro }}{% if c.cidade %} — {{ c.cidade }}{% endif %}
+                {% if c.cep %} · {{ c.cep }}{% endif %}
+              </div>
+            {% else %}
+              <span style="color:var(--tinta-fantasma)">—</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if not c.documento_ok %}
+            <span class="selo ruim">CPF</span>
+            {% endif %}
+            {% if not (c.logradouro and c.bairro) %}
+            <span class="selo ruim">endereço</span>
+            {% endif %}
+            {% if not c.cep %}
+            <span class="selo atencao">CEP</span>
+            {% endif %}
+            {% if c.documento_ok and c.logradouro and c.bairro and c.cep %}
+            <span class="selo bom">completo</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="faixa atencao" style="margin-top:16px">
+    <span class="icone">▲</span>
+    <div><b>Nada encontrado</b>
+      <p>
+        Tente parte do nome, sem acento, ou só os números do CPF. Se o
+        paciente é novo, mande o relatório de clientes do TechCare de novo.
+      </p>
+    </div>
+  </div>
+  {% endif %}
+{% endif %}
+
+<h2>Situação das bases</h2>
+
 <div class="faixa info">
   <span class="icone">›</span>
   <div>

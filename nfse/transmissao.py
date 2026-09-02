@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import os
 import re
+import time
 from dataclasses import dataclass, field
 from datetime import datetime
 
@@ -42,6 +43,8 @@ class ResultadoEnvio:
     bruto: str = ""
     http: int = 0
     erro: str = ""
+    tentativas: int = 0
+    na_fila: bool = False
 
 
 @dataclass
@@ -60,6 +63,29 @@ class ResultadoTransmissao:
     @property
     def recusadas(self):
         return [e for e in self.enviadas if not e.aceita]
+
+
+# A prefeitura aceita UM envio por vez por CNPJ. Mandando em sequencia, a
+# partir da segunda nota ela responde com esta mensagem -- e a nota, que esta
+# perfeita, e recusada so por ritmo. Numa transmissao real de 276 notas isso
+# derrubou 207 delas.
+MARCAS_FILA = (
+    "ja consta uma requisicao em andamento",
+    "já consta uma requisição em andamento",
+    "aguarde o processo anterior",
+)
+
+
+def erro_de_fila(mensagem: str) -> bool:
+    """A recusa foi por ritmo, e nao por defeito da nota?
+
+    Vale distinguir: erro de fila some sozinho ao tentar de novo, enquanto
+    erro de conteudo volta igual para sempre. Tratar os dois do mesmo jeito
+    faria o operador reenviar centenas de notas na mao, sem saber quais
+    valiam a pena.
+    """
+    texto = (mensagem or "").lower()
+    return any(marca in texto for marca in MARCAS_FILA)
 
 
 def _numero_do_arquivo(nome: str) -> str:
@@ -88,9 +114,18 @@ def listar_xmls(pasta: str) -> list:
     return sorted(n for n in os.listdir(pasta) if n.lower().endswith(".xml"))
 
 
-def transmitir(pasta: str, config, limite: int = None,
-               apenas: set = None) -> ResultadoTransmissao:
-    """Envia os XMLs da pasta. `limite=1` manda so o primeiro (recomendado)."""
+def transmitir(pasta: str, config, limite: int = None, apenas: set = None,
+               progresso=None, tentativas: int = 4, espera: float = 1.5,
+               pausa: float = 0.4) -> ResultadoTransmissao:
+    """Envia os XMLs da pasta. `limite=1` manda so o primeiro (recomendado).
+
+    `progresso(feitos, total, ultimo)` e chamado a cada nota, para a tela
+    poder mostrar andamento: um lote de 276 leva minutos, e sem retorno
+    visual parece travado.
+
+    `tentativas`/`espera` cuidam da trava de envio simultaneo da prefeitura;
+    `pausa` e o respiro entre notas diferentes, que evita bater nela.
+    """
     estado = situacao(config)
     resultado = ResultadoTransmissao(
         pasta=pasta, ambiente=estado["ambiente"], url=estado["url"]
@@ -107,6 +142,15 @@ def transmitir(pasta: str, config, limite: int = None,
     arquivos = listar_xmls(pasta)
     if apenas is not None:
         arquivos = [a for a in arquivos if a in apenas]
+
+    # Quantas serao de fato enviadas: as ja aceitas sao puladas, e `limite`
+    # corta o resto. Sem isso a barra mostraria 5% quando ja acabou.
+    ja_aceitas = sum(
+        1 for a in arquivos
+        if por_arquivo.get(a, (None, {}))[1].get("transmitida"))
+    total_previsto = len(arquivos) - ja_aceitas
+    if limite is not None:
+        total_previsto = min(total_previsto, limite)
 
     for nome in arquivos:
         if limite is not None and len(resultado.enviadas) >= limite:
@@ -148,18 +192,35 @@ def transmitir(pasta: str, config, limite: int = None,
             resultado.enviadas.append(item)
             continue
 
-        try:
-            resposta = enviar(xml, config, acao="gerar")
-            item.http = resposta["status"]
-            lido = interpretar_retorno(resposta["retorno"] or resposta["corpo"])
-            item.aceita = lido["aceita"]
-            item.numero_nota = lido["numero"]
-            item.codigo_verificacao = lido["codigo_verificacao"]
-            item.chave_acesso = lido["chave"]
-            item.mensagem = lido["mensagem"]
-            item.bruto = lido["bruto"][:4000]
-        except Exception as erro:  # noqa: BLE001 - erro vira relatorio
-            item.erro = "%s: %s" % (type(erro).__name__, erro)
+        # A prefeitura processa um envio por vez por CNPJ. Insistir com
+        # espera crescente e o que transforma "recusada" em "aceita" -- sem
+        # isso, mandar um lote inteiro derruba a maior parte dele por ritmo.
+        for tentativa in range(1, tentativas + 1):
+            try:
+                resposta = enviar(xml, config, acao="gerar")
+                item.http = resposta["status"]
+                lido = interpretar_retorno(resposta["retorno"] or resposta["corpo"])
+                item.aceita = lido["aceita"]
+                item.numero_nota = lido["numero"]
+                item.codigo_verificacao = lido["codigo_verificacao"]
+                item.chave_acesso = lido["chave"]
+                item.mensagem = lido["mensagem"]
+                item.bruto = lido["bruto"][:4000]
+                item.erro = ""
+            except Exception as erro:  # noqa: BLE001 - erro vira relatorio
+                item.erro = "%s: %s" % (type(erro).__name__, erro)
+                item.aceita = False
+
+            if item.aceita or not erro_de_fila(item.mensagem or item.erro):
+                break
+            item.tentativas = tentativa
+            if tentativa < tentativas:
+                # Espera crescente: 1s, 2s, 3s... Fixa e curta demais bate na
+                # mesma trava; longa demais faz um lote grande levar horas.
+                time.sleep(espera * tentativa)
+
+        if not item.aceita and erro_de_fila(item.mensagem or item.erro):
+            item.na_fila = True
 
         if item.aceita and chave:
             controle.registrar_transmissao(
@@ -170,6 +231,10 @@ def transmitir(pasta: str, config, limite: int = None,
                 ambiente=estado["ambiente"],
             )
         resultado.enviadas.append(item)
+        if progresso:
+            progresso(len(resultado.enviadas), total_previsto, item)
+        if pausa:
+            time.sleep(pausa)
 
     controle.fechar()
     _gravar_log(resultado, pasta)

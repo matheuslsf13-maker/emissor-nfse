@@ -212,6 +212,46 @@ class BaseClientes:
         cadastro.indexar()
         return cadastro
 
+    def procurar(self, termo: str = "", filtro: str = "", limite: int = 60):
+        """Busca na base por nome ou documento, com filtro por pendência.
+
+        Existe para o operador poder chegar em quem está com cadastro
+        incompleto ANTES de emitir. Sem isso, o problema só aparecia na
+        conferência, lançamento a lançamento, sem visão do conjunto.
+
+        `filtro`: sem_documento | sem_endereco | sem_cep  (vazio = todos).
+        """
+        alvo_termo = chave_nome(termo or "")
+        digitos = so_digitos(termo or "")
+        achados = []
+        for cliente in self.clientes:
+            if filtro == "sem_documento" and cliente.documento_ok:
+                continue
+            if filtro == "sem_endereco" and (cliente.logradouro and cliente.bairro):
+                continue
+            if filtro == "sem_cep" and so_digitos(cliente.cep or ""):
+                continue
+            if alvo_termo and alvo_termo not in chave_nome(cliente.nome):
+                if not (digitos and digitos in so_digitos(cliente.documento or "")):
+                    continue
+            achados.append(cliente)
+        # O nome ordena melhor do que a ordem de importação para quem procura.
+        achados.sort(key=lambda c: chave_nome(c.nome))
+        return achados[:limite], len(achados)
+
+    def pendencias(self) -> dict:
+        """Quantos estão incompletos, por tipo de falta."""
+        sem_doc = sem_end = sem_cep = 0
+        for c in self.clientes:
+            if not c.documento_ok:
+                sem_doc += 1
+            if not (c.logradouro and c.bairro):
+                sem_end += 1
+            if not so_digitos(c.cep or ""):
+                sem_cep += 1
+        return {"sem_documento": sem_doc, "sem_endereco": sem_end,
+                "sem_cep": sem_cep}
+
     def resumo(self) -> dict:
         validos = sum(1 for c in self.clientes if c.documento_ok)
         return {

@@ -78,6 +78,12 @@ app.secret_key = _segredo_da_sessao()
 # estranho, dificil de diagnosticar a distancia.
 VERSAO_EM_EXECUCAO = atualizacao_mod.versao_instalada()
 
+# Andamento das transmissoes em segundo plano, por pasta. Fica em memoria de
+# proposito: se o programa fechar no meio, o que importa (quais notas a
+# prefeitura aceitou) ja esta gravado no controle, nao aqui.
+TRANSMISSOES = {}
+RESULTADOS_TRANSMISSAO = {}
+
 
 @app.context_processor
 def _versao_pendente():
@@ -691,6 +697,26 @@ def transmitir_lote(pasta: str):
     ) != "PRODUCAO":
         erro = "Para transmitir em produção é preciso digitar PRODUCAO."
 
+    # Uma nota so continua sincrona: e rapida e o operador quer ver o retorno
+    # na hora. Lote grande vai para segundo plano -- 276 notas levam minutos,
+    # e uma requisicao HTTP parada esse tempo todo parece travamento (e o
+    # navegador pode desistir no meio, deixando o envio sem dono).
+    if not erro and limite != 1:
+        with _TRAVA:
+            if TRANSMISSOES.get(pasta, {}).get("estado") == "enviando":
+                erro = "Esta pasta já está sendo transmitida agora."
+            else:
+                TRANSMISSOES[pasta] = {
+                    "estado": "enviando", "feitos": 0, "total": 0,
+                    "aceitas": 0, "recusadas": 0, "na_fila": 0,
+                    "ambiente": ambiente, "ultimo": "", "erro": "",
+                }
+        if not erro:
+            threading.Thread(target=_transmitir_em_segundo_plano,
+                             args=(pasta, caminho, ambiente),
+                             daemon=True).start()
+            return redirect(url_for("tela_transmitir", pasta=pasta))
+
     resultado = None
     if not erro:
         try:
@@ -709,7 +735,54 @@ def transmitir_lote(pasta: str):
         envio=situacao_envio(cfg),
         arquivos=len(listar_xmls(caminho)),
         gerado_para=ambiente_da_pasta(caminho),
+        andamento=TRANSMISSOES.get(pasta),
     )
+
+
+def _transmitir_em_segundo_plano(pasta: str, caminho: str, ambiente: str) -> None:
+    """Envia o lote fora da requisição, atualizando o andamento."""
+    cfg = cfgmod.carregar()
+    cfg.faturamento["ambiente"] = ambiente
+
+    def andou(feitos, total, item):
+        with _TRAVA:
+            estado = TRANSMISSOES.setdefault(pasta, {})
+            estado["feitos"] = feitos
+            estado["total"] = total
+            if item.aceita:
+                estado["aceitas"] = estado.get("aceitas", 0) + 1
+                estado["ultimo"] = "nota %s emitida" % (item.numero_nota or "?")
+            else:
+                estado["recusadas"] = estado.get("recusadas", 0) + 1
+                if item.na_fila:
+                    estado["na_fila"] = estado.get("na_fila", 0) + 1
+                estado["ultimo"] = "DPS %s recusada" % (item.numero_dps or "?")
+
+    try:
+        resultado = transmitir(caminho, cfg, progresso=andou)
+        with _TRAVA:
+            TRANSMISSOES[pasta] = {
+                "estado": "pronto",
+                "feitos": len(resultado.enviadas),
+                "total": len(resultado.enviadas),
+                "aceitas": len(resultado.aceitas),
+                "recusadas": len(resultado.recusadas),
+                "na_fila": sum(1 for e in resultado.enviadas if e.na_fila),
+                "ambiente": ambiente, "ultimo": "", "erro": "",
+            }
+        RESULTADOS_TRANSMISSAO[pasta] = resultado
+    except Exception as falha:  # noqa: BLE001
+        with _TRAVA:
+            TRANSMISSOES.setdefault(pasta, {})["estado"] = "erro"
+            TRANSMISSOES[pasta]["erro"] = "%s: %s" % (type(falha).__name__, falha)
+
+
+@app.get("/saida/<path:pasta>/andamento")
+def andamento_transmissao(pasta: str):
+    estado = TRANSMISSOES.get(pasta)
+    if not estado:
+        return jsonify({"estado": "parado"})
+    return jsonify(estado)
 
 
 @app.get("/saida/<path:pasta>/transmitir")
@@ -721,12 +794,13 @@ def tela_transmitir(pasta: str):
     return render_template(
         "transmissao.html",
         pasta=pasta,
-        resultado=None,
+        resultado=RESULTADOS_TRANSMISSAO.get(pasta),
         erro="",
         ambiente=cfg.faturamento.get("ambiente", "homologacao"),
         envio=situacao_envio(cfg),
         arquivos=len(listar_xmls(caminho)),
         gerado_para=ambiente_da_pasta(caminho),
+        andamento=TRANSMISSOES.get(pasta),
     )
 
 
@@ -937,7 +1011,13 @@ def backup():
 
 @app.get("/clientes")
 def clientes():
-    """Estado da base de clientes de cada unidade."""
+    """Estado da base de clientes, com busca e lista de quem está incompleto.
+
+    Antes esta tela só mostrava contagens. Saber que há "849 sem documento
+    válido" não ajuda ninguém: o operador precisa CHEGAR neles para corrigir
+    no TechCare, e não havia caminho — o problema só aparecia depois, na
+    conferência, um lançamento por vez.
+    """
     cfg = cfgmod.carregar()
     bases = {}
     for chave, dados in cfg.unidades.items():
@@ -946,10 +1026,23 @@ def clientes():
             "apelido": dados.get("apelido", chave),
             "existe": base.existe,
             "resumo": base.resumo(),
+            "pendencias": base.pendencias() if base.existe else {},
             "historico": list(reversed(base.historico))[:12],
             "caminho": base.caminho,
         }
-    return render_template("clientes.html", bases=bases)
+
+    unidade = request.args.get("unidade") or next(iter(cfg.unidades))
+    termo = (request.args.get("q") or "").strip()
+    filtro = request.args.get("filtro") or ""
+    achados, quantos = [], 0
+    if unidade in cfg.unidades:
+        base = base_clientes.abrir(cfgmod.PASTA_DADOS, unidade)
+        if base.existe and (termo or filtro):
+            achados, quantos = base.procurar(termo, filtro)
+
+    return render_template("clientes.html", bases=bases, unidade=unidade,
+                           termo=termo, filtro=filtro, achados=achados,
+                           quantos=quantos, cfg=cfg)
 
 
 @app.get("/ajuda")

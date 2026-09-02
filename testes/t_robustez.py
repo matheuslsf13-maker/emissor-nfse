@@ -361,7 +361,28 @@ finally:
 
 
 # ==========================================================================
-print("\n9. Dados de paciente esquisitos no XML")
+print("\n9. Transmissao: a fila da prefeitura")
+# A prefeitura processa UM envio por vez por CNPJ. Mandar um lote em
+# sequencia faz a maioria voltar recusada -- nao por defeito da nota, e sim
+# por ritmo. Numa transmissao real de 276, 207 cairam assim. Distinguir esse
+# erro dos de conteudo e o que permite insistir so no que adianta.
+from nfse.transmissao import erro_de_fila  # noqa: E402
+
+checar("reconhece a recusa por fila",
+       erro_de_fila("ATENCAO! Ja consta uma requisicao em andamento para envio"))
+checar("reconhece a variante acentuada",
+       erro_de_fila("Já consta uma requisição em andamento"))
+checar("reconhece pelo aguarde o processo anterior",
+       erro_de_fila("Aguarde o processo anterior finalizar"))
+checar("E0014 NAO e erro de fila (nao adianta insistir)",
+       not erro_de_fila("E0014 - Conjunto de Serie, Numero ... ja existe"))
+checar("erro de assinatura nao e de fila",
+       not erro_de_fila("Erro na assinatura: Falha na validacao"))
+checar("mensagem vazia nao e de fila", not erro_de_fila(""))
+
+
+# ==========================================================================
+print("\n10. Dados de paciente esquisitos no XML")
 
 from nfse.gerador_dps import gerar_nfse  # noqa: E402
 from nfse.conciliacao import Nota  # noqa: E402
@@ -410,7 +431,7 @@ checar("paciente sem documento nao gera CPF vazio no XML",
 
 
 # ==========================================================================
-print("\n10. Valores")
+print("\n11. Valores")
 
 xml = gerar("PACIENTE", valor="0.00")
 valores = etree.fromstring(xml).find(".//n:valores", NS)
@@ -428,7 +449,7 @@ checar("valor alto nao vira notacao cientifica",
 
 
 # ==========================================================================
-print("\n11. Documentos invalidos")
+print("\n12. Documentos invalidos")
 
 checar("CPF de digitos repetidos e invalido", not documento_valido("11111111111"))
 checar("CPF com digito errado e invalido", not documento_valido("12345678900"))
@@ -440,7 +461,7 @@ checar("letras no lugar do documento sao invalidas", not documento_valido("abcde
 
 
 # ==========================================================================
-print("\n12. Transmissao: as travas")
+print("\n13. Transmissao: as travas")
 
 from nfse.transmissao import transmitir  # noqa: E402
 from nfse.envio import EnvioIndisponivel, interpretar_retorno  # noqa: E402
@@ -479,7 +500,7 @@ checar("ambiente do XML e lido corretamente",
 
 
 # ==========================================================================
-print("\n13. Retorno estranho da prefeitura")
+print("\n14. Retorno estranho da prefeitura")
 
 casos = [
     ("resposta vazia", "", False),
@@ -509,7 +530,7 @@ checar("a mensagem de erro chega legivel, sem &lt;",
 
 
 # ==========================================================================
-print("\n14. Configuracao incompleta")
+print("\n15. Configuracao incompleta")
 
 cfg3 = cfgmod.carregar()
 cfg3.municipio = dict(cfg3.municipio)

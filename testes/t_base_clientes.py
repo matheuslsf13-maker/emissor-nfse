@@ -164,6 +164,46 @@ try:
 finally:
     shutil.rmtree(pasta, ignore_errors=True)
 
+
+# --------------------------------------------------------------------------
+print("\nBusca na base de clientes")
+# Saber que ha "849 sem CPF valido" nao ajuda ninguem: o operador precisa
+# CHEGAR neles para corrigir no TechCare. Antes, a unica forma era esbarrar
+# no problema durante a conferencia, um lancamento por vez.
+from nfse.util import chave_nome  # noqa: E402
+
+pasta_busca = tempfile.mkdtemp(prefix="nfse-busca-")
+try:
+    base_b = BaseClientes(os.path.join(pasta_busca, "gloria.json"), "gloria")
+    base_b.mesclar(real, origem="busca")
+    base_b.salvar()
+
+    achados, quantos = base_b.procurar("MARCELA")
+    checar("acha por parte do nome", quantos > 0, quantos)
+    checar("e todo achado contem o termo",
+           all("MARCELA" in chave_nome(c.nome) for c in achados))
+
+    alguem = next((c for c in base_b.clientes if c.documento_ok), None)
+    if alguem:
+        achados, quantos = base_b.procurar(alguem.documento)
+        checar("acha pelo numero do documento", quantos >= 1, quantos)
+
+    achados, quantos = base_b.procurar(filtro="sem_documento")
+    checar("filtro sem_documento so traz documento invalido",
+           all(not c.documento_ok for c in achados), len(achados))
+    checar("e bate com a contagem de pendencias",
+           quantos == base_b.pendencias()["sem_documento"],
+           (quantos, base_b.pendencias()))
+
+    achados, quantos = base_b.procurar("nao-existe-esse-nome")
+    checar("busca sem resultado devolve vazio, nao quebra",
+           achados == [] and quantos == 0)
+
+    achados, _ = base_b.procurar(limite=5)
+    checar("o limite e respeitado", len(achados) <= 5, len(achados))
+finally:
+    shutil.rmtree(pasta_busca, ignore_errors=True)
+
 print("\n" + "=" * 62)
 if falhas:
     print("%d verificacao(oes) FALHARAM:" % len(falhas))
