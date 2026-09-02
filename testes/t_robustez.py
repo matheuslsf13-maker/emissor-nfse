@@ -285,7 +285,49 @@ finally:
 
 
 # ==========================================================================
-print("\n7. Dados de paciente esquisitos no XML")
+print("\n7. Notas geradas que ainda esperam a prefeitura")
+# O operador gerava as notas, saia da tela e nao achava mais o caminho de
+# volta: reabrindo a conferencia, o sistema pulava tudo (ja emitido) e a
+# transmissao aparecia zerada. Os XMLs existiam, prontos e assinados, sem
+# nenhuma porta ate eles.
+pasta_pend = tempfile.mkdtemp(prefix="nfse-rob-pend-")
+saida_antes = cfgmod.PASTA_SAIDA
+cfgmod.PASTA_SAIDA = pasta_pend
+appmod.cfgmod.PASTA_SAIDA = pasta_pend
+try:
+    for nome, arquivos in (("gloria-2026-08-agora", 3),
+                           ("gloria-2026-08-antiga-teste", 2),
+                           ("gloria-2026-07-DESCARTADO", 4)):
+        os.makedirs(os.path.join(pasta_pend, nome), exist_ok=True)
+        for n in range(1, arquivos + 1):
+            with open(os.path.join(pasta_pend, nome, "%05d-x.xml" % n), "wb") as fh:
+                fh.write(b"<NFSe><tpAmb>2</tpAmb><Signature/></NFSe>")
+
+    pendentes = appmod.lotes_por_transmitir()
+    nomes = [p["pasta"] for p in pendentes]
+    checar("acha o lote gerado e nao transmitido",
+           "gloria-2026-08-agora" in nomes, nomes)
+    checar("pasta de simulacao nao aparece",
+           "gloria-2026-08-antiga-teste" not in nomes, nomes)
+    checar("lote descartado nao aparece",
+           "gloria-2026-07-DESCARTADO" not in nomes, nomes)
+    achado = next(p for p in pendentes if p["pasta"] == "gloria-2026-08-agora")
+    checar("conta quantas faltam", achado["faltam"] == 3, achado)
+    checar("e diz o ambiente em que foram geradas",
+           achado["ambiente"] == "homologacao", achado)
+
+    corpo = cliente.get("/").data.decode("utf-8", "replace")
+    checar("a tela inicial mostra o lote esperando",
+           "esperando a prefeitura" in corpo)
+    checar("com botao para transmitir", "gloria-2026-08-agora" in corpo)
+finally:
+    cfgmod.PASTA_SAIDA = saida_antes
+    appmod.cfgmod.PASTA_SAIDA = saida_antes
+    shutil.rmtree(pasta_pend, ignore_errors=True)
+
+
+# ==========================================================================
+print("\n8. Dados de paciente esquisitos no XML")
 
 from nfse.gerador_dps import gerar_nfse  # noqa: E402
 from nfse.conciliacao import Nota  # noqa: E402
@@ -334,7 +376,7 @@ checar("paciente sem documento nao gera CPF vazio no XML",
 
 
 # ==========================================================================
-print("\n8. Valores")
+print("\n9. Valores")
 
 xml = gerar("PACIENTE", valor="0.00")
 valores = etree.fromstring(xml).find(".//n:valores", NS)
@@ -352,7 +394,7 @@ checar("valor alto nao vira notacao cientifica",
 
 
 # ==========================================================================
-print("\n9. Documentos invalidos")
+print("\n10. Documentos invalidos")
 
 checar("CPF de digitos repetidos e invalido", not documento_valido("11111111111"))
 checar("CPF com digito errado e invalido", not documento_valido("12345678900"))
@@ -364,7 +406,7 @@ checar("letras no lugar do documento sao invalidas", not documento_valido("abcde
 
 
 # ==========================================================================
-print("\n10. Transmissao: as travas")
+print("\n11. Transmissao: as travas")
 
 from nfse.transmissao import transmitir  # noqa: E402
 from nfse.envio import EnvioIndisponivel, interpretar_retorno  # noqa: E402
@@ -403,7 +445,7 @@ checar("ambiente do XML e lido corretamente",
 
 
 # ==========================================================================
-print("\n11. Retorno estranho da prefeitura")
+print("\n12. Retorno estranho da prefeitura")
 
 casos = [
     ("resposta vazia", "", False),
@@ -433,7 +475,7 @@ checar("a mensagem de erro chega legivel, sem &lt;",
 
 
 # ==========================================================================
-print("\n12. Configuracao incompleta")
+print("\n13. Configuracao incompleta")
 
 cfg3 = cfgmod.carregar()
 cfg3.municipio = dict(cfg3.municipio)

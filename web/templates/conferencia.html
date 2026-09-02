@@ -267,20 +267,39 @@
       <p>Todo lançamento que não virou nota aparece aqui, com a regra que o excluiu.</p>
     </div>
   </div>
-  <div class="moldura-tabela">
-    <table>
-      <thead><tr><th>Motivo</th><th class="num">Lançamentos</th><th class="num">Valor</th></tr></thead>
+  {% for motivo, d in r.descartes.items() | sort(attribute='1.valor', reverse=true) %}
+  <div class="cartao" style="margin-bottom:14px">
+    <div style="display:flex;gap:12px;align-items:baseline;flex-wrap:wrap;
+                border-bottom:1px solid var(--borda);padding-bottom:10px;margin-bottom:4px">
+      <b style="font-size:15.5px">{{ motivo }}</b>
+      <span style="margin-left:auto;color:var(--tinta-fraca);font-size:14px">
+        {{ d.qtde }} lançamento(s)
+      </span>
+      <b style="font-size:15px">R$ {{ brl(d.valor) }}</b>
+    </div>
+
+    {% if d.secoes %}
+    <table style="margin:0">
       <tbody>
-        {% for motivo, d in r.descartes.items() | sort(attribute='1.qtde', reverse=true) %}
+        {% for secao, sd in d.secoes.items() | sort(attribute='1.valor', reverse=true) %}
         <tr>
-          <td>{{ motivo }}</td>
-          <td class="num">{{ d.qtde }}</td>
-          <td class="num">{{ brl(d.valor) }}</td>
+          <td style="padding-left:0;color:var(--tinta-fraca)">{{ secao }}</td>
+          <td class="num" style="width:110px;color:var(--tinta-fraca)">{{ sd.qtde }}</td>
+          <td class="num" style="width:130px;padding-right:0">R$ {{ brl(sd.valor) }}</td>
         </tr>
         {% endfor %}
       </tbody>
     </table>
+    {% endif %}
   </div>
+  {% endfor %}
+
+  <p style="color:var(--tinta-fraca);font-size:13.5px;margin-top:16px">
+    <b>Seção do caixa que não gera nota</b> é a regra que protege contra
+    lançamento desconhecido: só as seções listadas na Configuração viram nota.
+    Transferência entre unidades, aporte de sócio ou qualquer seção nova cai
+    aqui e fica de fora até alguém decidir o contrário.
+  </p>
 </section>
 
 <!-- ------------------------------------------------ RESUMO -->

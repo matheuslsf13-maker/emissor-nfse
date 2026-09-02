@@ -110,7 +110,7 @@ class Resultado:
     arquivos: list = field(default_factory=list)
     notas: list = field(default_factory=list)
     pendencias: list = field(default_factory=list)
-    descartes: dict = field(default_factory=dict)   # motivo -> {qtde, valor}
+    descartes: dict = field(default_factory=dict)   # motivo -> {qtde, valor, secoes}
     avisos: list = field(default_factory=list)
     total_lancamentos: int = 0
     # Secao que aparece no caixa e nao esta em secoes_que_emitem nem na lista
@@ -265,10 +265,18 @@ def conciliar(
             decisao, motivo, tipo = regras.avaliar(lanc)
             if decisao != EMITE:
                 item = resultado.descartes.setdefault(
-                    motivo, {"qtde": 0, "valor": Decimal("0")}
+                    motivo, {"qtde": 0, "valor": Decimal("0"), "secoes": {}}
                 )
                 item["qtde"] += 1
                 item["valor"] += lanc.valor
+                # Guardar a secao dentro do motivo: "R$ 74.419,89 nao viraram
+                # nota" nao diz nada sozinho; "40 lancamentos de ENVELOPE"
+                # deixa qualquer um conferir se a regra esta certa.
+                secao_item = item["secoes"].setdefault(
+                    lanc.secao, {"qtde": 0, "valor": Decimal("0")}
+                )
+                secao_item["qtde"] += 1
+                secao_item["valor"] += lanc.valor
                 if motivo == M_SECAO:
                     achado = resultado.secoes_desconhecidas.setdefault(
                         lanc.secao, {"qtde": 0, "valor": Decimal("0"),

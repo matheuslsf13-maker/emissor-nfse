@@ -69,6 +69,55 @@
   </div>
 </form>
 
+{% if pendentes %}
+<h2>Notas geradas, esperando a prefeitura</h2>
+<p class="legenda">
+  Estas notas já existem no seu computador, prontas e assinadas — só não foram
+  transmitidas ainda. <b>Não precisa gerar de novo:</b> continue daqui.
+</p>
+<div class="moldura-tabela">
+  <table>
+    <thead>
+      <tr>
+        <th>Quando foram geradas</th>
+        <th>Faltam enviar</th>
+        <th>Ambiente</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for p in pendentes %}
+      <tr>
+        <td>
+          {{ p.quando }}
+          <div style="color:var(--tinta-fantasma);font-size:12.5px">{{ p.pasta }}</div>
+        </td>
+        <td>
+          <b style="font-size:17px">{{ p.faltam }}</b>
+          <span style="color:var(--tinta-fraca)">de {{ p.total }}</span>
+          {% if p.transmitidas %}
+          <div style="color:var(--bom);font-size:12.5px">
+            {{ p.transmitidas }} já aceita(s)
+          </div>
+          {% endif %}
+        </td>
+        <td>
+          <span class="selo {{ 'ruim' if p.ambiente == 'producao' else 'neutro' }}">
+            {{ p.ambiente or '—' }}
+          </span>
+        </td>
+        <td style="text-align:right">
+          <a class="botao" href="{{ url_for('tela_transmitir', pasta=p.pasta) }}">
+            Transmitir
+          </a>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
 {% if lotes %}
 <h2>Conferências recentes</h2>
 <div class="moldura-tabela">

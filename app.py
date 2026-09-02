@@ -335,6 +335,49 @@ def controle_ilegivel(erro):
     return render_template("controle_ilegivel.html", detalhe=str(erro)), 500
 
 
+def lotes_por_transmitir() -> list:
+    """Pastas de saída com XMLs que ainda não foram aceitos pela prefeitura.
+
+    Sem isto o operador ficava preso: gerava as notas, saía da tela, e ao
+    reabrir a conferência o sistema pulava tudo -- porque aqueles lançamentos
+    já constavam como emitidos. As notas existiam no disco, prontas e
+    assinadas, e não havia caminho de volta até elas.
+    """
+    if not os.path.isdir(cfgmod.PASTA_SAIDA):
+        return []
+
+    with Controle(os.path.join(cfgmod.PASTA_DADOS, "controle.db")) as controle:
+        por_arquivo = controle.por_arquivo()
+
+    pendentes = []
+    for nome in sorted(os.listdir(cfgmod.PASTA_SAIDA), reverse=True):
+        caminho = os.path.join(cfgmod.PASTA_SAIDA, nome)
+        if not os.path.isdir(caminho):
+            continue
+        # Pasta de simulação e lote descartado não são transmissíveis.
+        if nome.endswith("-teste") or "-DESCARTADO" in nome:
+            continue
+        arquivos = listar_xmls(caminho)
+        if not arquivos:
+            continue
+        transmitidas = sum(
+            1 for a in arquivos
+            if por_arquivo.get(a, (None, {}))[1].get("transmitida"))
+        faltam = len(arquivos) - transmitidas
+        if not faltam:
+            continue
+        pendentes.append({
+            "pasta": nome,
+            "total": len(arquivos),
+            "transmitidas": transmitidas,
+            "faltam": faltam,
+            "ambiente": ambiente_da_pasta(caminho),
+            "quando": datetime.fromtimestamp(
+                os.path.getmtime(caminho)).strftime("%d/%m/%Y %H:%M"),
+        })
+    return pendentes
+
+
 @app.route("/")
 def inicio():
     cfg = cfgmod.carregar()
@@ -357,6 +400,7 @@ def inicio():
         diagnostico=cfg.diagnostico(),
         controle=resumo_controle,
         bases=bases,
+        pendentes=lotes_por_transmitir(),
     )
 
 
