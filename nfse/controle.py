@@ -228,6 +228,41 @@ class Controle:
         with _TRAVA, self._conexao:
             self._conexao.execute("DELETE FROM emitidas WHERE chave = ?", (chave,))
 
+    def descartar_lote(self, arquivos) -> dict:
+        """Esquece notas GERADAS mas nunca transmitidas, para poder refazer.
+
+        Serve para o erro mais comum de numeracao: gerar um lote inteiro com
+        numeros que a prefeitura ja usou. Sem isto, o operador fica preso --
+        os XMLs sao recusados por duplicidade e a antiduplicidade do proprio
+        sistema impede gerar de novo, porque aqueles lancamentos constam como
+        ja emitidos.
+
+        **Nota transmitida nunca e esquecida.** Ela existe do lado da
+        prefeitura; apagar o registro aqui criaria uma segunda nota para o
+        mesmo atendimento, e em Vila Velha cancelar exige processo
+        administrativo. Essas sao contadas e devolvidas separadamente.
+        """
+        nomes = list(arquivos)
+        if not nomes:
+            return {"descartadas": 0, "protegidas": 0, "numeros": []}
+
+        marcas = ",".join("?" * len(nomes))
+        linhas = self._conexao.execute(
+            "SELECT chave, numero, arquivo, transmitida FROM emitidas "
+            "WHERE arquivo IN (%s)" % marcas, nomes).fetchall()
+
+        podem = [l for l in linhas if not l["transmitida"]]
+        protegidas = [l for l in linhas if l["transmitida"]]
+        with _TRAVA, self._conexao:
+            for linha in podem:
+                self._conexao.execute("DELETE FROM emitidas WHERE chave = ?",
+                                      (linha["chave"],))
+        return {
+            "descartadas": len(podem),
+            "protegidas": len(protegidas),
+            "numeros": sorted(l["numero"] for l in podem if l["numero"]),
+        }
+
     # -- consultas ---------------------------------------------------------
     def por_arquivo(self) -> dict:
         """arquivo -> (chave, registro). Usado pela transmissão."""

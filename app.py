@@ -697,6 +697,7 @@ def configuracao():
         versao=atualizacao_mod.versao_instalada(),
         versoes_guardadas=atualizacao_mod.versoes_guardadas()[:8],
         atualizacao=session.pop("atualizacao", None),
+        descarte=session.pop("descarte", None),
     )
 
 
@@ -751,6 +752,41 @@ def reverter_atualizacao():
     except atualizacao_mod.ErroAtualizacao as erro:
         resultado["erro_aplicar"] = str(erro)
     session["atualizacao"] = resultado
+    return redirect(url_for("configuracao"))
+
+
+@app.post("/saida/<path:pasta>/descartar")
+def descartar_lote(pasta: str):
+    """Joga fora um lote gerado com numeração errada, para poder refazer.
+
+    O caso real: o controle da numeração é perdido, o sistema recomeça do 1 e
+    o lote inteiro sai com números que a prefeitura já usou. Sem isto o
+    operador fica preso -- a prefeitura recusa por duplicidade (E0014) e a
+    antiduplicidade daqui impede gerar de novo.
+    """
+    caminho = os.path.join(cfgmod.PASTA_SAIDA, pasta)
+    if not os.path.isdir(caminho) or ".." in pasta:
+        abort(404)
+
+    nomes = listar_xmls(caminho)
+    with Controle(os.path.join(cfgmod.PASTA_DADOS, "controle.db")) as controle:
+        resultado = controle.descartar_lote(nomes)
+
+    # Os XMLs vão para uma pasta com nome marcado, em vez de serem apagados:
+    # são documentos assinados, e apagar sem poder olhar depois é pior do que
+    # deixar uma pasta a mais no disco.
+    if resultado["descartadas"] and not resultado["protegidas"]:
+        novo_nome = caminho + "-DESCARTADO"
+        contador = 2
+        while os.path.exists(novo_nome):
+            novo_nome = "%s-DESCARTADO-%d" % (caminho, contador)
+            contador += 1
+        try:
+            os.rename(caminho, novo_nome)
+        except OSError:
+            pass
+
+    session["descarte"] = resultado
     return redirect(url_for("configuracao"))
 
 

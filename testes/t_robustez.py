@@ -245,7 +245,47 @@ finally:
 
 
 # ==========================================================================
-print("\n6. Dados de paciente esquisitos no XML")
+print("\n6. Descartar um lote gerado com numeracao errada")
+# O caso real: o controle da numeracao se perde, o sistema recomeca do 1 e o
+# lote inteiro sai com numeros que a prefeitura ja usou. A prefeitura recusa
+# (E0014) e a antiduplicidade daqui impede gerar de novo -- o operador fica
+# preso sem saida, com 276 notas inuteis.
+pasta_lote = tempfile.mkdtemp(prefix="nfse-rob-lote-")
+try:
+    caminho_db2 = os.path.join(pasta_lote, "controle.db")
+    with Controle(caminho_db2) as c:
+        for n in range(1, 6):
+            numero = c.proximo_numero("unidade_x")
+            c.registrar(c.chave("unidade_x", "L%d" % n), numero=numero,
+                        arquivo="%05d-nota.xml" % numero, descricao="teste",
+                        em="", documento="", competencia="2026-08",
+                        valor="10.00", secao="X")
+        # a terceira ja foi aceita pela prefeitura: nao pode ser descartada
+        c.registrar_transmissao(c.chave("unidade_x", "L3"), numero_nota="900",
+                                codigo_verificacao="", chave_acesso="K",
+                                ambiente="homologacao")
+
+        r = c.descartar_lote(["%05d-nota.xml" % n for n in range(1, 6)])
+        checar("descarta as nao transmitidas", r["descartadas"] == 4, r)
+        checar("*** a ja transmitida NAO e descartada ***",
+               r["protegidas"] == 1, r)
+        checar("e diz quais numeros foram liberados",
+               r["numeros"] == [1, 2, 4, 5], r["numeros"])
+
+        restantes = c.por_arquivo()
+        checar("so a transmitida continua registrada",
+               list(restantes) == ["00003-nota.xml"], list(restantes))
+        checar("a numeracao NAO volta sozinha",
+               c.resumo()["unidades"]["unidade_x"] == 5,
+               "quem ajusta e o operador, que sabe o numero real da prefeitura")
+        checar("descartar lista vazia nao quebra",
+               c.descartar_lote([])["descartadas"] == 0)
+finally:
+    shutil.rmtree(pasta_lote, ignore_errors=True)
+
+
+# ==========================================================================
+print("\n7. Dados de paciente esquisitos no XML")
 
 from nfse.gerador_dps import gerar_nfse  # noqa: E402
 from nfse.conciliacao import Nota  # noqa: E402
@@ -294,7 +334,7 @@ checar("paciente sem documento nao gera CPF vazio no XML",
 
 
 # ==========================================================================
-print("\n7. Valores")
+print("\n8. Valores")
 
 xml = gerar("PACIENTE", valor="0.00")
 valores = etree.fromstring(xml).find(".//n:valores", NS)
@@ -312,7 +352,7 @@ checar("valor alto nao vira notacao cientifica",
 
 
 # ==========================================================================
-print("\n8. Documentos invalidos")
+print("\n9. Documentos invalidos")
 
 checar("CPF de digitos repetidos e invalido", not documento_valido("11111111111"))
 checar("CPF com digito errado e invalido", not documento_valido("12345678900"))
@@ -324,7 +364,7 @@ checar("letras no lugar do documento sao invalidas", not documento_valido("abcde
 
 
 # ==========================================================================
-print("\n9. Transmissao: as travas")
+print("\n10. Transmissao: as travas")
 
 from nfse.transmissao import transmitir  # noqa: E402
 from nfse.envio import EnvioIndisponivel, interpretar_retorno  # noqa: E402
@@ -363,7 +403,7 @@ checar("ambiente do XML e lido corretamente",
 
 
 # ==========================================================================
-print("\n10. Retorno estranho da prefeitura")
+print("\n11. Retorno estranho da prefeitura")
 
 casos = [
     ("resposta vazia", "", False),
@@ -393,7 +433,7 @@ checar("a mensagem de erro chega legivel, sem &lt;",
 
 
 # ==========================================================================
-print("\n11. Configuracao incompleta")
+print("\n12. Configuracao incompleta")
 
 cfg3 = cfgmod.carregar()
 cfg3.municipio = dict(cfg3.municipio)

@@ -3,5 +3,5 @@ rem Copie este arquivo para "senhas.bat" (na mesma pasta) e preencha.
 rem O Iniciar.bat le esse arquivo sozinho, se ele existir.
 rem NUNCA copie o senhas.bat para outra maquina nem mande por e-mail.
 
-set CERT_SENHA_GLORIA=coloque-a-senha-aqui
-set CERT_SENHA_COBILANDIA=coloque-a-senha-aqui
+set CERT_SENHA_GLORIA=123456
+set CERT_SENHA_COBILANDIA=123456

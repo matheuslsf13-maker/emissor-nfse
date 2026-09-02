@@ -188,6 +188,35 @@
   </div>
 </div>
 
+{% if resultado and resultado.recusadas and not resultado.aceitas %}
+<h2>Todas foram recusadas — e agora?</h2>
+<div class="cartao" style="border-left:4px solid var(--ruim)">
+  <p>
+    Se o motivo foi <b>E0014 — número já existe</b>, o problema não é o
+    arquivo: é que esta numeração já foi usada na prefeitura. Acontece quando
+    o controle da numeração se perde e o sistema recomeça do 1.
+  </p>
+  <p><b>Não adianta reenviar, e não adianta apagar os XMLs.</b> O caminho é:</p>
+  <ol style="margin:0 0 14px;padding-left:20px;line-height:1.9">
+    <li>Descartar este lote, no botão abaixo;</li>
+    <li>Em <b>Configuração → Ajustar numeração</b>, pôr o último número que a
+        prefeitura realmente registrou;</li>
+    <li>Gerar as notas de novo — elas saem com números livres.</li>
+  </ol>
+  <form method="post" action="{{ url_for('descartar_lote', pasta=pasta) }}"
+        onsubmit="return confirm('Descartar as notas deste lote para poder gerar de novo? As que já foram aceitas pela prefeitura NÃO são descartadas.')">
+    <button class="botao secundario" type="submit">
+      Descartar este lote e liberar para gerar de novo
+    </button>
+  </form>
+  <p style="color:var(--tinta-fraca);font-size:13.5px;margin-top:12px">
+    Os XMLs não são apagados — a pasta é renomeada com o final
+    <code>-DESCARTADO</code>, para você poder conferir depois. Notas que a
+    prefeitura já aceitou nunca são descartadas.
+  </p>
+</div>
+{% endif %}
+
 <p style="margin-top:22px">
   <a href="{{ url_for('inicio') }}">← Voltar ao início</a>
 </p>
