@@ -479,11 +479,17 @@ checar("segue o tema do sistema", "prefers-color-scheme: dark" in css)
 checar("e a escolha manual vence o sistema",
        '[data-tema="escuro"]' in css and ':root:not([data-tema="claro"])' in css)
 
-# cor literal fora do bloco de variaveis
-fixas_css = [l.strip() for l in css.split("\n")
+# Cor literal fora do bloco de variaveis. O @media print e a excecao
+# legitima: papel nao tem tema escuro, e preto sobre branco ali nao e
+# descuido, e a escolha certa.
+sem_print = _re.sub(r"@media print\s*\{.*?\n}", "", css, flags=_re.S)
+fixas_css = [l.strip() for l in sem_print.split(chr(10))
              if _re.search(r":\s*#[0-9a-fA-F]{3,6}", l)
              and not l.strip().startswith("--")]
-checar("nenhuma cor fixa solta no CSS", not fixas_css, fixas_css[:3])
+checar("nenhuma cor fixa solta no CSS (fora da impressao)",
+       not fixas_css, fixas_css[:3])
+checar("e a impressao usa preto no branco, de proposito",
+       "@media print" in css and "#fff" in css)
 
 fixas_html = []
 for arquivo in _g.glob("web/templates/*.html"):

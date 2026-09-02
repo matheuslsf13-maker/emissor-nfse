@@ -26,6 +26,27 @@
   --ruim-borda: #f3c9c5;
   --ruim-tinta: #8c1d18;
   --ruim-forte: #8c1d18;
+  /* Escala tipografica com passos claros. Antes h3 tinha o mesmo tamanho do
+     corpo (15px), entao subtitulo e texto se confundiam -- e numa tela de
+     conferencia com 276 linhas isso e a diferenca entre achar e nao achar. */
+  --t-micro: 12px;
+  --t-mini: 13px;
+  --t-corpo: 15px;
+  --t-medio: 16px;
+  --t-titulo3: 17px;
+  --t-titulo2: 21px;
+  --t-titulo1: 28px;
+
+  /* Espacamento em multiplos de 4, para o ritmo vertical nao ser sorteado
+     tela a tela. */
+  --e1: 4px;
+  --e2: 8px;
+  --e3: 12px;
+  --e4: 16px;
+  --e5: 24px;
+  --e6: 32px;
+  --e7: 48px;
+
   --raio: 10px;
   --sombra: 0 1px 2px rgba(18, 33, 46, .06), 0 4px 14px rgba(18, 33, 46, .06);
 }
@@ -107,12 +128,21 @@
 
 body {
   margin: 0;
-  font-family: "Segoe UI", system-ui, -apple-system, Roboto, Arial, sans-serif;
-  font-size: 15px;
-  line-height: 1.55;
+  /* Fonte do sistema, nao da web: o programa roda local e a clinica pode
+     ficar sem internet. Fonte que nao carrega deixa a tela pior do que
+     estava. */
+  font-family: "Segoe UI Variable Text", "Segoe UI", system-ui,
+               -apple-system, "Inter", Roboto, "Helvetica Neue", Arial, sans-serif;
+  font-size: var(--t-corpo);
+  line-height: 1.6;
   color: var(--tinta);
   background: var(--fundo);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
+
+/* Numero em coluna tem que alinhar: valores de nota, contagens, CPF. */
+.num, .mono, table td.num, .valor { font-variant-numeric: tabular-nums; }
 
 a { color: var(--marca); }
 
@@ -136,18 +166,32 @@ a { color: var(--marca); }
 .topo nav a:hover { background: var(--fundo); color: var(--tinta); }
 .topo nav a.ativo { background: var(--marca-clara); color: var(--marca-escura); }
 
-main { max-width: 1180px; margin: 0 auto; padding: 28px 24px 80px; }
+main { max-width: 1180px; margin: 0 auto; padding: var(--e6) var(--e5) 80px; }
 
-h1 { font-size: 26px; margin: 0 0 6px; letter-spacing: -.4px; }
-h2 { font-size: 18px; margin: 32px 0 12px; letter-spacing: -.2px; }
-h3 { font-size: 15px; margin: 0 0 8px; }
-.legenda { color: var(--tinta-fraca); margin: 0 0 24px; max-width: 70ch; }
+h1 {
+  font-size: var(--t-titulo1); margin: 0 0 var(--e2);
+  letter-spacing: -.5px; line-height: 1.15; font-weight: 650;
+  text-wrap: balance;
+}
+h2 {
+  font-size: var(--t-titulo2); margin: var(--e6) 0 var(--e3);
+  letter-spacing: -.3px; line-height: 1.25; font-weight: 600;
+  text-wrap: balance;
+}
+h3 {
+  font-size: var(--t-titulo3); margin: 0 0 var(--e2);
+  letter-spacing: -.1px; font-weight: 600;
+}
+.legenda {
+  color: var(--tinta-fraca); margin: 0 0 var(--e5);
+  max-width: 68ch; font-size: var(--t-medio);
+}
 
 .cartao {
   background: var(--papel); border: 1px solid var(--borda);
-  border-radius: var(--raio); padding: 20px; box-shadow: var(--sombra);
+  border-radius: var(--raio); padding: var(--e5); box-shadow: var(--sombra);
 }
-.cartao + .cartao { margin-top: 16px; }
+.cartao + .cartao { margin-top: var(--e4); }
 
 /* ---------- passos ---------- */
 .passos { display: flex; gap: 10px; margin-bottom: 22px; flex-wrap: wrap; }
@@ -188,17 +232,36 @@ h3 { font-size: 15px; margin: 0 0 8px; }
 .arquivo .peso { color: var(--tinta-fantasma); margin-left: auto; font-variant-numeric: tabular-nums; }
 
 /* ---------- numeros ---------- */
-.numeros { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 14px; }
+/* Os quatro numeros do topo sao a primeira coisa que se olha na conferencia:
+   quantas notas saem, quantas travaram, quanto ficou de fora. Merecem peso
+   tipografico e uma faixa de cor que diga o estado sem depender de leitura. */
+.numeros {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: var(--e3);
+}
 .numero {
   background: var(--papel); border: 1px solid var(--borda);
-  border-radius: var(--raio); padding: 16px 18px; box-shadow: var(--sombra);
+  border-radius: var(--raio); padding: var(--e4) var(--e5);
+  box-shadow: var(--sombra);
+  border-top: 3px solid var(--borda-forte);
+  transition: border-color .15s, transform .15s;
 }
-.numero .rotulo { font-size: 12.5px; color: var(--tinta-fraca); text-transform: uppercase; letter-spacing: .5px; }
-.numero .valor { font-size: 30px; font-weight: 700; letter-spacing: -1px; margin-top: 2px; font-variant-numeric: tabular-nums; }
-.numero .nota { font-size: 13px; color: var(--tinta-fantasma); }
-.numero.destaque { border-color: var(--marca); }
+.numero .rotulo {
+  font-size: var(--t-micro); color: var(--tinta-fraca);
+  text-transform: uppercase; letter-spacing: .6px; font-weight: 600;
+}
+.numero .valor {
+  font-size: 34px; font-weight: 700; letter-spacing: -1.2px;
+  margin-top: var(--e1); line-height: 1.05;
+  font-variant-numeric: tabular-nums;
+}
+.numero .nota { font-size: var(--t-mini); color: var(--tinta-fantasma); margin-top: var(--e1); }
+.numero.destaque { border-top-color: var(--marca); }
 .numero.destaque .valor { color: var(--marca-escura); }
+.numero.alerta { border-top-color: var(--aviso); }
 .numero.alerta .valor { color: var(--aviso); }
+.numero.ruim { border-top-color: var(--ruim); }
 .numero.ruim .valor { color: var(--ruim); }
 
 /* ---------- abas ---------- */
@@ -254,7 +317,10 @@ td.mono { font-variant-numeric: tabular-nums; white-space: nowrap; color: var(--
   border: 1px solid; display: flex; gap: 12px; align-items: flex-start;
 }
 .faixa .icone { font-size: 18px; line-height: 1.3; }
-.faixa b { display: block; }
+/* So o PRIMEIRO <b> vira titulo da faixa. A regra antiga pegava todo <b>,
+   entao numero destacado no meio do texto ("11995 pessoas novas") quebrava a
+   linha e a frase virava uma lista solta. */
+.faixa > div > b:first-child { display: block; margin-bottom: 2px; }
 .faixa.info { background: var(--marca-clara); border-color: var(--info-borda); color: var(--marca-escura); }
 .faixa.bom { background: var(--bom-claro); border-color: var(--bom-borda); color: var(--bom-tinta); }
 .faixa.atencao { background: var(--aviso-claro); border-color: var(--aviso-borda); color: var(--aviso-tinta); }
@@ -365,3 +431,62 @@ code, .mono-bloco {
 }
 .rodape-nav a { color: var(--marca); text-decoration: none; }
 .rodape-nav a:hover { text-decoration: underline; }
+
+
+/* --------------------------------------------------------------------------
+   Acabamento
+   -------------------------------------------------------------------------- */
+
+/* Foco visivel em tudo que recebe teclado. A operadora navega muito por Tab
+   entre os campos de busca e os botoes. */
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+summary:focus-visible {
+  outline: 2px solid var(--marca);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+input[type="text"], input[type="search"], select, textarea {
+  font-family: inherit;
+  font-size: var(--t-corpo);
+  padding: 9px 12px;
+  border: 1px solid var(--borda-forte);
+  border-radius: 8px;
+  background: var(--papel);
+  color: var(--tinta);
+  transition: border-color .15s, box-shadow .15s;
+}
+input[type="text"]:focus, input[type="search"]:focus, select:focus {
+  border-color: var(--marca);
+  box-shadow: 0 0 0 3px var(--marca-clara);
+  outline: none;
+}
+input::placeholder { color: var(--tinta-fantasma); }
+
+/* Linha da tabela com alvo maior: 276 linhas exigem que o olho acompanhe. */
+tbody tr { transition: background .1s; }
+
+/* Botao com resposta ao toque, sem exagero de animacao. */
+.botao { transition: background .15s, transform .05s, box-shadow .15s; }
+.botao:active { transform: translateY(1px); }
+.botao[disabled] { opacity: .5; cursor: not-allowed; }
+.botao[disabled]:active { transform: none; }
+
+/* Quem prefere menos movimento nao ganha nenhum. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: .01ms !important;
+    transition-duration: .01ms !important;
+  }
+}
+
+/* Impressao: a conferencia as vezes e levada para o contador em papel. */
+@media print {
+  .topo, .abas, .rodape-nav, .botao, form { display: none !important; }
+  main { max-width: none; padding: 0; }
+  .cartao, .numero { box-shadow: none; border-color: #999; }
+  body { background: #fff; color: #000; font-size: 11pt; }
+}
