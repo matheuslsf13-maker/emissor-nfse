@@ -559,7 +559,32 @@ def conferencia(lote_id: str):
         formatar_documento=formatar_documento,
         total_cadastro=len(cadastro.clientes),
         envio=situacao_envio(cfg),
+        situacao_ambientes=situacao_por_ambiente(resultado),
     )
+
+
+def situacao_por_ambiente(resultado) -> dict:
+    """Quantas destas notas já saíram em cada ambiente.
+
+    É o que responde "já testei, falta emitir valendo?" sem obrigar o
+    operador a lembrar do que fez. Cada ambiente tem contagem própria, então
+    um lote pode estar 100% testado e 0% emitido — que é justamente o estado
+    normal entre conferir e valer.
+    """
+    with Controle(os.path.join(cfgmod.PASTA_DADOS, "controle.db")) as controle:
+        situacao = {}
+        for ambiente in ("homologacao", "producao"):
+            feitas = sum(
+                1 for nota in resultado.notas
+                if controle.ja_emitida(
+                    Controle.chave(resultado.unidade, nota.id, ambiente))
+            )
+            situacao[ambiente] = {
+                "feitas": feitas,
+                "faltam": len(resultado.notas) - feitas,
+                "total": len(resultado.notas),
+            }
+    return situacao
 
 
 @app.post("/lote/<lote_id>/escolher")
@@ -626,12 +651,21 @@ def gerar(lote_id: str):
     lote = carregar_lote(lote_id)
     if not lote:
         abort(404)
-    valendo = request.form.get("modo") == "valendo"
-    if valendo and chave_nome(request.form.get("confirmacao", "")) != "EMITIR":
+    # Tres caminhos, e o ambiente e escolhido AQUI, no lote:
+    #   simular    -> nao consome numeracao, so para conferir
+    #   homologacao-> vale como teste na prefeitura, numeracao propria
+    #   producao   -> nota fiscal de verdade
+    modo = request.form.get("modo", "simular")
+    valendo = modo in ("homologacao", "producao")
+    ambiente = modo if valendo else ""
+
+    if modo == "producao" and chave_nome(
+        request.form.get("confirmacao", "")
+    ) != "EMITIR":
         return redirect(url_for("conferencia", lote_id=lote_id) + "?erro=confirmacao")
 
     cfg, _, resultado = conciliar_lote(lote)
-    saida = emitir(resultado, cfg, simular=not valendo)
+    saida = emitir(resultado, cfg, simular=not valendo, ambiente=ambiente)
     lote["ultima_saida"] = saida.pasta
     salvar_lote(lote)
     return render_template(
@@ -686,7 +720,12 @@ def transmitir_lote(pasta: str):
         abort(400, "XMLs de teste não são transmitidos: gere valendo antes.")
 
     cfg = cfgmod.carregar()
-    ambiente = request.form.get("ambiente", "homologacao")
+
+    # O ambiente vem das PRÓPRIAS notas, não de um botão: ele está assinado
+    # dentro de cada XML e não pode ser trocado aqui. Perguntar de novo só
+    # criava a chance de escolher errado -- e a recusa vinha depois, da
+    # prefeitura, sem explicação óbvia.
+    ambiente = ambiente_da_pasta(caminho) or "homologacao"
     cfg.faturamento["ambiente"] = ambiente
     quantidade = request.form.get("quantidade", "uma")
     limite = 1 if quantidade == "uma" else None
@@ -841,44 +880,7 @@ def configuracao():
         versoes_guardadas=atualizacao_mod.versoes_guardadas()[:8],
         atualizacao=session.pop("atualizacao", None),
         descarte=session.pop("descarte", None),
-        ambiente_trocado=session.pop("ambiente_trocado", None),
-        ambiente_erro=session.pop("ambiente_erro", None),
     )
-
-
-@app.post("/configuracao/ambiente")
-def trocar_ambiente():
-    """Muda entre homologação e produção, gravando na configuração.
-
-    Sem isto o único caminho era editar `config/empresas.json` na mão --
-    inviável para quem opera na clínica, e fácil de errar mesmo para quem
-    não opera. É a troca mais séria do sistema: a partir dela, nota gerada
-    vale de verdade e cancelar em Vila Velha é processo administrativo.
-    Por isso produção exige digitar a palavra, igual à transmissão.
-    """
-    novo_ambiente = request.form.get("ambiente", "")
-    if novo_ambiente not in ("homologacao", "producao"):
-        abort(400)
-
-    if novo_ambiente == "producao" and chave_nome(
-        request.form.get("confirmacao", "")
-    ) != "PRODUCAO":
-        session["ambiente_erro"] = (
-            "Para mudar para produção é preciso digitar PRODUCAO."
-        )
-        return redirect(url_for("configuracao"))
-
-    caminho = cfgmod.CAMINHO_CONFIG
-    with open(caminho, encoding="utf-8") as fh:
-        bruto = json.load(fh)
-    anterior = bruto.get("faturamento", {}).get("ambiente", "")
-    bruto.setdefault("faturamento", {})["ambiente"] = novo_ambiente
-    with open(caminho, "w", encoding="utf-8") as fh:
-        json.dump(bruto, fh, indent=2, ensure_ascii=False)
-        fh.write(chr(10))
-
-    session["ambiente_trocado"] = {"de": anterior, "para": novo_ambiente}
-    return redirect(url_for("configuracao"))
 
 
 @app.post("/configuracao/numeracao")

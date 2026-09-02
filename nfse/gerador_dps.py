@@ -124,6 +124,7 @@ def gerar_nfse(
     config,
     numero_dps: int,
     emitido_em: datetime = None,
+    ambiente: str = "",
 ) -> bytes:
     """Monta o XML de uma NFS-e. Devolve bytes ainda sem assinatura."""
     servico = config.servico
@@ -139,7 +140,11 @@ def gerar_nfse(
     retido = Decimal("0.00")
     agora = emitido_em or datetime.now(FUSO)
     serie = str(faturamento.get("serie", "00001"))
-    ambiente = "1" if faturamento.get("ambiente") == "producao" else "2"
+    # O ambiente vem de quem chama; a configuracao e so o padrao. Ler so da
+    # configuracao fazia o XML sair marcado como PRODUCAO mesmo quando o
+    # operador pedia teste -- nota valendo emitida achando que era ensaio.
+    escolhido = ambiente or faturamento.get("ambiente", "homologacao")
+    ambiente_xml = "1" if escolhido == "producao" else "2"
 
     raiz = etree.Element("{%s}NFSe" % NS, nsmap=NSMAP)
     raiz.set("versao", "1.01")
@@ -173,7 +178,7 @@ def gerar_nfse(
     info_dps.set(
         "Id", id_dps(municipio["codigo_ibge"], unidade["cnpj"], serie, numero_dps)
     )
-    _sub(info_dps, "tpAmb", ambiente)
+    _sub(info_dps, "tpAmb", ambiente_xml)
     _sub(info_dps, "dhEmi", agora.replace(microsecond=0).isoformat())
     _sub(info_dps, "verAplic", municipio["versao_aplicativo"])
     _sub(info_dps, "serie", serie)

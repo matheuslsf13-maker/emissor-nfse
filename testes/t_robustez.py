@@ -382,47 +382,59 @@ checar("mensagem vazia nao e de fila", not erro_de_fila(""))
 
 
 # ==========================================================================
-print("\n10. Trocar de ambiente pela tela")
-# Sem isto o unico caminho era editar o empresas.json na mao -- inviavel
-# para quem opera na clinica. E a troca mais seria do sistema: a partir
-# dela, nota gerada vale de verdade.
-import json as _json
+print("\n10. O ambiente e escolhido ao GERAR, nao na configuracao")
+# Obrigar a mexer na configuracao antes de cada teste era retrabalho, e
+# deixava um estado global facil de esquecer ligado -- o pior erro possivel
+# seria emitir valendo achando que era teste. Agora e escolha por lote.
+from nfse.emissao import emitir as _emitir  # noqa: E402
+import inspect  # noqa: E402
 
-caminho_cfg = cfgmod.CAMINHO_CONFIG
-with open(caminho_cfg, encoding="utf-8") as fh:
-    cfg_original = fh.read()
-try:
-    def ambiente_atual():
-        with open(caminho_cfg, encoding="utf-8") as fh:
-            return _json.load(fh)["faturamento"]["ambiente"]
+parametros = inspect.signature(_emitir).parameters
+checar("emitir() recebe o ambiente de quem chama", "ambiente" in parametros)
+checar("e o default e vazio (cai na configuracao)",
+       parametros["ambiente"].default == "")
 
-    cliente.post("/configuracao/ambiente",
-                 data={"ambiente": "homologacao"})
-    checar("volta para homologacao sem cerimonia",
-           ambiente_atual() == "homologacao", ambiente_atual())
+corpo_conf = cliente.get("/configuracao").data.decode("utf-8", "replace")
+checar("a configuracao nao tem mais chave de ambiente",
+       "configuracao/ambiente" not in corpo_conf)
+checar("e explica onde a escolha e feita",
+       "gerar as notas" in corpo_conf.lower())
 
-    cliente.post("/configuracao/ambiente",
-                 data={"ambiente": "producao", "confirmacao": "sim"})
-    checar("*** producao sem digitar a palavra NAO passa ***",
-           ambiente_atual() == "homologacao", ambiente_atual())
+checar("rota antiga de trocar ambiente sumiu",
+       cliente.post("/configuracao/ambiente",
+                    data={"ambiente": "producao"}).status_code in (404, 405))
 
-    cliente.post("/configuracao/ambiente",
-                 data={"ambiente": "producao", "confirmacao": "PRODUCAO"})
-    checar("com a palavra certa, muda", ambiente_atual() == "producao")
+# O XML tem que sair marcado com o ambiente PEDIDO, mesmo que a configuracao
+# diga outra coisa. Ler so da configuracao fazia o tpAmb sair 1 (producao)
+# quando o operador pedia teste -- nota valendo emitida achando que era
+# ensaio, o pior erro que este sistema pode cometer.
+from nfse.gerador_dps import gerar_nfse as _gerar  # noqa: E402
+from nfse.conciliacao import Nota as _Nota  # noqa: E402
+from lxml import etree as _etree  # noqa: E402
 
-    with open(caminho_cfg, encoding="utf-8") as fh:
-        depois = _json.load(fh)
-    checar("e o resto da configuracao fica intacto",
-           len(depois["faturamento"]["secoes_que_emitem"]) == 17
-           and depois["unidades"]["gloria"]["cnpj"],
-           "trocar o ambiente nao pode mexer em mais nada")
 
-    resposta = cliente.post("/configuracao/ambiente",
-                            data={"ambiente": "qualquer-coisa"})
-    checar("ambiente invalido e recusado", resposta.status_code == 400)
-finally:
-    with open(caminho_cfg, "w", encoding="utf-8") as fh:
-        fh.write(cfg_original)
+def nota_exemplo():
+    return _Nota(
+        id="amb", unidade=UNIDADE, data="2026-08-14", competencia="2026-08",
+        valor="100.00", secao="REC ODC - PIX", caixa="CLINICA", lancto="1",
+        contrato="", historico="Servicos", tipo_faturamento="particular",
+        tomador={"nome": "PACIENTE EXEMPLO", "documento": "12345678909",
+                 "codigo_municipio": "3205200", "cep": "29100000",
+                 "logradouro": "RUA X", "numero": "1", "bairro": "CENTRO",
+                 "uf": "ES", "cidade": "VILA VELHA"})
+
+cfg_amb = cfgmod.carregar()
+NS_A = {"n": "http://www.sped.fazenda.gov.br/nfse"}
+for ambiente_config in ("homologacao", "producao"):
+    cfg_amb.faturamento["ambiente"] = ambiente_config
+    for pedido, esperado in (("homologacao", "2"), ("producao", "1")):
+        xml_amb = _gerar(nota_exemplo(), cfg_amb.unidades[UNIDADE],
+                         cfg_amb, 1, ambiente=pedido)
+        tp = _etree.fromstring(xml_amb).find(".//n:tpAmb", NS_A).text
+        checar("config=%s + pedido=%s -> tpAmb %s"
+               % (ambiente_config[:6], pedido[:6], esperado),
+               tp == esperado, tp)
+
 
 
 # ==========================================================================

@@ -67,8 +67,14 @@ def _nome_arquivo(nota, numero: int) -> str:
 
 
 def emitir(resultado_conciliacao, config, simular: bool = True,
-           pasta_saida: str = None, apenas: set = None) -> ResultadoEmissao:
-    """Gera (e assina, se houver certificado) os XMLs das notas conferidas."""
+           pasta_saida: str = None, apenas: set = None,
+           ambiente: str = "") -> ResultadoEmissao:
+    """Gera (e assina, se houver certificado) os XMLs das notas conferidas.
+
+    `ambiente` decide se as notas nascem de teste (homologacao) ou valendo
+    (producao). Vem de quem chama porque e escolha por lote -- o operador
+    marca na hora de gerar, sem precisar mexer na configuracao antes.
+    """
     unidade_chave = resultado_conciliacao.unidade
     unidade = config.unidade(unidade_chave)
     competencia = resultado_conciliacao.competencia
@@ -113,7 +119,10 @@ def emitir(resultado_conciliacao, config, simular: bool = True,
     # O ambiente separa tudo: chave de antiduplicidade e numeracao. Nota de
     # homologacao e teste e nao pode marcar o atendimento como emitido, senao
     # a virada para producao encontraria tudo "ja feito".
-    ambiente = config.faturamento.get("ambiente", "homologacao")
+    # O ambiente vem de QUEM CHAMA, não da configuração: é decisão por lote.
+    # Obrigar a mexer na configuração antes de cada teste era retrabalho, e
+    # deixava o programa num estado global fácil de esquecer ligado.
+    ambiente = ambiente or config.faturamento.get("ambiente", "homologacao")
     proximo_simulado = controle.ultimo_numero(unidade_chave, ambiente)
 
     for nota in resultado_conciliacao.notas:
@@ -140,7 +149,7 @@ def emitir(resultado_conciliacao, config, simular: bool = True,
         else:
             numero = controle.proximo_numero(unidade_chave, ambiente)
         try:
-            xml = gerar_nfse(nota, unidade, config, numero)
+            xml = gerar_nfse(nota, unidade, config, numero, ambiente=ambiente)
             assinada = False
             detalhe = {}
             if certificado is not None:

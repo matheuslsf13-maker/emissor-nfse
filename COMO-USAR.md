@@ -1,4 +1,3 @@
-https://claude.ai/code/artifact/14562e56-16ff-4dea-a306-d63c1225fb50
 # Emissor de NFS-e — como usar
 
 
@@ -78,44 +77,78 @@ cadastro ou com CPF errado no TechCare. Cada item explica o que fazer.
 
 > Não precisa resolver tudo de uma vez. O que ficar de fora não se perde.
 
-### 4. Gerar
+### 4. Gerar as notas
 
-Duas opções:
+Três opções, e o ambiente é escolhido **aqui** — não há configuração para
+mexer:
 
-- **Simular** — faz tudo, mas nada vale. Use para ver o resultado sem
-  compromisso. Pode simular quantas vezes quiser.
-- **Gerar valendo** — cria as notas de verdade, cada uma com seu número.
+| Botão | O que faz |
+|---|---|
+| **Só conferir** | Monta as notas sem gastar numeração e sem falar com a prefeitura. Pode repetir à vontade. |
+| **Gerar para teste** | Cria as notas em **homologação**. Dá para transmitir e a prefeitura responde de verdade, mas nada vale fiscalmente. |
+| **Emitir valendo** | Cria **nota fiscal de verdade**. Pede para digitar `EMITIR`. |
 
 > **Gerar não envia.** As notas ficam no seu computador. Nada foi para a
-> prefeitura ainda.
+> prefeitura ainda — isso é o passo 5.
+
+Acima dos botões, o programa mostra **onde aquele lote está**:
+
+```
+Teste:   todas as 276 já foram geradas ✓
+Valendo: nenhuma ainda — as 276 continuam disponíveis para emitir
+```
+
+Assim dá para saber o que já foi testado e o que ainda falta emitir de
+verdade, sem precisar lembrar.
+
+> **Testar não gasta nota real.** As numerações de teste e de produção são
+> separadas, como na prefeitura. Testar o mês inteiro e depois emitir valendo
+> é o caminho normal, não retrabalho.
 
 ### 5. Transmitir
 
-Aqui as notas vão para a prefeitura e viram nota fiscal de verdade.
+Aqui as notas vão para a prefeitura.
 
-**Na primeira vez do mês, mande uma nota só.** Confira o retorno. Se estiver
-certo, mande o resto. Leva dez segundos a mais e evita mandar duzentas notas
-erradas.
+**Você não escolhe o ambiente de novo** — ele já está assinado dentro de cada
+nota, e o programa manda para onde ela foi feita. A tela avisa se é teste ou
+se vale de verdade. Para transmitir valendo, é preciso digitar `PRODUCAO`.
+
+**Na primeira vez, mande uma nota só.** Confira o retorno. Se estiver certo,
+mande o resto.
+
+Quando são muitas, o envio vai em fila, com barra de progresso. **Pode fechar
+a tela que o envio continua.** A prefeitura aceita uma nota por vez por
+clínica, então o programa espera a vez de cada uma — por isso demora alguns
+minutos, e não é travamento.
 
 Quando a prefeitura aceita, ela devolve o **número da nota** e a **chave de
-acesso**. Os dois ficam guardados.
+acesso**, que ficam guardados.
+
+> **Cancelar em Vila Velha exige processo administrativo** na Secretaria de
+> Finanças. Não é um clique — por isso as confirmações digitadas.
 
 ---
 
-## Homologação e produção
+## Se você fechar a tela no meio
 
-| | O que é |
-|---|---|
-| **Homologação** | Ambiente de testes da prefeitura. Nada vale fiscalmente. |
-| **Produção** | Vale de verdade. |
+Nada se perde. Na tela inicial aparece **"Notas geradas, esperando a
+prefeitura"**, com o botão para continuar de onde parou. Não precisa gerar
+tudo de novo.
 
-O ambiente é escolhido **na hora de gerar**, não na hora de transmitir — ele
-fica gravado dentro da nota. Por isso a tela avisa para qual ambiente cada
-pasta foi feita, e o botão do outro ambiente fica desligado.
+---
 
-Para transmitir em produção é preciso digitar a palavra `PRODUCAO`. Não é
-implicância: **em Vila Velha, cancelar nota exige processo administrativo na
-Secretaria de Finanças.** Não é um clique.
+## Procurar um paciente
+
+Menu **Clientes**. Dá para buscar por nome ou CPF, e filtrar por quem está
+com cadastro incompleto:
+
+- sem CPF válido
+- sem endereço
+- sem CEP
+
+Serve para chegar em quem precisa de correção **antes** de gerar as notas.
+Corrija no TechCare e mande o relatório de clientes de novo — o programa
+compara e atualiza só quem mudou.
 
 ---
 
@@ -179,8 +212,11 @@ certificados e as notas já emitidas ficam onde estão.
 1. TechCare  →  PDF de caixa (e de clientes, se houver paciente novo)
 2. Arrastar para o programa  →  Conferir
 3. Olhar o que travou  →  resolver ou deixar de fora
-4. Gerar valendo
-5. Transmitir UMA  →  conferir  →  transmitir o resto
+4. Gerar para TESTE  →  transmitir  →  ver se a prefeitura aceitou
+5. Gerar VALENDO    →  transmitir UMA  →  conferir  →  o resto
 ```
+
+O passo 4 é opcional depois que você pegar confiança — mas testar não gasta
+nota real, então nunca custa.
 
 **Uma vez por mês:** Configuração → Backup.

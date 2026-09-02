@@ -323,39 +323,105 @@
 
 <!-- ------------------------------------------------ GERAR -->
 <h2>Gerar as notas</h2>
+<p class="legenda">
+  O caminho é <b>testar primeiro, emitir depois</b>. O ambiente é escolhido
+  aqui e fica assinado dentro de cada nota — não precisa mexer em
+  configuração nenhuma.
+</p>
 
-<div class="grade-2">
+{% set st = situacao_ambientes %}
+{% if st and (st.homologacao.feitas or st.producao.feitas) %}
+<div class="faixa {{ 'bom' if st.producao.feitas == st.producao.total else 'info' }}">
+  <span class="icone">{{ '✓' if st.producao.feitas == st.producao.total else '›' }}</span>
+  <div>
+    <b>Onde este lote está</b>
+    <p style="margin:6px 0 0">
+      <b>Teste:</b>
+      {% if st.homologacao.feitas == st.homologacao.total %}
+        todas as {{ st.homologacao.total }} já foram geradas ✓
+      {% elif st.homologacao.feitas %}
+        {{ st.homologacao.feitas }} de {{ st.homologacao.total }} geradas
+      {% else %}
+        nenhuma ainda
+      {% endif %}
+    </p>
+    <p style="margin:2px 0 0">
+      <b>Valendo:</b>
+      {% if st.producao.feitas == st.producao.total %}
+        todas as {{ st.producao.total }} já foram emitidas ✓
+      {% elif st.producao.feitas %}
+        {{ st.producao.feitas }} de {{ st.producao.total }} emitidas —
+        faltam <b>{{ st.producao.faltam }}</b>
+      {% else %}
+        <b>nenhuma ainda</b> — as {{ st.producao.total }} continuam
+        disponíveis para emitir
+      {% endif %}
+    </p>
+    {% if st.homologacao.feitas and not st.producao.feitas %}
+    <p style="margin:8px 0 0;font-size:14px;color:var(--tinta-fraca)">
+      O teste não consome nota real: emitir valendo agora gera as
+      {{ st.producao.total }} normalmente, começando na própria numeração de
+      produção.
+    </p>
+    {% endif %}
+  </div>
+</div>
+{% endif %}
+
+<div class="grade-3" style="display:grid;gap:16px;
+     grid-template-columns:repeat(auto-fit,minmax(15rem,1fr))">
+
   <div class="cartao">
-    <h3>Modo teste <span class="selo bom">recomendado</span></h3>
+    <h3>Só conferir <span class="selo neutro">não vale</span></h3>
     <p style="color:var(--tinta-fraca);font-size:14px">
-      Gera e assina os XMLs sem consumir a numeração. Pode rodar quantas vezes
-      quiser — serve para conferir antes de valer.
+      Monta e assina os XMLs <b>sem consumir numeração</b> e sem falar com a
+      prefeitura. Pode repetir quantas vezes quiser.
     </p>
     <form method="post" action="{{ url_for('gerar', lote_id=lote.id) }}">
-      <input type="hidden" name="modo" value="teste">
-      <button class="botao" type="submit">Gerar em modo teste</button>
+      <input type="hidden" name="modo" value="simular">
+      <button class="botao secundario" type="submit">Só conferir</button>
     </form>
   </div>
 
-  <div class="cartao" style="border-color:#f0dcb4">
-    <h3>Emitir valendo</h3>
-    {% if not envio.pronto %}
+  <div class="cartao" style="border-color:var(--marca)">
+    <h3>Teste na prefeitura <span class="selo bom">comece aqui</span></h3>
     <p style="color:var(--tinta-fraca);font-size:14px">
-      O envio automático à prefeitura ainda não está liberado
-      ({{ envio.faltando | join('; ') }}). Mesmo assim, gerar valendo já
-      consome a numeração — só faça quando for transmitir de verdade.
+      Gera para o <b>ambiente de homologação</b> e permite transmitir. A
+      prefeitura responde de verdade, mas nada vale fiscalmente — e a
+      numeração é separada, não gasta número de nota real.
     </p>
-    {% endif %}
+    <form method="post" action="{{ url_for('gerar', lote_id=lote.id) }}">
+      <input type="hidden" name="modo" value="homologacao">
+      <button class="botao" type="submit">
+        {% if st and st.homologacao.faltam %}
+          Gerar {{ st.homologacao.faltam }} para teste
+        {% else %}Gerar para teste{% endif %}
+      </button>
+    </form>
+  </div>
+
+  <div class="cartao" style="border-color:#f0c4c0">
+    <h3>Emitir valendo <span class="selo ruim">nota real</span></h3>
+    <p style="color:var(--tinta-fraca);font-size:14px">
+      Gera <b>nota fiscal de verdade</b>. Em Vila Velha, cancelar exige
+      processo administrativo na Secretaria de Finanças.
+      {% if not envio.pronto %}
+      <br><b>Atenção:</b> o envio ainda não está liberado
+      ({{ envio.faltando | join('; ') }}), mas gerar já consome a numeração.
+      {% endif %}
+    </p>
     <form method="post" action="{{ url_for('gerar', lote_id=lote.id) }}"
           onsubmit="return confirmarEmissao(event)">
-      <input type="hidden" name="modo" value="valendo">
+      <input type="hidden" name="modo" value="producao">
       <label style="display:block;font-size:14px;margin-bottom:6px">
         Para confirmar, digite <b>EMITIR</b>:
       </label>
       <input type="text" name="confirmacao" id="confirmacao" placeholder="EMITIR"
-             autocomplete="off" style="width:160px">
+             autocomplete="off" style="width:150px">
       <button class="botao perigo" type="submit" style="margin-left:8px">
-        Emitir valendo
+        {% if st and st.producao.faltam %}
+          Emitir {{ st.producao.faltam }} valendo
+        {% else %}Emitir valendo{% endif %}
       </button>
     </form>
   </div>
