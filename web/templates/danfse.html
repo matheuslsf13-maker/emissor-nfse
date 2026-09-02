@@ -38,7 +38,28 @@
       Avisar no WhatsApp
     </a>
     {% endif %}
+    {% if d.ambiente == '1' %}
+    <a class="botao secundario"
+       href="{{ url_for('xml_oficial', chave=d.chave) }}">
+      Baixar arquivo oficial
+    </a>
+    {% endif %}
   </div>
+
+  {% if d.ambiente == '1' %}
+  <div class="faixa info" style="margin-bottom:18px">
+    <span class="icone">›</span>
+    <div>
+      <b>Qual arquivo mandar para quem</b>
+      <p>
+        Para o <b>paciente</b>: imprima ou salve esta página em PDF — é o que
+        ele consegue ler. Para o <b>contador</b>: use <b>Baixar arquivo
+        oficial</b>, que traz a nota como a Receita a guarda, assinada. É esse
+        arquivo que tem validade fiscal.
+      </p>
+    </div>
+  </div>
+  {% endif %}
 </div>
 
 <div class="danfse">

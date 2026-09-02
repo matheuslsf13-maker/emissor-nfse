@@ -809,6 +809,58 @@ checar("e manda mudar o ano quando ha nota em outro",
 _resp_sem = cliente.get("/paciente?q=00000000191")
 checar("busca de quem nao tem nota nao quebra", _resp_sem.status_code == 200)
 
+# --------------------------------------------------------------------------
+# O arquivo oficial, no ambiente nacional.
+#
+# O WebService municipal tem quatro operacoes e nenhuma devolve documento.
+# Quem guarda a nota assinada e o ADN, e a credencial la e o mesmo
+# certificado -- no aperto de mao TLS, nao dentro do XML.
+from nfse import nacional as _nac  # noqa: E402
+
+checar("producao e homologacao tem enderecos diferentes",
+       _nac._endereco("producao") != _nac._endereco("homologacao"))
+checar("por padrao aponta para producao",
+       _nac._endereco("") == _nac.PRODUCAO)
+
+class _RespostaFalsa:
+    def __init__(self, status): self.status_code = status
+
+checar("404 explica que a nota pode nao ter chegado ainda",
+       "minutos" in _nac._erro_legivel(_RespostaFalsa(404), "1" * 50))
+checar("403 aponta o certificado, nao a chave",
+       "certificado" in _nac._erro_legivel(_RespostaFalsa(403), "1" * 50))
+checar("501 diz que nao e problema da clinica",
+       "problema da clínica" in _nac._erro_legivel(
+           _RespostaFalsa(501), "1" * 50))
+checar("DanfseIndisponivel e um caso de ErroNacional",
+       issubclass(_nac.DanfseIndisponivel, _nac.ErroNacional),
+       "quem trata o erro geral nao pode ser pego de surpresa")
+
+_xml_of = (b'<?xml version="1.0"?><NFSe><infNFSe><nNFSe>8966</nNFSe>'
+           b'<emit><xNome>W.O. CLINICA ODONTOLOGICA LTDA</xNome></emit>'
+           b'<DPS><infDPS><toma><xNome>PRISCILA SANTANA FERREIRA</xNome>'
+           b'</toma></infDPS></DPS></infNFSe></NFSe>')
+_nome_of = _nac.nome_do_arquivo(_xml_of, "3" * 50)
+checar("o XML oficial sai nomeado com numero e paciente",
+       _nome_of == "NFSe-8966-Priscila-Santana-Ferreira-oficial.xml", _nome_of)
+checar("e nao com o nome da clinica",
+       "Clinica" not in _nome_of,
+       "o <xNome> aparece duas vezes; o primeiro e o prestador")
+checar("sem numero, cai na chave e nao quebra",
+       _nac.nome_do_arquivo(b"<NFSe></NFSe>", "9" * 50).endswith(".xml"))
+
+checar("chave torta nem chega a abrir o certificado",
+       cliente.get("/nota/123/oficial").status_code == 404)
+
+html_nota = io.open("web/templates/danfse.html", encoding="utf-8").read()
+checar("a tela da nota oferece o arquivo oficial",
+       "xml_oficial" in html_nota)
+checar("e diz qual arquivo e para o paciente e qual e para o contador",
+       "contador" in html_nota and "paciente" in html_nota)
+checar("o arquivo oficial nao aparece em nota de teste",
+       html_nota.count("d.ambiente == '1'") >= 2,
+       "nota de teste nao existe no ambiente nacional")
+
 checar("e a tela avisa que NAO e o DANFSe oficial",
        "não é o DANFSe oficial" in html_pac.lower()
        or "não é o danfse oficial" in html_pac.lower(),

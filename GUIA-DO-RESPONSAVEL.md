@@ -167,6 +167,35 @@ pronto. Três decisões:
 - **A mensagem leva a chave, não um PDF.** O `wa.me` não aceita anexo. Para
   mandar o arquivo, use **imprimir → salvar como PDF** e anexe na conversa.
 
+### O ambiente nacional, e por que o PDF oficial ainda não sai
+
+Testei os dois caminhos possíveis para obter o DANFSe oficial por sistema:
+
+**O WebService municipal não tem.** Reli o WSDL ao vivo: `NotaFiscalNacional`
+expõe Gerar, Consultar, Cancelar e Substituir. A palavra "danfse" não aparece
+nele, nem "pdf".
+
+**O ambiente nacional (ADN) tem o XML, não o PDF.** `GET /nfse/{chave}` em
+`sefin.nfse.gov.br` devolve a NFS-e assinada e completa — testado com o
+certificado da Glória contra a nota 8966, HTTP 200. Já `GET /danfse/{chave}`
+responde **501, Not Implemented**: o endereço existe, o serviço não. Não é
+falta de credenciamento nosso.
+
+Por isso `nfse/nacional.py` tenta o PDF **primeiro** a cada download e cai
+para o XML quando vem 501. No dia em que a Receita ligar o serviço, a clínica
+passa a receber o oficial sem precisar de versão nova.
+
+**A credencial ali é o mesmo certificado, em outro lugar.** Em Vila Velha ele
+assina o XML e vai dentro dele; no ADN ele vai no aperto de mão TLS (mTLS).
+Como o `ssl` do Python não carrega chave de memória, ela vira arquivo — mas
+**cifrada**, com uma senha aleatória que só existe naquela execução, e o
+arquivo é apagado ao fechar. Chave privada em claro no disco, ainda que por
+segundos, não se justifica por conveniência.
+
+O XML oficial traz o que o nosso não tinha, porque quem preenche é a Receita:
+número da nota, município por extenso, descrição da tributação, totais de
+tributo federal/estadual/municipal e a situação atual do documento.
+
 ### Notas de um paciente, em PDF
 
 **Notas do paciente** busca por nome ou CPF, filtra por ano e gera um PDF

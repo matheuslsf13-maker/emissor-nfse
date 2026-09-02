@@ -24,10 +24,10 @@ import uuid
 import zipfile
 from datetime import datetime
 
-from flask import (Flask, abort, jsonify, redirect, render_template, request,
-                   send_file, session, url_for)
+from flask import (Flask, Response, abort, jsonify, redirect,
+                   render_template, request, send_file, session, url_for)
 
-from nfse import base_clientes
+from nfse import base_clientes, nacional
 from nfse import planilha
 from nfse import whatsapp
 from nfse import danfse_pdf
@@ -1113,6 +1113,48 @@ def imprimir_nota(chave: str):
         cfg.unidades.get(unidade, {}), fone) if dados["ambiente"] == "1" else ""
 
     return render_template("danfse.html", d=dados, whatsapp=link)
+
+
+@app.get("/nota/<chave>/oficial")
+def xml_oficial(chave: str):
+    """Baixa a NFS-e como a Receita a guarda -- o documento com validade fiscal.
+
+    O PDF oficial (DANFSe) ainda nao sai por sistema: o endereco existe no
+    ambiente nacional, mas responde 501, "nao implementado". O XML, sim --
+    e e ele que tem validade fiscal e que o contador aceita. Tentamos o PDF
+    primeiro assim mesmo: no dia em que a Receita ligar o servico, esta
+    mesma tela passa a entregar o oficial, sem versao nova.
+    """
+    chave = "".join(c for c in chave if c.isdigit())
+    if len(chave) != 50:
+        abort(404)
+
+    cfg = cfgmod.carregar()
+    unidade = request.args.get("unidade") or next(iter(cfg.unidades))
+    try:
+        from nfse.assinatura import carregar_pfx
+        caminho = cfg.caminho_certificado(unidade)
+        certificado = carregar_pfx(caminho, cfg.senha_certificado(unidade))
+    except Exception as falha:  # noqa: BLE001
+        abort(502, "Não consegui abrir o certificado da clínica: %s" % falha)
+
+    try:
+        pdf = nacional.baixar_danfse(chave, certificado)
+    except nacional.DanfseIndisponivel:
+        pdf = None
+    except nacional.ErroNacional as falha:
+        abort(502, str(falha))
+    if pdf:
+        return Response(pdf, mimetype="application/pdf", headers={
+            "Content-Disposition": "attachment; filename=DANFSe-%s.pdf" % chave})
+
+    try:
+        xml = nacional.baixar_xml(chave, certificado)
+    except nacional.ErroNacional as falha:
+        abort(502, str(falha))
+    return Response(xml, mimetype="application/xml", headers={
+        "Content-Disposition": "attachment; filename=%s"
+                               % nacional.nome_do_arquivo(xml, chave)})
 
 
 @app.get("/paciente")

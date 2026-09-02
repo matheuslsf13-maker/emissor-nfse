@@ -167,6 +167,24 @@ conferir a primeira nota de produção.
 
 A tela também lista as últimas notas transmitidas — é só clicar na chave.
 
+### Mandar a nota para o contador
+
+Na tela da nota, o botão **Baixar arquivo oficial** traz a NFS-e como a
+Receita Federal a guarda — assinada, com validade fiscal. É esse arquivo que
+o contador quer.
+
+A regra é simples:
+
+| Para quem | O que mandar |
+|---|---|
+| Paciente | Imprimir/salvar a página em PDF — é o que ele consegue ler |
+| Contador | **Baixar arquivo oficial** |
+
+> **E o PDF oficial da prefeitura?** Ainda não sai por sistema — a Receita
+> publicou o endereço mas não ligou o serviço. Quem precisar dele informa a
+> chave em nfse.gov.br/consultapublica. O sistema já tenta buscá-lo a cada
+> download: no dia em que ligarem, ele passa a vir sozinho.
+
 ### Notas de um paciente (imposto de renda)
 
 Menu **Notas do paciente**. Busque por nome ou CPF e escolha o ano.
