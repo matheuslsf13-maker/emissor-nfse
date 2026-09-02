@@ -163,6 +163,11 @@ def procurar(config=None, timeout: int = 20) -> dict:
         "disponivel": disponivel,
         "novidade": ha_novidade(instalada, disponivel),
         "notas": manifesto.get("notas", ""),
+        # Lista do que mudou, em linguagem de quem opera. A frase unica do
+        # `notas` cabe no aviso "existe versao nova"; depois de instalar, a
+        # pergunta e outra -- "o que mudou aqui?" -- e merece resposta.
+        "novidades": manifesto.get("novidades") or [],
+        "correcoes": manifesto.get("correcoes") or [],
         "publicado_em": manifesto.get("publicado_em", ""),
         "url_pacote": manifesto.get("url", ""),
         "sha256": manifesto.get("sha256", ""),
@@ -284,7 +289,11 @@ def aplicar(informacao: dict, timeout: int = 120) -> dict:
     if not aceitos:
         raise ErroAtualizacao("O pacote não tem nenhum arquivo aplicável.")
 
-    backup = guardar_versao_atual(versao_instalada())
+    # Ler a versao de origem AGORA: daqui a pouco o arquivo VERSAO e
+    # sobrescrito pelo pacote, e o historico registraria "de 1.1.0 para
+    # 1.1.0" -- inutil justamente quando alguem quer saber de onde veio.
+    versao_anterior = versao_instalada()
+    backup = guardar_versao_atual(versao_anterior)
 
     escritos = []
     try:
@@ -300,7 +309,8 @@ def aplicar(informacao: dict, timeout: int = 120) -> dict:
             "— use 'Voltar para a versão anterior'." % (erro, backup))
 
     mudancas_config = mesclar_config(informacao.get("config") or {})
-    _registrar(informacao, escritos, recusados, mudancas_config, backup)
+    _registrar(informacao, escritos, recusados, mudancas_config, backup,
+               versao_anterior)
 
     return {
         "versao": informacao.get("disponivel", ""),
@@ -308,6 +318,9 @@ def aplicar(informacao: dict, timeout: int = 120) -> dict:
         "recusados": recusados,
         "config": mudancas_config,
         "backup": backup,
+        "notas": informacao.get("notas", ""),
+        "novidades": informacao.get("novidades") or [],
+        "correcoes": informacao.get("correcoes") or [],
     }
 
 
@@ -342,15 +355,41 @@ def reverter(nome_versao: str) -> dict:
     return {"versao": nome_versao, "arquivos": restaurados}
 
 
-def _registrar(informacao, escritos, recusados, config, backup) -> None:
+def historico(limite: int = 10) -> list:
+    """As ultimas atualizacoes instaladas, da mais nova para a mais velha.
+
+    Serve para a pergunta que aparece dias depois: "o que mudou mesmo na
+    ultima atualizacao?". Sem isso, a resposta sumia junto com a tela.
+    """
+    caminho = os.path.join(cfgmod.PASTA_DADOS, "atualizacoes.log")
+    if not os.path.exists(caminho):
+        return []
+    linhas = []
+    with open(caminho, encoding="utf-8") as fh:
+        for linha in fh:
+            linha = linha.strip()
+            if not linha:
+                continue
+            try:
+                linhas.append(json.loads(linha))
+            except ValueError:
+                continue          # linha truncada por queda de energia
+    return list(reversed(linhas))[:limite]
+
+
+def _registrar(informacao, escritos, recusados, config, backup,
+               versao_anterior: str = "") -> None:
     linha = {
         "em": datetime.now().isoformat(timespec="seconds"),
-        "de": versao_instalada(),
+        "de": versao_anterior or versao_instalada(),
         "para": informacao.get("disponivel", ""),
         "arquivos": len(escritos),
         "recusados": recusados,
         "config": config,
         "backup": backup,
+        "notas": informacao.get("notas", ""),
+        "novidades": informacao.get("novidades") or [],
+        "correcoes": informacao.get("correcoes") or [],
     }
     caminho = os.path.join(cfgmod.PASTA_DADOS, "atualizacoes.log")
     os.makedirs(os.path.dirname(caminho), exist_ok=True)

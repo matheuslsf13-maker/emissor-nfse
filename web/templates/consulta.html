@@ -100,11 +100,23 @@
 
 {% if recentes %}
 <h2>Notas transmitidas por este sistema</h2>
-<p class="legenda">Clique na chave para consultar.</p>
+<p class="legenda">
+  <b>Avisar no WhatsApp</b> abre a conversa com o paciente e a mensagem já
+  escrita, com número, valor e a chave de acesso — <b>você confere e
+  envia</b>, nada sai sozinho. A mensagem já basta: com a chave, o paciente
+  baixa o documento oficial no portal.
+</p>
+<p class="legenda" style="margin-top:-14px">
+  Se quiser mandar o PDF junto, use <b>copiar chave</b>, cole em
+  <a href="https://www.nfse.gov.br/consultapublica" target="_blank"
+     rel="noopener">nfse.gov.br/consultapublica</a>, baixe o DANFSe e anexe
+  na conversa — o WhatsApp não aceita anexo por link.
+</p>
 <div class="moldura-tabela">
   <table>
     <thead>
-      <tr><th>Nota nº</th><th>Quando</th><th>Valor</th><th>Ambiente</th><th>Chave</th></tr>
+      <tr><th>Nota nº</th><th>Quando</th><th>Valor</th><th>Ambiente</th>
+          <th>Chave</th><th>Paciente</th></tr>
     </thead>
     <tbody>
       {% for n in recentes %}
@@ -117,6 +129,29 @@
           {% if n.chave_acesso %}
           <a href="{{ url_for('consultar_nota', chave=n.chave_acesso) }}">{{ n.chave_acesso }}</a>
           {% else %}—{% endif %}
+        </td>
+        <td style="white-space:nowrap">
+          {% if n.chave_acesso %}
+          <button type="button" class="botao pequeno secundario"
+                  onclick="copiarChave(this, '{{ n.chave_acesso }}')"
+                  title="Copia os 50 dígitos, para colar no portal e baixar o PDF">
+            copiar chave
+          </button>
+          {% endif %}
+          {% if n.whatsapp %}
+          <a class="botao pequeno secundario" href="{{ n.whatsapp }}"
+             target="_blank" rel="noopener"
+             title="Abre o WhatsApp com a mensagem pronta. Você confere e envia.">
+            Avisar no WhatsApp
+          </a>
+          {% elif n.ambiente == 'producao' %}
+          <span style="color:var(--tinta-fantasma);font-size:12.5px"
+                title="Sem telefone válido no cadastro deste paciente">
+            sem telefone
+          </span>
+          {% else %}
+          <span style="color:var(--tinta-fantasma);font-size:12.5px">—</span>
+          {% endif %}
         </td>
       </tr>
       {% endfor %}

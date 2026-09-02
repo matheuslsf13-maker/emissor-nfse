@@ -167,6 +167,21 @@ conferir a primeira nota de produção.
 
 A tela também lista as últimas notas transmitidas — é só clicar na chave.
 
+### Avisar o paciente
+
+Na lista, cada nota emitida **valendo** tem o botão **Avisar no WhatsApp**.
+Ele abre a conversa com o paciente e a mensagem já escrita, com o número da
+nota, o valor e a chave de acesso. **Você lê, confere e envia** — nada sai
+sozinho.
+
+A mensagem já basta: com a chave, o paciente baixa o documento oficial no
+portal. Se ainda assim quiser mandar o PDF, use **copiar chave**, cole em
+`nfse.gov.br/consultapublica`, baixe e anexe na conversa — o WhatsApp não
+aceita anexo por link.
+
+> Aparece "sem telefone" quando o cadastro do paciente não tem número
+> válido. Corrija no TechCare e reimporte o relatório de clientes.
+
 ---
 
 ## Coisas que não podem acontecer

@@ -125,6 +125,12 @@ def main() -> int:
                             help="JSON com as chaves de empresas.json a mesclar na clínica")
     analisador.add_argument("--url-base", default="",
                             help="prefixo das URLs no manifesto (ex.: https://.../releases/download/v1.1.0)")
+    analisador.add_argument("--novidade", action="append", default=[],
+                            metavar="TEXTO",
+                            help="algo NOVO que a clínica ganhou; repita para vários")
+    analisador.add_argument("--correcao", action="append", default=[],
+                            metavar="TEXTO",
+                            help="algo que estava errado e foi consertado")
     analisador.add_argument("--github", metavar="USUARIO/REPO",
                             help="publica via GitHub Releases: o manifesto já sai com a URL certa")
     analisador.add_argument("--drive", action="store_true",
@@ -181,6 +187,15 @@ def main() -> int:
                 if url_base else nome_zip),
         "sha256": sha,
         "notas": opcoes.notas,
+        # Sem `--novidade`, a propria frase do `--notas` vira o resumo: uma
+        # linha e melhor do que nenhuma, e evita publicar sem explicacao.
+        # Separado porque e assim que quem opera pensa: "ganhei alguma coisa"
+        # e "consertaram alguma coisa" sao noticias diferentes. Sem nenhum dos
+        # dois, a frase do `--notas` vira o resumo -- uma linha e melhor do
+        # que publicar sem explicacao.
+        "novidades": opcoes.novidade or (
+            [] if opcoes.correcao else ([opcoes.notas] if opcoes.notas else [])),
+        "correcoes": opcoes.correcao,
     }
     if alteracoes:
         manifesto["config"] = alteracoes
@@ -197,6 +212,12 @@ def main() -> int:
     if alteracoes:
         print("  configuração          %d chave(s) a mesclar na clínica"
               % len(alteracoes))
+    if manifesto["novidades"] or manifesto["correcoes"]:
+        print("  a clínica vai ler:")
+        for item in manifesto["novidades"]:
+            print("     novo:     %s" % item)
+        for item in manifesto["correcoes"]:
+            print("     corrigido: %s" % item)
     if opcoes.github:
         print("""
 GitHub Releases — publique com:

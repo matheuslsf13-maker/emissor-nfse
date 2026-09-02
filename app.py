@@ -29,6 +29,7 @@ from flask import (Flask, abort, jsonify, redirect, render_template, request,
 
 from nfse import base_clientes
 from nfse import planilha
+from nfse import whatsapp
 from nfse import config as cfgmod
 from nfse.conciliacao import conciliar
 from nfse.controle import Controle, ControleIlegivel
@@ -925,6 +926,7 @@ def configuracao():
         caminho_config=cfgmod.CAMINHO_CONFIG,
         versao=atualizacao_mod.versao_instalada(),
         versoes_guardadas=atualizacao_mod.versoes_guardadas()[:8],
+        historico_atualizacoes=atualizacao_mod.historico(),
         atualizacao=session.pop("atualizacao", None),
         descarte=session.pop("descarte", None),
     )
@@ -1020,6 +1022,25 @@ def descartar_lote(pasta: str):
     return redirect(url_for("configuracao"))
 
 
+def telefone_do_paciente(unidade: str, documento: str) -> str:
+    """Acha o telefone na base de clientes, pelo documento da nota.
+
+    O controle guarda o documento, não o telefone -- e é a base de clientes
+    que tem o contato. Sem documento válido não há como achar, e aí o botão
+    de WhatsApp simplesmente não aparece.
+    """
+    digitos = so_digitos(documento or "")
+    if not digitos:
+        return ""
+    base = base_clientes.abrir(cfgmod.PASTA_DADOS, unidade)
+    if not base.existe:
+        return ""
+    for cliente in base.clientes:
+        if so_digitos(cliente.documento or "") == digitos:
+            return cliente.fone or ""
+    return ""
+
+
 @app.route("/consultar", methods=["GET", "POST"])
 def consultar_nota():
     """Confere uma nota direto na prefeitura, pela chave de acesso.
@@ -1039,6 +1060,18 @@ def consultar_nota():
             erro = "%s: %s" % (type(falha).__name__, falha)
     with Controle(os.path.join(cfgmod.PASTA_DADOS, "controle.db")) as controle:
         recentes = controle.transmitidas(limite=15)
+    for nota in recentes:
+        # Só as de produção: nota de teste não existe para o paciente.
+        if nota.get("ambiente") != "producao":
+            nota["whatsapp"] = ""
+            continue
+        fone = telefone_do_paciente(unidade, nota.get("documento", ""))
+        nota["whatsapp"] = whatsapp.link(
+            {"tomador": (nota.get("descricao") or "").split(" - ")[0],
+             "numero_nota": nota.get("numero_nota"),
+             "valor": nota.get("valor"),
+             "chave_acesso": nota.get("chave_acesso")},
+            cfg.unidades.get(unidade, {}), fone)
     return render_template("consulta.html", cfg=cfg, resultado=resultado,
                            erro=erro, chave=chave, unidade=unidade,
                            recentes=recentes,

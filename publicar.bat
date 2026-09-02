@@ -5,6 +5,12 @@ rem
 rem      publicar.bat 1.4.0
 rem      publicar.bat 1.4.0 "Corrige o bairro da Cobilandia"
 rem
+rem  Para um resumo com varios itens, chame o publicar.py direto:
+rem      python publicar.py 1.4.0 --github USUARIO/REPO ^
+rem             --notas "resumo de uma linha" ^
+rem             --novidade "primeira coisa que mudou" ^
+rem             --novidade "segunda coisa"
+rem
 rem  Faz os dois passos de uma vez: monta o pacote (rodando os testes
 rem  antes) e prega no "mural" do GitHub, de onde a clinica busca.
 rem

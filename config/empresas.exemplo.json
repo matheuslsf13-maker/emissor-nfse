@@ -177,6 +177,7 @@
     "unidade_a": {
       "apelido": "Unidade A",
       "razao_social": "CLINICA ODONTOLOGICA EXEMPLO LTDA",
+      "nome_fantasia": "Clínica Exemplo",
       "cnpj": "00000000000191",
       "inscricao_municipal": "99999",
       "empresa_no_relatorio": "CLINICA ODONTOLOGICA EXEMPLO - UNIDADE A",
@@ -197,6 +198,7 @@
     "unidade_b": {
       "apelido": "Unidade B",
       "razao_social": "SEGUNDA CLINICA EXEMPLO LTDA",
+      "nome_fantasia": "Clínica Exemplo",
       "cnpj": "00000000000272",
       "inscricao_municipal": "88888",
       "empresa_no_relatorio": "SEGUNDA CLINICA EXEMPLO - UNIDADE B",

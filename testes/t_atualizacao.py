@@ -30,6 +30,15 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from nfse import config as cfgmod
 
+# O console do Windows costuma vir em cp1252 e derruba o teste ao imprimir
+# um caractere que ele nao tem -- e um teste que "falha" por acento esconde
+# o resultado de verdade.
+for _fluxo in (sys.stdout, sys.stderr):
+    try:
+        _fluxo.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+
 passou = 0
 falhas = []
 
@@ -168,6 +177,8 @@ MANIFESTO = {
     "url": "/emissor-nfse-1.1.0.zip",
     "sha256": SHA,
     "notas": "Corrige o bairro da Cobilândia",
+    "novidades": ["Agora dá para buscar paciente por CPF"],
+    "correcoes": ["O endereço da Cobilândia estava errado"],
     "config": {"unidades": {"cobilandia": {"endereco": {"bairro": "COBILANDIA"}}}},
 }
 
@@ -218,6 +229,12 @@ try:
     checar("reconheceu que ha novidade", info.get("novidade"), info)
     checar("trouxe as notas da versao",
            "Cobilândia" in info.get("notas", ""), info.get("notas"))
+    # Novidade e correcao sao noticias diferentes para quem opera: "ganhei
+    # alguma coisa" nao e o mesmo que "consertaram alguma coisa".
+    checar("separa o que e novidade", info.get("novidades") == [
+        "Agora dá para buscar paciente por CPF"], info.get("novidades"))
+    checar("do que e correcao", info.get("correcoes") == [
+        "O endereço da Cobilândia estava errado"], info.get("correcoes"))
 
     # ---------------------------------------------------------------
     print("\n5. Pacote corrompido nao encosta no disco")
@@ -271,6 +288,19 @@ try:
            depois["municipio_emitente"]["nome"] == "VILA VELHA", depois)
     checar("a mudanca foi relatada em portugues",
            any("bairro" in m for m in resultado["config"]), resultado["config"])
+
+    # Depois de instalar, a pergunta muda de "existe versao nova?" para "o que
+    # mudou aqui?" -- e a resposta sumia junto com a tela.
+    checar("o resultado traz o resumo do que mudou",
+           resultado.get("novidades") and resultado.get("correcoes"),
+           (resultado.get("novidades"), resultado.get("correcoes")))
+    historico = atu.historico()
+    checar("e fica no historico, para consultar dias depois",
+           historico and historico[0].get("novidades")
+           and historico[0].get("correcoes"), historico[:1])
+    checar("o historico diz de qual versao veio",
+           historico[0]["de"] == "1.0.0" and historico[0]["para"] == "1.1.0",
+           historico[0])
 
     # ---------------------------------------------------------------
     print("\n8. Da para voltar atras")

@@ -300,6 +300,62 @@ function levarEscolhas(formulario) {
 document.addEventListener("DOMContentLoaded", contarEscolhas);
 
 
+/* Copiar a chave de acesso.
+
+   Sao 50 digitos: digitar a mao erra, e conferir o que foi digitado erra
+   mais ainda. A copia tem tres caminhos, do melhor para o que sempre
+   funciona -- porque um botao que "nao deu" e pior do que nao existir:
+
+     1. Clipboard API, o caminho normal;
+     2. execCommand, para navegador antigo ou pagina sem foco;
+     3. selecionar a chave na tela, para a pessoa dar Ctrl+C.
+
+   O passo 3 nao depende de permissao nenhuma. */
+
+function copiarChave(botao, chave) {
+  var texto = botao.textContent;
+
+  function avisar(mensagem) {
+    botao.textContent = mensagem;
+    setTimeout(function () { botao.textContent = texto; }, 1800);
+  }
+
+  function selecionarNaTela() {
+    var celula = botao.closest("tr")
+      ? botao.closest("tr").querySelector(".mono")
+      : null;
+    if (!celula) { avisar("copie da tela"); return; }
+    var faixa = document.createRange();
+    faixa.selectNodeContents(celula);
+    var selecao = window.getSelection();
+    selecao.removeAllRanges();
+    selecao.addRange(faixa);
+    avisar("selecionada — Ctrl+C");
+  }
+
+  function porExecCommand() {
+    var campo = document.createElement("textarea");
+    campo.value = chave;
+    campo.style.position = "fixed";
+    campo.style.top = "-1000px";
+    document.body.appendChild(campo);
+    campo.select();
+    var deu = false;
+    try { deu = document.execCommand("copy"); } catch (e) { deu = false; }
+    document.body.removeChild(campo);
+    if (deu) { avisar("copiada!"); } else { selecionarNaTela(); }
+  }
+
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(chave)
+      .then(function () { avisar("copiada!"); })
+      .catch(porExecCommand);
+    return;
+  }
+  porExecCommand();
+}
+
+
 function confirmarEmissao(evento) {
   const campo = document.getElementById("confirmacao");
   if (campo.value.trim().toUpperCase() !== "EMITIR") {

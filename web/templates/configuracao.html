@@ -256,11 +256,39 @@
   {% elif atualizacao.aplicado %}
   <div class="faixa bom"><span class="icone">✓</span><div>
     <b>{{ atualizacao.mensagem }}</b>
-    {% if atualizacao.aplicado.config %}
-    <p>Configuração ajustada: {{ atualizacao.aplicado.config | join('; ') }}</p>
-    {% endif %}
     <p style="font-size:13px">A versão anterior ficou guardada — dá para voltar.</p>
   </div></div>
+
+  {% set ap = atualizacao.aplicado %}
+  {% if ap.novidades or ap.correcoes %}
+  <div class="cartao" style="border-left:4px solid var(--bom)">
+    <h3 style="margin-top:0">O que mudou nesta atualização</h3>
+
+    {% if ap.novidades %}
+    <div style="margin-bottom:14px">
+      <span class="selo bom">novidades</span>
+      <ul style="margin:8px 0 0;padding-left:20px;line-height:1.9">
+        {% for item in ap.novidades %}<li>{{ item }}</li>{% endfor %}
+      </ul>
+    </div>
+    {% endif %}
+
+    {% if ap.correcoes %}
+    <div>
+      <span class="selo marca">correções</span>
+      <ul style="margin:8px 0 0;padding-left:20px;line-height:1.9">
+        {% for item in ap.correcoes %}<li>{{ item }}</li>{% endfor %}
+      </ul>
+    </div>
+    {% endif %}
+
+    {% if ap.config %}
+    <p style="margin:14px 0 0;font-size:14px;color:var(--tinta-fraca)">
+      <b>Configuração ajustada:</b> {{ ap.config | join('; ') }}
+    </p>
+    {% endif %}
+  </div>
+  {% endif %}
   {% elif atualizacao.novidade %}
   <div class="faixa atencao"><span class="icone">▲</span><div>
     <b>Existe uma versão nova: {{ atualizacao.disponivel }}</b>
@@ -308,6 +336,35 @@
     anterior é guardada antes de qualquer troca.
   </p>
 </div>
+
+{% if historico_atualizacoes %}
+<details style="margin-top:14px">
+  <summary style="cursor:pointer;color:var(--marca)">
+    Atualizações já instaladas ({{ historico_atualizacoes | length }})
+  </summary>
+  <div class="cartao" style="margin-top:10px">
+    {% for h in historico_atualizacoes %}
+    <div style="padding:10px 0;{% if not loop.last %}border-bottom:1px solid var(--borda-fraca){% endif %}">
+      <div style="display:flex;gap:10px;align-items:baseline;flex-wrap:wrap">
+        <b>Versão {{ h.para }}</b>
+        <span style="color:var(--tinta-fantasma);font-size:13px">
+          instalada em {{ h.em[:10] | data_br }}
+          {% if h.de and h.de != h.para %}· veio da {{ h.de }}{% endif %}
+        </span>
+      </div>
+      {% if h.novidades or h.correcoes %}
+      <ul style="margin:6px 0 0;padding-left:20px;font-size:14px;color:var(--tinta-fraca)">
+        {% for item in h.novidades %}<li>{{ item }}</li>{% endfor %}
+        {% for item in h.correcoes %}<li>{{ item }}</li>{% endfor %}
+      </ul>
+      {% elif h.notas %}
+      <p style="margin:4px 0 0;font-size:14px;color:var(--tinta-fraca)">{{ h.notas }}</p>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+</details>
+{% endif %}
 
 {% if versoes_guardadas %}
 <details style="margin-top:14px">

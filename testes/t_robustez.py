@@ -41,6 +41,15 @@ appmod.cfgmod.PASTA_DADOS = cfgmod.PASTA_DADOS
 appmod.cfgmod.PASTA_SAIDA = cfgmod.PASTA_SAIDA
 appmod.cfgmod.PASTA_LOTES = cfgmod.PASTA_LOTES
 
+# O console do Windows costuma vir em cp1252 e derruba o teste ao imprimir
+# um caractere que ele nao tem -- e um teste que "falha" por acento esconde
+# o resultado de verdade.
+for _fluxo in (sys.stdout, sys.stderr):
+    try:
+        _fluxo.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+
 passou = 0
 falhas = []
 
@@ -537,6 +546,14 @@ for manual in ("COMO-USAR.md", "GUIA-DO-RESPONSAVEL.md"):
            os.path.exists(manual))
 
 empacota = io.open("empacotar.py", encoding="utf-8").read()
+# O patch e lido pelo OPERADOR, nao por programador: a tela precisa
+# separar o que e novidade do que e correcao.
+conf_html = io.open("web/templates/configuracao.html", encoding="utf-8").read()
+checar("a tela separa novidades de correcoes",
+       "ap.novidades" in conf_html and "ap.correcoes" in conf_html)
+checar("e guarda o historico para consultar depois",
+       "historico_atualizacoes" in conf_html)
+
 checar("os dois manuais entram no pacote da clinica",
        "COMO-USAR.md" in empacota and "GUIA-DO-RESPONSAVEL.md" in empacota)
 
@@ -603,7 +620,54 @@ except ImportError:
 
 
 # ==========================================================================
-print("\n15. Homologacao nao pode bloquear a producao")
+print("\n15. Avisar o paciente no WhatsApp")
+# O link abre a conversa com o texto pronto; quem envia e a pessoa. Nada
+# sai sozinho e nada e disparado em lote -- mensagem automatica para
+# paciente e outra categoria de decisao.
+from nfse import whatsapp as _wpp  # noqa: E402
+
+checar("telefone do TechCare vira formato do WhatsApp",
+       _wpp.numero_para_whatsapp("(27)99814-8458") == "5527998148458")
+checar("numero que ja tem o 55 nao ganha outro",
+       _wpp.numero_para_whatsapp("5527998148458") == "5527998148458")
+checar("fixo com DDD tambem serve",
+       _wpp.numero_para_whatsapp("(27)3333-4444") == "552733334444")
+for ruim in ("27", "999", "", None, "abc"):
+    checar("cadastro incompleto (%r) nao vira link" % ruim,
+           _wpp.numero_para_whatsapp(ruim) == "")
+
+_nota = {"tomador": "PRISCILA SANTANA FERREIRA", "numero_nota": "8966",
+         "valor": "30.00", "chave_acesso": "3" * 50}
+_texto = _wpp.mensagem(_nota, {"nome_fantasia": "Clínica Exemplo"})
+checar("a mensagem se apresenta pela clinica",
+       "Somos da Clínica Exemplo" in _texto, _texto[:60])
+checar("chama o paciente pelo primeiro nome", "Priscila" in _texto)
+checar("traz numero e valor da nota",
+       "8966" in _texto and "30,00" in _texto)
+checar("e a chave, que e o que abre o documento oficial",
+       "3" * 50 in _texto)
+checar("com o endereco do portal", "nfse.gov.br" in _texto)
+
+_link = _wpp.link(_nota, {"nome_fantasia": "X"}, "(27)99814-8458")
+checar("o link aponta para o numero certo",
+       _link.startswith("https://wa.me/5527998148458?text="), _link[:44])
+checar("sem telefone valido, nao ha link",
+       _wpp.link(_nota, {}, "27") == "")
+
+consulta_html = io.open("web/templates/consulta.html", encoding="utf-8").read()
+checar("a tela diz que o envio e manual",
+       "você confere e" in consulta_html)
+checar("e explica por que o PDF nao vai anexado",
+       "não aceita anexo" in consulta_html)
+
+js_wpp = io.open("web/static/app.js", encoding="utf-8").read()
+checar("copiar a chave tem caminho que sempre funciona",
+       "selectNodeContents" in js_wpp,
+       "sem permissao de clipboard, seleciona na tela para Ctrl+C")
+
+
+# ==========================================================================
+print("\n16. Homologacao nao pode bloquear a producao")
 # O bug que travou a virada para valendo: 276 notas de TESTE marcavam os
 # lancamentos como "ja emitidos", e ao gerar em producao o sistema pulava
 # todos -- nenhuma nota aparecia. Nota de homologacao nao existe
@@ -656,7 +720,7 @@ finally:
 
 
 # ==========================================================================
-print("\n16. Dados de paciente esquisitos no XML")
+print("\n17. Dados de paciente esquisitos no XML")
 
 from nfse.gerador_dps import gerar_nfse  # noqa: E402
 from nfse.conciliacao import Nota  # noqa: E402
@@ -705,7 +769,7 @@ checar("paciente sem documento nao gera CPF vazio no XML",
 
 
 # ==========================================================================
-print("\n17. Valores")
+print("\n18. Valores")
 
 xml = gerar("PACIENTE", valor="0.00")
 valores = etree.fromstring(xml).find(".//n:valores", NS)
@@ -723,7 +787,7 @@ checar("valor alto nao vira notacao cientifica",
 
 
 # ==========================================================================
-print("\n18. Documentos invalidos")
+print("\n19. Documentos invalidos")
 
 checar("CPF de digitos repetidos e invalido", not documento_valido("11111111111"))
 checar("CPF com digito errado e invalido", not documento_valido("12345678900"))
@@ -735,7 +799,7 @@ checar("letras no lugar do documento sao invalidas", not documento_valido("abcde
 
 
 # ==========================================================================
-print("\n19. Transmissao: as travas")
+print("\n20. Transmissao: as travas")
 
 from nfse.transmissao import transmitir  # noqa: E402
 from nfse.envio import EnvioIndisponivel, interpretar_retorno  # noqa: E402
@@ -774,7 +838,7 @@ checar("ambiente do XML e lido corretamente",
 
 
 # ==========================================================================
-print("\n20. Retorno estranho da prefeitura")
+print("\n21. Retorno estranho da prefeitura")
 
 casos = [
     ("resposta vazia", "", False),
@@ -804,7 +868,7 @@ checar("a mensagem de erro chega legivel, sem &lt;",
 
 
 # ==========================================================================
-print("\n21. Configuracao incompleta")
+print("\n22. Configuracao incompleta")
 
 cfg3 = cfgmod.carregar()
 cfg3.municipio = dict(cfg3.municipio)

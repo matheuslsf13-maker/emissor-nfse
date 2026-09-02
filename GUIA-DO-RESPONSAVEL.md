@@ -156,6 +156,22 @@ Serve para soltar uma nota específica valendo antes de comprometer o resto.
 **A transmissão não pergunta o ambiente** — ele já está assinado dentro de
 cada nota.
 
+### Avisar o paciente no WhatsApp
+
+Cada nota de **produção** ganha um botão que abre a conversa com o texto
+pronto. Três decisões:
+
+- **Nada é enviado sozinho.** O link só abre o WhatsApp; quem aperta enviar
+  é a pessoa. Disparo automático para paciente é outra categoria de decisão.
+- **Só notas de produção.** Nota de teste não existe para o paciente.
+- **A mensagem leva a chave, não um PDF.** O `wa.me` não aceita anexo, e o
+  portal nacional não serve o DANFSe por URL (testado: 404). Um PDF gerado
+  por nós seria documento não-oficial circulando — com a chave, o paciente
+  baixa o oficial.
+
+O telefone vem da base de clientes, cruzado pelo CPF da nota. Sem número
+válido, o botão não aparece.
+
 ### Planilha para o contador
 
 Na conferência, **Baixar planilha (.xlsx)**: quatro abas (resumo, notas,
