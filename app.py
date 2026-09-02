@@ -1129,6 +1129,11 @@ def notas_do_paciente():
     ano = request.args.get("ano") or ""
 
     encontrados, notas, paciente = [], [], None
+    documento = ""
+    # Quando a pessoa foi identificada mas nao ha nota, o motivo importa: a
+    # operadora precisa saber se e ano errado, se so tem nota de teste, ou se
+    # de fato nunca se emitiu para ela.
+    em_teste, outros_anos = 0, 0
     with Controle(os.path.join(cfgmod.PASTA_DADOS, "controle.db")) as controle:
         anos = controle.anos_com_notas()
         if termo:
@@ -1142,11 +1147,25 @@ def notas_do_paciente():
                 documento = digitos if len(digitos) >= 11 else (
                     paciente.documento if paciente else "")
                 notas = controle.notas_do_paciente(documento, ano=ano)
+                if documento and not notas:
+                    em_teste = len(controle.notas_do_paciente(
+                        documento, ambiente="homologacao", ano=ano))
+                    if ano:
+                        outros_anos = len(
+                            controle.notas_do_paciente(documento))
+
+    nome = ""
+    if paciente is not None:
+        nome = paciente.nome
+    elif notas:
+        nome = (notas[0].get("descricao") or "").split(" - ")[0]
 
     total = sum(float(n.get("valor") or 0) for n in notas)
     return render_template("paciente.html", cfg=cfg, unidade=unidade,
                            termo=termo, ano=ano, anos=anos,
                            encontrados=encontrados, paciente=paciente,
+                           nome=nome, documento=documento, em_teste=em_teste,
+                           outros_anos=outros_anos,
                            notas=notas, total=total, brl=brl)
 
 

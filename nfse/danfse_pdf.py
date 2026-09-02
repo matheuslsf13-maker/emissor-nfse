@@ -307,13 +307,28 @@ def gerar(notas: list) -> bytes:
 
 
 def nome_do_arquivo(notas: list) -> str:
-    """Nome que o paciente entende ao receber o arquivo."""
+    """Nome que o paciente entende ao receber o arquivo.
+
+    Paciente primeiro, depois a data: na pasta de downloads as notas de uma
+    mesma pessoa ficam juntas, e em ordem de emissao dentro dela. Quem
+    recebe pelo WhatsApp le o proprio nome no anexo, que e o ponto -- um
+    "documento.pdf" nao diz nada a ninguem.
+    """
     if not notas:
         return "notas.pdf"
     nome = (notas[0]["tomador"]["nome"] or "paciente").title()
     nome = re.sub(r"[^\w\s-]", "", nome).strip().replace(" ", "-")
+    # Nome de paciente pode ser muito longo, e o Windows ainda tem limite de
+    # caminho: melhor cortar aqui do que a gravacao falhar na hora de salvar.
+    if len(nome) > 60:
+        nome = nome[:60].rstrip("-")
+
     if len(notas) == 1:
-        return "NFSe-%s-%s.pdf" % (notas[0]["numero"] or "s-numero", nome)
+        data = (notas[0].get("emitida_em") or "")[:10]
+        return "NFSe-%s%s-nota-%s.pdf" % (
+            nome, "-" + data if data else "",
+            notas[0].get("numero") or "s-numero")
+
     anos = sorted({(n.get("competencia") or "")[:4] for n in notas if n.get("competencia")})
     periodo = anos[0] if len(anos) == 1 else "%s-a-%s" % (anos[0], anos[-1]) if anos else ""
     return "NFSe-%s-%s-notas%s.pdf" % (

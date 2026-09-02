@@ -42,7 +42,7 @@
   </form>
 </div>
 
-{% if encontrados and not notas %}
+{% if encontrados|length > 1 and not notas %}
 <h2>Qual deles?</h2>
 <div class="moldura-tabela">
   <table>
@@ -65,6 +65,32 @@
 </div>
 {% endif %}
 
+{% if documento and not notas %}
+<div class="faixa atencao" style="margin-top:16px">
+  <span class="icone">▲</span>
+  <div>
+    <b>{{ nome or 'Este paciente' }} não tem nota emitida{% if ano %} em {{ ano }}{% endif %}</b>
+    {% if outros_anos %}
+    <p>
+      Mas tem <b>{{ outros_anos }}</b> em outros anos. Mude o ano para
+      <b>todos</b> ali em cima.
+    </p>
+    {% elif em_teste %}
+    <p>
+      Existem <b>{{ em_teste }}</b> nota(s) de <b>teste</b> para esta pessoa.
+      Nota de teste não vale como documento e não entra em declaração —
+      por isso não aparece aqui.
+    </p>
+    {% else %}
+    <p>
+      Nenhuma nota foi emitida para esta pessoa ainda. Se você acabou de
+      gerar, confira se chegou a transmitir para a prefeitura.
+    </p>
+    {% endif %}
+  </div>
+</div>
+{% endif %}
+
 {% if termo and not encontrados and not notas %}
 <div class="faixa atencao" style="margin-top:16px">
   <span class="icone">▲</span>
@@ -74,9 +100,7 @@
 {% endif %}
 
 {% if notas %}
-<h2>
-  {{ notas[0].descricao.split(' - ')[0] if notas[0].descricao else 'Paciente' }}
-</h2>
+<h2>{{ nome or 'Paciente' }}</h2>
 <p class="legenda">
   {{ notas | length }} nota(s){% if ano %} em {{ ano }}{% endif %},
   somando <b>R$ {{ brl(total) }}</b>.

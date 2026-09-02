@@ -765,10 +765,18 @@ try:
     _bytes = _pdf.gerar(_dados_pdf)
     checar("gera um PDF de verdade",
            _bytes[:4] == b"%PDF" and len(_bytes) > 1000, len(_bytes))
-    checar("o nome do arquivo traz paciente e numero",
-           "8966" in _pdf.nome_do_arquivo(_dados_pdf)
-           and "Maria" in _pdf.nome_do_arquivo(_dados_pdf),
-           _pdf.nome_do_arquivo(_dados_pdf))
+    _nome1 = _pdf.nome_do_arquivo(_dados_pdf)
+    checar("o nome do arquivo traz paciente, data e numero",
+           "8966" in _nome1 and "Maria" in _nome1 and "2026-09-02" in _nome1,
+           _nome1)
+    checar("e o paciente vem primeiro, para agrupar na pasta",
+           _nome1.startswith("NFSe-Maria"), _nome1)
+
+    _longo = [dict(_dados_pdf[0], tomador=dict(_dados_pdf[0]["tomador"],
+              nome="MARIA " + "DA SILVA SAUARO DE OLIVEIRA " * 6))]
+    checar("nome de paciente enorme nao estoura o caminho do Windows",
+           len(_pdf.nome_do_arquivo(_longo)) < 100,
+           len(_pdf.nome_do_arquivo(_longo)))
 
     _varias = _dados_pdf * 3
     nome_varias = _pdf.nome_do_arquivo(_varias)
@@ -787,6 +795,20 @@ checar("a tela de paciente abre",
 html_pac = io.open("web/templates/paciente.html", encoding="utf-8").read()
 checar("da para escolher quais notas entram no PDF",
        "nota-escolhida" in html_pac)
+checar("com um resultado so, nao pergunta \"qual deles\"",
+       "encontrados|length > 1" in html_pac,
+       "perguntar entre um nome so confunde")
+checar("paciente sem nota diz o porque",
+       "não tem nota emitida" in html_pac and "de <b>teste</b>" in html_pac,
+       "senao a tela fica muda e parece defeito")
+checar("e manda mudar o ano quando ha nota em outro",
+       "outros_anos" in html_pac)
+
+# Uma pessoa de verdade da base, sem nota nenhuma em producao: a tela tem
+# que explicar, nao ficar em branco.
+_resp_sem = cliente.get("/paciente?q=00000000191")
+checar("busca de quem nao tem nota nao quebra", _resp_sem.status_code == 200)
+
 checar("e a tela avisa que NAO e o DANFSe oficial",
        "não é o DANFSe oficial" in html_pac.lower()
        or "não é o danfse oficial" in html_pac.lower(),

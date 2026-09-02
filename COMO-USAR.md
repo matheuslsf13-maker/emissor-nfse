@@ -172,9 +172,13 @@ A tela também lista as últimas notas transmitidas — é só clicar na chave.
 Menu **Notas do paciente**. Busque por nome ou CPF e escolha o ano.
 
 Aparecem todas as notas daquela pessoa, com o total. Marque as que quiser —
-ou deixe todas — e clique em **Baixar PDF**. O arquivo já sai nomeado, tipo
-`NFSe-Maria-Silva-12-notas-2026.pdf`, pronto para anexar no WhatsApp ou no
-e-mail.
+ou deixe todas — e clique em **Baixar PDF**. O arquivo já sai nomeado com o paciente e a data —
+`NFSe-Maria-Silva-2026-09-02-nota-8966.pdf` para uma, ou
+`NFSe-Maria-Silva-12-notas-2026.pdf` para o ano inteiro. É só anexar no
+WhatsApp ou no e-mail.
+
+Se aparecer **“não tem nota emitida”**, a tela diz o motivo: pode ser o ano
+errado, ou notas que só existem em teste.
 
 > É o pedido que aparece no fim do ano. Antes, achar as notas de uma pessoa
 > significava procurar uma a uma pela chave.
