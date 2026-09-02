@@ -12,6 +12,19 @@ não precisa saber nada de programação nem de fiscal.
 
 ---
 
+## Experimentar
+
+**[Baixar o aplicativo](../../releases/latest/download/EmissorNFSe-app.zip)**
+(42 MB) — Windows 64 bits, **não precisa instalar nada**. Descompacte e dê
+dois cliques em `Emissor NFS-e.bat`; o navegador abre sozinho.
+
+Vem com uma configuração de exemplo, com clínicas fictícias. Para emitir de
+verdade é preciso preencher os dados da sua empresa, ter certificado A1 e
+estar credenciado na sua prefeitura — e o WebService aqui é o de Vila
+Velha/ES. Para conhecer o sistema e ver as telas, é só abrir.
+
+---
+
 ## O que ele resolve
 
 Uma clínica com 400 recebimentos por mês precisa de 400 notas. Digitadas a

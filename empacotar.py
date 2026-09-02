@@ -154,7 +154,7 @@ def montar_runtime(zip_python: str) -> None:
                          % (processo.stderr or processo.stdout)[-3000:])
 
 
-def copiar_programa() -> None:
+def copiar_programa(publico: bool = False) -> None:
     ignorar = shutil.ignore_patterns("__pycache__", "*.pyc", "*.pyo")
     for pasta in COPIAR_PASTAS:
         origem = os.path.join(RAIZ, pasta)
@@ -168,8 +168,18 @@ def copiar_programa() -> None:
 
     # Configuracao vai; certificado e senha NAO.
     os.makedirs(os.path.join(DESTINO, "config", "certificados"), exist_ok=True)
-    shutil.copy2(os.path.join(RAIZ, "config", "empresas.json"),
+
+    # O `empresas.json` real tem CNPJ, inscricao municipal, telefone e email
+    # das clinicas. Vai no pacote que fica NA clinica, obviamente -- mas nunca
+    # num pacote que qualquer um baixa. No modo publico entra so o exemplo,
+    # com dados ficticios; quem instalar preenche com os proprios.
+    origem_config = os.path.join(
+        RAIZ, "config",
+        "empresas.exemplo.json" if publico else "empresas.json")
+    shutil.copy2(origem_config,
                  os.path.join(DESTINO, "config", "empresas.json"))
+    shutil.copy2(os.path.join(RAIZ, "config", "empresas.exemplo.json"),
+                 os.path.join(DESTINO, "config", "empresas.exemplo.json"))
     with open(os.path.join(DESTINO, "config", "senhas-EXEMPLO.bat"),
               "w", encoding="utf-8") as fh:
         fh.write(SENHAS_EXEMPLO)
@@ -212,10 +222,21 @@ def tamanho(pasta: str) -> float:
 
 
 def main() -> int:
-    print("Montando o aplicativo em distribuicao/EmissorNFSe/\n")
+    import argparse
+
+    analisador = argparse.ArgumentParser(description=__doc__)
+    analisador.add_argument(
+        "--publico", action="store_true",
+        help="pacote para distribuir a qualquer um: entra a configuração de "
+             "exemplo, nunca a real da clínica")
+    opcoes = analisador.parse_args()
+
+    print("Montando o aplicativo em distribuicao/EmissorNFSe/")
+    print("  modo %s\n" % ("PÚBLICO — sem os dados das clínicas"
+                           if opcoes.publico else "CLÍNICA — configuração real"))
     os.makedirs(DESTINO, exist_ok=True)
     montar_runtime(baixar_python())
-    copiar_programa()
+    copiar_programa(publico=opcoes.publico)
 
     runtime_python = os.path.join(DESTINO, "runtime", "python.exe")
     print("\n  Conferindo se o pacote roda por conta própria...")
@@ -245,6 +266,18 @@ def main() -> int:
         print("  ATENÇÃO: sobrou coisa em dados/ -> %s" % sobrou)
         return 1
     print("  dados/ está limpa — sem numeração nem histórico de teste")
+
+    if opcoes.publico:
+        with open(os.path.join(DESTINO, "config", "empresas.json"),
+                  encoding="utf-8") as fh:
+            conteudo = fh.read()
+        vazou = [m for m in ("33347759", "47976091", "odontocompany",
+                             "odontocobilandia", "LINDENBERG", "CIBIEN")
+                 if m.lower() in conteudo.lower()]
+        if vazou:
+            print("  ATENÇÃO: dado real no pacote público -> %s" % vazou)
+            return 1
+        print("  configuração é a de exemplo — nenhum dado real")
 
     print("\nPronto — %.0f MB em distribuicao/EmissorNFSe/" % tamanho(DESTINO))
     print("""
