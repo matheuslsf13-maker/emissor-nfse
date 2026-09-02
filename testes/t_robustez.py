@@ -382,7 +382,51 @@ checar("mensagem vazia nao e de fila", not erro_de_fila(""))
 
 
 # ==========================================================================
-print("\n10. Dados de paciente esquisitos no XML")
+print("\n10. Trocar de ambiente pela tela")
+# Sem isto o unico caminho era editar o empresas.json na mao -- inviavel
+# para quem opera na clinica. E a troca mais seria do sistema: a partir
+# dela, nota gerada vale de verdade.
+import json as _json
+
+caminho_cfg = cfgmod.CAMINHO_CONFIG
+with open(caminho_cfg, encoding="utf-8") as fh:
+    cfg_original = fh.read()
+try:
+    def ambiente_atual():
+        with open(caminho_cfg, encoding="utf-8") as fh:
+            return _json.load(fh)["faturamento"]["ambiente"]
+
+    cliente.post("/configuracao/ambiente",
+                 data={"ambiente": "homologacao"})
+    checar("volta para homologacao sem cerimonia",
+           ambiente_atual() == "homologacao", ambiente_atual())
+
+    cliente.post("/configuracao/ambiente",
+                 data={"ambiente": "producao", "confirmacao": "sim"})
+    checar("*** producao sem digitar a palavra NAO passa ***",
+           ambiente_atual() == "homologacao", ambiente_atual())
+
+    cliente.post("/configuracao/ambiente",
+                 data={"ambiente": "producao", "confirmacao": "PRODUCAO"})
+    checar("com a palavra certa, muda", ambiente_atual() == "producao")
+
+    with open(caminho_cfg, encoding="utf-8") as fh:
+        depois = _json.load(fh)
+    checar("e o resto da configuracao fica intacto",
+           len(depois["faturamento"]["secoes_que_emitem"]) == 17
+           and depois["unidades"]["gloria"]["cnpj"],
+           "trocar o ambiente nao pode mexer em mais nada")
+
+    resposta = cliente.post("/configuracao/ambiente",
+                            data={"ambiente": "qualquer-coisa"})
+    checar("ambiente invalido e recusado", resposta.status_code == 400)
+finally:
+    with open(caminho_cfg, "w", encoding="utf-8") as fh:
+        fh.write(cfg_original)
+
+
+# ==========================================================================
+print("\n11. Dados de paciente esquisitos no XML")
 
 from nfse.gerador_dps import gerar_nfse  # noqa: E402
 from nfse.conciliacao import Nota  # noqa: E402
@@ -431,7 +475,7 @@ checar("paciente sem documento nao gera CPF vazio no XML",
 
 
 # ==========================================================================
-print("\n11. Valores")
+print("\n12. Valores")
 
 xml = gerar("PACIENTE", valor="0.00")
 valores = etree.fromstring(xml).find(".//n:valores", NS)
@@ -449,7 +493,7 @@ checar("valor alto nao vira notacao cientifica",
 
 
 # ==========================================================================
-print("\n12. Documentos invalidos")
+print("\n13. Documentos invalidos")
 
 checar("CPF de digitos repetidos e invalido", not documento_valido("11111111111"))
 checar("CPF com digito errado e invalido", not documento_valido("12345678900"))
@@ -461,7 +505,7 @@ checar("letras no lugar do documento sao invalidas", not documento_valido("abcde
 
 
 # ==========================================================================
-print("\n13. Transmissao: as travas")
+print("\n14. Transmissao: as travas")
 
 from nfse.transmissao import transmitir  # noqa: E402
 from nfse.envio import EnvioIndisponivel, interpretar_retorno  # noqa: E402
@@ -500,7 +544,7 @@ checar("ambiente do XML e lido corretamente",
 
 
 # ==========================================================================
-print("\n14. Retorno estranho da prefeitura")
+print("\n15. Retorno estranho da prefeitura")
 
 casos = [
     ("resposta vazia", "", False),
@@ -530,7 +574,7 @@ checar("a mensagem de erro chega legivel, sem &lt;",
 
 
 # ==========================================================================
-print("\n15. Configuracao incompleta")
+print("\n16. Configuracao incompleta")
 
 cfg3 = cfgmod.carregar()
 cfg3.municipio = dict(cfg3.municipio)

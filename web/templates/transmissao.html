@@ -137,7 +137,30 @@
     mostra o formato exato do retorno — vale ler inteira.
   </p>
 
-  {% for e in resultado.enviadas %}
+  {% set recusadas_lista = resultado.recusadas %}
+  {% if aceitas | length > 6 %}
+  <details style="margin-bottom:14px">
+    <summary style="cursor:pointer;color:var(--marca);font-weight:600">
+      {{ aceitas | length }} nota(s) aceitas (clique para ver uma a uma)
+    </summary>
+    <div class="moldura-tabela" style="margin-top:10px">
+      <table>
+        <thead><tr><th>DPS</th><th>Nota nº</th><th>Chave de acesso</th></tr></thead>
+        <tbody>
+          {% for e in aceitas %}
+          <tr>
+            <td>{{ e.numero_dps }}</td>
+            <td><b>{{ e.numero_nota or '—' }}</b></td>
+            <td class="mono" style="font-size:11.5px">{{ e.chave_acesso }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </details>
+  {% endif %}
+
+  {% for e in resultado.enviadas if not (e.aceita and aceitas | length > 6) %}
   <div class="cartao" style="border-left:4px solid {{ 'var(--bom)' if e.aceita else 'var(--ruim)' }}">
     <div style="display:flex;gap:12px;align-items:baseline;flex-wrap:wrap">
       <b>DPS nº {{ e.numero_dps }}</b>
@@ -162,17 +185,22 @@
   {% endfor %}
 
   {% if resultado.puladas %}
-  <h2>Puladas</h2>
-  <div class="moldura-tabela">
-    <table>
-      <thead><tr><th>Arquivo</th><th>Motivo</th></tr></thead>
-      <tbody>
-        {% for p in resultado.puladas %}
-        <tr><td class="mono" style="font-size:12.5px">{{ p.arquivo }}</td><td>{{ p.motivo }}</td></tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  </div>
+  <details style="margin-top:18px">
+    <summary style="cursor:pointer;color:var(--marca);font-weight:600">
+      {{ resultado.puladas | length }} nota(s) puladas — já tinham sido
+      aceitas antes (clique para ver)
+    </summary>
+    <div class="moldura-tabela" style="margin-top:10px">
+      <table>
+        <thead><tr><th>Arquivo</th><th>Motivo</th></tr></thead>
+        <tbody>
+          {% for p in resultado.puladas %}
+          <tr><td class="mono" style="font-size:12.5px">{{ p.arquivo }}</td><td>{{ p.motivo }}</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </details>
   {% endif %}
 {% endif %}
 
@@ -217,6 +245,31 @@
       administrativo na Secretaria de Finanças — não é um clique.
       <b>Só depois de a homologação passar limpa.</b>
     </p>
+    {% if gerado_para and gerado_para != 'producao' %}
+    <div class="faixa atencao" style="margin:0 0 12px">
+      <span class="icone">▲</span>
+      <div>
+        <b>Este botão está desligado — e não é defeito</b>
+        <p>
+          As notas desta pasta foram <b>geradas para homologação</b>, e isso
+          fica assinado dentro de cada XML. Uma nota marcada como teste não
+          vira nota de verdade só porque foi enviada para outro endereço.
+        </p>
+        <p>Para emitir valendo, o caminho é:</p>
+        <ol style="margin:6px 0 0;padding-left:20px;font-size:14px;line-height:1.8">
+          <li>Em <b>Configuração</b>, mudar o ambiente para <b>produção</b>;</li>
+          <li>Gerar as notas de novo — elas nascem valendo;</li>
+          <li>Transmitir <b>uma</b>, conferir, e então o resto.</li>
+        </ol>
+        <p style="margin-top:10px">
+          <a class="botao secundario" href="{{ url_for('configuracao') }}#ambiente">
+            Ir para a Configuração
+          </a>
+        </p>
+      </div>
+    </div>
+    {% endif %}
+
     <form method="post" action="{{ url_for('transmitir_lote', pasta=pasta) }}"
           onsubmit="return confirm('Isto emite nota fiscal de verdade e não tem desfazer simples. Confirma?')">
       <input type="hidden" name="ambiente" value="producao">

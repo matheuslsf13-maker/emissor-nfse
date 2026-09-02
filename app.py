@@ -841,7 +841,44 @@ def configuracao():
         versoes_guardadas=atualizacao_mod.versoes_guardadas()[:8],
         atualizacao=session.pop("atualizacao", None),
         descarte=session.pop("descarte", None),
+        ambiente_trocado=session.pop("ambiente_trocado", None),
+        ambiente_erro=session.pop("ambiente_erro", None),
     )
+
+
+@app.post("/configuracao/ambiente")
+def trocar_ambiente():
+    """Muda entre homologação e produção, gravando na configuração.
+
+    Sem isto o único caminho era editar `config/empresas.json` na mão --
+    inviável para quem opera na clínica, e fácil de errar mesmo para quem
+    não opera. É a troca mais séria do sistema: a partir dela, nota gerada
+    vale de verdade e cancelar em Vila Velha é processo administrativo.
+    Por isso produção exige digitar a palavra, igual à transmissão.
+    """
+    novo_ambiente = request.form.get("ambiente", "")
+    if novo_ambiente not in ("homologacao", "producao"):
+        abort(400)
+
+    if novo_ambiente == "producao" and chave_nome(
+        request.form.get("confirmacao", "")
+    ) != "PRODUCAO":
+        session["ambiente_erro"] = (
+            "Para mudar para produção é preciso digitar PRODUCAO."
+        )
+        return redirect(url_for("configuracao"))
+
+    caminho = cfgmod.CAMINHO_CONFIG
+    with open(caminho, encoding="utf-8") as fh:
+        bruto = json.load(fh)
+    anterior = bruto.get("faturamento", {}).get("ambiente", "")
+    bruto.setdefault("faturamento", {})["ambiente"] = novo_ambiente
+    with open(caminho, "w", encoding="utf-8") as fh:
+        json.dump(bruto, fh, indent=2, ensure_ascii=False)
+        fh.write(chr(10))
+
+    session["ambiente_trocado"] = {"de": anterior, "para": novo_ambiente}
+    return redirect(url_for("configuracao"))
 
 
 @app.post("/configuracao/numeracao")

@@ -196,6 +196,79 @@
   </p>
 </div>
 
+<h2 id="ambiente">Ambiente: teste ou valendo</h2>
+
+{% if ambiente_erro %}
+<div class="faixa erro"><span class="icone">■</span>
+  <div><b>{{ ambiente_erro }}</b></div></div>
+{% endif %}
+{% if ambiente_trocado %}
+<div class="faixa bom"><span class="icone">✓</span><div>
+  <b>Ambiente alterado de {{ ambiente_trocado.de }} para
+     {{ ambiente_trocado.para }}</b>
+  <p>
+    As notas <b>geradas a partir de agora</b> nascem neste ambiente. As que já
+    existem continuam como foram feitas — o ambiente fica assinado dentro
+    delas e não muda depois.
+  </p>
+</div></div>
+{% endif %}
+
+<div class="cartao">
+  <div class="linha-dado">
+    <span class="chave">Ambiente atual</span>
+    <span class="valor">
+      {% if cfg.faturamento.ambiente == 'producao' %}
+      <span class="selo ruim">PRODUÇÃO — as notas valem de verdade</span>
+      {% else %}
+      <span class="selo neutro">homologação — ambiente de testes</span>
+      {% endif %}
+    </span>
+  </div>
+
+  <p style="color:var(--tinta-fraca);font-size:14px;margin-top:12px">
+    O ambiente é escolhido aqui e vale para as notas <b>geradas depois</b>.
+    Ele fica gravado e assinado dentro de cada XML, então uma nota de teste
+    nunca vira nota real só por ser enviada para outro endereço.
+  </p>
+
+  {% if cfg.faturamento.ambiente == 'producao' %}
+  <form method="post" action="{{ url_for('trocar_ambiente') }}"
+        style="margin-top:14px">
+    <input type="hidden" name="ambiente" value="homologacao">
+    <button class="botao secundario" type="submit">
+      Voltar para homologação (testes)
+    </button>
+  </form>
+  {% else %}
+  <div class="faixa atencao" style="margin:14px 0 0">
+    <span class="icone">▲</span>
+    <div>
+      <b>Antes de mudar para produção</b>
+      <p>
+        A partir daí, cada nota gerada e transmitida é <b>nota fiscal de
+        verdade</b>. Em Vila Velha, cancelar exige processo administrativo na
+        Secretaria de Finanças — não é um clique.
+      </p>
+      <p>Só mude depois que a homologação tiver passado limpa.</p>
+    </div>
+  </div>
+  <form method="post" action="{{ url_for('trocar_ambiente') }}"
+        style="margin-top:12px"
+        onsubmit="return confirm('A partir de agora, as notas geradas valem de verdade. Confirma?')">
+    <input type="hidden" name="ambiente" value="producao">
+    <label style="display:block;font-size:14px;margin-bottom:6px">
+      Para confirmar, digite <b>PRODUCAO</b>:
+    </label>
+    <input type="text" name="confirmacao" placeholder="PRODUCAO"
+           autocomplete="off" style="width:170px">
+    <button class="botao perigo" type="submit" style="margin-left:8px">
+      Mudar para produção
+    </button>
+  </form>
+  {% endif %}
+</div>
+
 <h2>Envio à prefeitura</h2>
 <div class="cartao">
   {% if envio.pronto %}
