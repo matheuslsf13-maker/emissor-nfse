@@ -825,6 +825,64 @@ def ambiente_da_pasta(caminho: str) -> str:
     return ""
 
 
+def unidade_da_pasta(pasta: str, cfg) -> str:
+    """A pasta se chama "gloria-2026-08-...": o comeco e a unidade."""
+    for chave in cfg.unidades:
+        if pasta.startswith(chave + "-"):
+            return chave
+    return next(iter(cfg.unidades))
+
+
+def notas_para_entregar(resultado, pasta: str, cfg) -> list:
+    """As notas que acabaram de ser aceitas, prontas para entregar.
+
+    A tela dizia "DPS nº 3 aceita" e parava ai. Quem transmite quer o passo
+    seguinte: quem e o paciente, e como mandar a nota para ele. Sem isso o
+    operador transmitia, nao reconhecia nada na tela e ia procurar a nota em
+    outro lugar -- ou pior, ficava na duvida se tinha transmitido.
+    """
+    if not resultado or not getattr(resultado, "aceitas", None):
+        return []
+
+    unidade = unidade_da_pasta(pasta, cfg)
+    dados_unidade = cfg.unidades.get(unidade, {})
+    with Controle(os.path.join(cfgmod.PASTA_DADOS, "controle.db")) as controle:
+        por_arquivo = controle.por_arquivo()
+
+    entregar = []
+    for envio in resultado.aceitas:
+        arquivo = getattr(envio, "arquivo", "") or ""
+        _, registro = por_arquivo.get(arquivo, (None, {}))
+        descricao = registro.get("descricao") or ""
+        paciente = descricao.split(" - ")[0] if descricao else ""
+        documento = registro.get("documento") or ""
+        chave = (getattr(envio, "chave_acesso", "")
+                 or registro.get("chave_acesso") or "")
+
+        link = ""
+        if chave and registro.get("ambiente") == "producao":
+            link = whatsapp.link(
+                {"tomador": paciente,
+                 "numero_nota": getattr(envio, "numero_nota", "")
+                                or registro.get("numero_nota"),
+                 "valor": registro.get("valor"),
+                 "chave_acesso": chave},
+                dados_unidade,
+                telefone_do_paciente(unidade, documento))
+
+        entregar.append({
+            "paciente": paciente,
+            "documento": documento,
+            "valor": registro.get("valor") or "",
+            "numero_nota": getattr(envio, "numero_nota", "")
+                           or registro.get("numero_nota") or "",
+            "chave": chave,
+            "whatsapp": link,
+            "producao": registro.get("ambiente") == "producao",
+        })
+    return entregar
+
+
 @app.post("/saida/<path:pasta>/transmitir")
 def transmitir_lote(pasta: str):
     """Transmite os XMLs de uma pasta de saída para a prefeitura.
@@ -905,6 +963,7 @@ def transmitir_lote(pasta: str):
         envio=situacao_envio(cfg),
         arquivos=len(listar_xmls(caminho)),
         notas=notas_da_pasta(caminho),
+        entregar=notas_para_entregar(resultado, pasta, cfg),
         gerado_para=ambiente_da_pasta(caminho),
         andamento=TRANSMISSOES.get(pasta),
     )
@@ -1003,15 +1062,17 @@ def tela_transmitir(pasta: str):
     if not os.path.isdir(caminho) or ".." in pasta:
         abort(404)
     cfg = cfgmod.carregar()
+    resultado = RESULTADOS_TRANSMISSAO.get(pasta)
     return render_template(
         "transmissao.html",
         pasta=pasta,
-        resultado=RESULTADOS_TRANSMISSAO.get(pasta),
+        resultado=resultado,
         erro="",
         ambiente=cfg.faturamento.get("ambiente", "homologacao"),
         envio=situacao_envio(cfg),
         arquivos=len(listar_xmls(caminho)),
         notas=notas_da_pasta(caminho),
+        entregar=notas_para_entregar(resultado, pasta, cfg),
         gerado_para=ambiente_da_pasta(caminho),
         andamento=TRANSMISSOES.get(pasta),
     )
@@ -1274,7 +1335,7 @@ def xml_oficial(chave: str):
         abort(502, str(falha))
     if pdf:
         return Response(pdf, mimetype="application/pdf", headers={
-            "Content-Disposition": "attachment; filename=DANFSe-%s.pdf" % chave})
+            "Content-Disposition": "inline; filename=DANFSe-%s.pdf" % chave})
 
     try:
         xml = nacional.baixar_xml(chave, certificado)
@@ -1287,10 +1348,15 @@ def xml_oficial(chave: str):
         return Response(xml, mimetype="application/xml", headers={
             "Content-Disposition": "attachment; filename=%s"
                                    % nacional.nome_do_arquivo(xml, chave)})
+    # `inline`, e nao `attachment`: o PDF abre no visualizador do navegador,
+    # onde ja existem os botoes de imprimir e de salvar. Baixar direto
+    # obrigava a procurar o arquivo na pasta so para entao decidir o que
+    # fazer com ele -- e o nome do arquivo continua sendo respeitado na hora
+    # de salvar.
     try:
         return Response(danfse_oficial.gerar(xml), mimetype="application/pdf",
                         headers={"Content-Disposition":
-                                 "attachment; filename=%s"
+                                 "inline; filename=%s"
                                  % danfse_oficial.nome_do_arquivo(xml)})
     except ImportError:
         abort(500, "A biblioteca fpdf2 não está instalada. "
@@ -1388,7 +1454,8 @@ def pdf_do_paciente():
             xmls = [oficiais[c] for c in chaves]
             try:
                 return send_file(
-                    io.BytesIO(danfse_oficial.gerar(xmls)), as_attachment=True,
+                    io.BytesIO(danfse_oficial.gerar(xmls)),
+                    as_attachment=False,
                     download_name=danfse_oficial.nome_do_arquivo(xmls),
                     mimetype="application/pdf")
             except ImportError:
@@ -1414,7 +1481,7 @@ def pdf_do_paciente():
     except ImportError:
         abort(500, "A biblioteca fpdf2 não está instalada. "
                    "Rode o instalar.bat novamente.")
-    return send_file(io.BytesIO(dados), as_attachment=True,
+    return send_file(io.BytesIO(dados), as_attachment=False,
                      download_name=danfse_pdf.nome_do_arquivo(montadas),
                      mimetype="application/pdf")
 
@@ -1499,11 +1566,93 @@ def clientes():
     if unidade in cfg.unidades:
         base = base_clientes.abrir(cfgmod.PASTA_DADOS, unidade)
         if base.existe and (termo or filtro):
-            achados, quantos = base.procurar(termo, filtro)
+            encontrados, quantos = base.procurar(termo, filtro)
+            # A tela precisa da POSICAO de cada um para poder corrigi-lo:
+            # `procurar` devolve as proprias instancias da base, entao a
+            # identidade do objeto da a posicao sem inventar um id novo.
+            posicao = {id(c): i for i, c in enumerate(base.clientes)}
+            achados = [(posicao.get(id(c), -1), c) for c in encontrados]
 
     return render_template("clientes.html", bases=bases, unidade=unidade,
                            termo=termo, filtro=filtro, achados=achados,
-                           quantos=quantos, cfg=cfg)
+                           quantos=quantos, cfg=cfg,
+                           editado=request.args.get("editado", ""),
+                           erro_edicao=request.args.get("erro", ""))
+
+
+@app.get("/clientes/buscar")
+def sugerir_clientes():
+    """Sugestoes enquanto o operador digita, em qualquer campo de busca.
+
+    Digitar o nome inteiro e apertar Procurar so para descobrir que a grafia
+    do cadastro era outra e trabalho repetido -- e com 11.995 pessoas, a
+    grafia quase nunca e a que se imagina. Ver as opcoes aparecendo resolve
+    antes de errar.
+    """
+    cfg = cfgmod.carregar()
+    unidade = request.args.get("unidade") or next(iter(cfg.unidades))
+    termo = (request.args.get("q") or "").strip()
+    if unidade not in cfg.unidades or len(so_digitos(termo)) + len(
+            [p for p in chave_nome(termo).split() if p]) < 1 or len(termo) < 3:
+        return jsonify({"resultados": [], "total": 0})
+
+    base = base_clientes.abrir(cfgmod.PASTA_DADOS, unidade)
+    if not base.existe:
+        return jsonify({"resultados": [], "total": 0})
+
+    achados, total = base.procurar(termo, limite=10)
+    return jsonify({
+        "total": total,
+        "resultados": [{
+            "nome": c.nome,
+            "documento": c.documento,
+            "documento_formatado": c.documento_formatado,
+            "valido": c.documento_ok,
+            "endereco": "%s%s%s" % (
+                c.logradouro or "",
+                ", %s" % c.numero if c.numero else "",
+                " - %s" % c.bairro if c.bairro else ""),
+            "nascimento": c.nascimento,
+        } for c in achados],
+    })
+
+
+@app.post("/clientes/editar")
+def editar_cliente():
+    """Corrige um cadastro a mao.
+
+    O certo e corrigir no TechCare, e a tela diz isso. Mas nem sempre da --
+    quem opera aqui pode nao ter acesso, ou o erro pode ter sido cometido
+    aqui mesmo, apontando o cadastro errado numa pendencia. Sem esta tela, o
+    jeito era esperar outra pessoa arrumar.
+    """
+    unidade = request.form.get("unidade") or ""
+    cfg = cfgmod.carregar()
+    if unidade not in cfg.unidades:
+        abort(404)
+
+    base = base_clientes.abrir(cfgmod.PASTA_DADOS, unidade)
+    try:
+        indice = int(request.form.get("indice", "-1"))
+    except ValueError:
+        indice = -1
+
+    volta = {"unidade": unidade, "q": request.form.get("q", ""),
+             "filtro": request.form.get("filtro", "")}
+    try:
+        resultado = base.editar(
+            indice,
+            {campo: request.form.get(campo, "")
+             for campo in base_clientes.BaseClientes.CAMPOS_EDITAVEIS},
+            confere=request.form.get("confere", ""))
+    except ValueError as falha:
+        return redirect(url_for("clientes", erro=str(falha), **volta))
+
+    if resultado["mudancas"]:
+        volta["editado"] = "%s: %s" % (
+            resultado["cliente"].nome,
+            ", ".join(m["campo"] for m in resultado["mudancas"]))
+    return redirect(url_for("clientes", **volta))
 
 
 @app.get("/ajuda")

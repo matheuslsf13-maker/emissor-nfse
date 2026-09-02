@@ -382,12 +382,23 @@ code, .mono-bloco {
 }
 .mono-bloco { display: block; padding: 12px 14px; white-space: pre-wrap; word-break: break-all; }
 
+/* Rotulo curto acima de um campo de formulario. */
+.rotulo-campo {
+  display: block; font-size: 12.5px; color: var(--tinta-fraca);
+  margin-bottom: 4px;
+}
+
 .busca-caixa { position: relative; }
+
+/* Os resultados ficam NO FLUXO, empurrando o que vem depois, e nao
+   flutuando por cima. A ficha de pendencia tem `overflow: hidden` por causa
+   do canto arredondado, entao um dropdown absoluto era cortado na borda da
+   ficha: a lista aparecia pela metade ou sumia, e nao dava para escolher o
+   cadastro. Empurrar sempre funciona -- nao ha o que corte. */
+.resultados-busca:empty { display: none; }
 .resultados-busca {
-  position: absolute; z-index: 30; left: 0; right: 0; top: 100%;
   background: var(--papel); border: 1px solid var(--borda-forte);
-  border-radius: 8px; box-shadow: var(--sombra); max-height: 300px;
-  overflow: auto; margin-top: 4px;
+  border-radius: 8px; max-height: 300px; overflow-y: auto; margin-top: 6px;
 }
 /* Estilo pela classe, e nao por "div": os resultados tem divs internas
    (nome, endereco) que herdavam padding e cursor de mao sem serem
@@ -405,6 +416,14 @@ code, .mono-bloco {
 }
 .resultados-busca .achado-aviso {
   padding: 10px 12px; font-size: 13px; color: var(--tinta-fraca);
+}
+
+/* Sugestao clicavel: a linha inteira e o alvo, e o teclado tem que
+   enxergar onde esta -- quem digita rapido navega com as setas. */
+.resultados-busca .sugestao { cursor: pointer; }
+.resultados-busca .sugestao:focus {
+  outline: none; background: var(--marca-clara);
+  box-shadow: inset 3px 0 0 var(--marca);
 }
 
 @media (max-width: 720px) {

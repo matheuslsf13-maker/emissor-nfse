@@ -921,6 +921,134 @@ else:
            "nenhuma pasta gerada ainda")
 
 # --------------------------------------------------------------------------
+# Corrigir cadastro a mao, sugestao ao digitar, e o que fazer depois de
+# transmitir. Tudo isto veio de uso real, nao de imaginacao.
+import shutil as _shutil  # noqa: E402
+import tempfile as _tempfile  # noqa: E402
+from nfse import base_clientes as _bc  # noqa: E402
+from nfse.leitor_clientes import Cadastro as _Cad, Cliente as _Cli  # noqa: E402
+
+_tmp = _tempfile.mkdtemp()
+try:
+    _b = _bc.abrir(_tmp, "teste")
+    _b.clientes = [_Cli(nome="MARIA SILVA", documento="12961172780",
+                        logradouro="RUA A", numero="1", bairro="CENTRO",
+                        cidade="VILA VELHA", uf="ES", cep="29100000")]
+    _b.salvar()
+    _b = _bc.abrir(_tmp, "teste")
+
+    _r = _b.editar(0, {"bairro": "COBILANDIA", "cep": "29.115-000"},
+                   confere="12961172780")
+    checar("corrige o cadastro a mao", len(_r["mudancas"]) == 2, _r["mudancas"])
+    checar("CEP entra so com digitos", _b.clientes[0].cep == "29115000")
+    checar("e fica marcado como corrigido a mao",
+           _b.clientes[0].manual == {"bairro": "CENTRO", "cep": "29100000"})
+
+    def _cadastro(bairro):
+        c = _Cad(arquivo="x", empresa="teste", clientes=[
+            _Cli(nome="MARIA SILVA", documento="12961172780",
+                 logradouro="RUA A", numero="1", bairro=bairro,
+                 cidade="VILA VELHA", uf="ES", cep="29100000")])
+        c.indexar()
+        return c
+
+    _b.mesclar(_cadastro("CENTRO"), origem="relatorio.pdf")
+    checar("reimportar o MESMO relatorio nao desfaz a correcao",
+           _b.clientes[0].bairro == "COBILANDIA", _b.clientes[0].bairro)
+    checar("nem o CEP corrigido", _b.clientes[0].cep == "29115000")
+
+    _b.mesclar(_cadastro("PRAIA DA COSTA"), origem="relatorio2.pdf")
+    checar("mas se arrumarem no TechCare, o valor de la volta a valer",
+           _b.clientes[0].bairro == "PRAIA DA COSTA",
+           "senao a correcao daqui congelaria o cadastro para sempre")
+
+    for _campos, _quem in (({"documento": "11111111111"}, "CPF invalido"),
+                           ({"nome": ""}, "nome vazio")):
+        try:
+            _b.editar(0, _campos, confere="12961172780")
+            checar("recusa %s" % _quem, False)
+        except ValueError as _e:
+            checar("recusa %s com frase em portugues" % _quem,
+                   len(str(_e)) > 20, str(_e)[:50])
+
+    try:
+        _b.editar(0, {"bairro": "X"}, confere="00000000191")
+        checar("recusa editar se a lista mudou", False)
+    except ValueError as _e:
+        checar("recusa editar se a tela via outro cadastro",
+               "Recarregue" in str(_e))
+finally:
+    _shutil.rmtree(_tmp, ignore_errors=True)
+
+# Busca por palavras em qualquer ordem. A base e montada aqui: o teste nao
+# pode depender de quem por acaso esta cadastrado na clinica.
+_bt = _bc.abrir(cfgmod.PASTA_DADOS, "gloria")
+_bt.clientes = [
+    _Cli(nome="PRISCILA SANTANA FERREIRA", documento="12961172780",
+         logradouro="RUA PORTO SEGURO", numero="330", bairro="JOAO GOULART",
+         cidade="VILA VELHA", uf="ES", cep="29127041"),
+    _Cli(nome="PRISCILA ALEIXO MULULO", documento="00000000191",
+         logradouro="RUA B", numero="2", bairro="CENTRO",
+         cidade="VILA VELHA", uf="ES", cep="29100000"),
+    _Cli(nome="JOAO SANTANA", documento="11144477735",
+         logradouro="RUA C", numero="3", bairro="CENTRO",
+         cidade="VILA VELHA", uf="ES", cep="29100000"),
+]
+_bt.salvar()
+
+_achados, _total = _bt.procurar("santana priscila")
+checar("busca acha com as palavras fora de ordem",
+       len(_achados) == 1 and _achados[0].nome.startswith("PRISCILA SANTANA"),
+       [c.nome for c in _achados])
+_achados, _ = _bt.procurar("129.611.727-80")
+checar("e acha pelo CPF com pontos",
+       len(_achados) == 1 and _achados[0].documento == "12961172780")
+_achados, _ = _bt.procurar("priscila")
+checar("quem comeca pelo termo vem antes",
+       _achados[0].nome.startswith("PRISCILA"), [c.nome for c in _achados])
+
+_r = cliente.get("/clientes/buscar?unidade=gloria&q=pris")
+checar("as sugestoes vem enquanto se digita", _r.status_code == 200
+       and len(_r.get_json()["resultados"]) > 0)
+checar("no maximo dez, com o total a parte",
+       len(_r.get_json()["resultados"]) <= 10
+       and _r.get_json()["total"] >= len(_r.get_json()["resultados"]))
+checar("termo curto demais nao dispara busca na base inteira",
+       cliente.get("/clientes/buscar?unidade=gloria&q=ab")
+       .get_json()["resultados"] == [])
+
+_js2 = io.open("web/static/app.js", encoding="utf-8").read()
+checar("da para descer na lista de sugestoes pelo teclado",
+       "ArrowDown" in _js2)
+checar("falha de rede na sugestao nao assusta ninguem",
+       "Sugestao e conveniencia" in _js2 or "conveniencia" in _js2)
+
+_html_cli = io.open("web/templates/clientes.html", encoding="utf-8").read()
+checar("da para corrigir o cadastro pela tela", "editar_cliente" in _html_cli)
+checar("e a tela avisa que a correcao sobrevive a proxima importacao",
+       "não é desfeita" in _html_cli)
+
+_html_tr2 = io.open("web/templates/transmissao.html", encoding="utf-8").read()
+checar("depois de transmitir, a tela diz o que fazer com as notas",
+       "O que fazer com" in _html_tr2)
+checar("com o nome do paciente, nao so o numero do DPS",
+       "n.paciente" in _html_tr2)
+# O PDF abre no visualizador do navegador, que ja tem imprimir e salvar.
+# Baixar direto obrigava a achar o arquivo na pasta so para entao decidir o
+# que fazer com ele.
+_r_pdf = cliente.get("/paciente/pdf?documento=12961172780&unidade=gloria")
+if _r_pdf.status_code == 200:
+    checar("o PDF abre na tela em vez de baixar direto",
+           "inline" in (_r_pdf.headers.get("Content-Disposition") or ""),
+           _r_pdf.headers.get("Content-Disposition"))
+    checar("e mesmo assim leva o nome certo para a hora de salvar",
+           "filename=" in (_r_pdf.headers.get("Content-Disposition") or ""))
+
+checar("e com os botoes de imprimir, PDF e WhatsApp",
+       "imprimir_nota" in _html_tr2 and "xml_oficial" in _html_tr2
+       and "n.whatsapp" in _html_tr2)
+
+# --------------------------------------------------------------------------
 # O DANFSe no leiaute oficial.
 #
 # Ele nao e um arquivo que a prefeitura guarda e entrega: e uma

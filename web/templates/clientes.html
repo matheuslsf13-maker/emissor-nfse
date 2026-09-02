@@ -18,8 +18,9 @@
     <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">
       <label style="flex:1;min-width:230px">
         <span style="display:block;font-size:13.5px;margin-bottom:5px">Nome ou CPF</span>
-        <input type="text" name="q" value="{{ termo }}" autocomplete="off"
-               placeholder="parte do nome, ou os números do CPF"
+        <input type="text" name="q" id="busca-cliente" value="{{ termo }}"
+               autocomplete="off"
+               placeholder="comece a digitar o nome ou o CPF"
                style="width:100%">
       </label>
       <label>
@@ -71,6 +72,19 @@
   {% endif %}
 </div>
 
+{% if editado %}
+<div class="faixa bom" style="margin-top:16px">
+  <span class="icone">✓</span>
+  <div><b>Cadastro corrigido</b><p>{{ editado }}</p></div>
+</div>
+{% endif %}
+{% if erro_edicao %}
+<div class="faixa erro" style="margin-top:16px">
+  <span class="icone">■</span>
+  <div><b>Não deu para corrigir</b><p>{{ erro_edicao }}</p></div>
+</div>
+{% endif %}
+
 {% if termo or filtro %}
   {% if achados %}
   <p class="legenda" style="margin-top:16px">
@@ -85,10 +99,11 @@
   <div class="moldura-tabela">
     <table>
       <thead>
-        <tr><th>Paciente</th><th>CPF / CNPJ</th><th>Endereço</th><th>Falta</th></tr>
+        <tr><th>Paciente</th><th>CPF / CNPJ</th><th>Endereço</th><th>Falta</th>
+            <th></th></tr>
       </thead>
       <tbody>
-        {% for c in achados %}
+        {% for indice, c in achados %}
         <tr>
           <td><b>{{ c.nome }}</b>
             {% if c.nascimento %}
@@ -129,6 +144,101 @@
             {% if c.documento_ok and c.logradouro and c.bairro and c.cep %}
             <span class="selo bom">completo</span>
             {% endif %}
+            {% if c.manual %}
+            <span class="selo neutro" title="Campos corrigidos aqui: {{ c.manual.keys() | join(', ') }}">
+              corrigido</span>
+            {% endif %}
+          </td>
+          <td style="text-align:right;white-space:nowrap">
+            <button type="button" class="botao pequeno secundario"
+                    onclick="abrirEdicao({{ indice }})">corrigir</button>
+          </td>
+        </tr>
+
+        {# A ficha de edicao fica na propria tabela, na linha de baixo:
+           assim o operador ve o que esta mudando sem perder de vista o
+           resto da lista. #}
+        <tr id="edicao-{{ indice }}" style="display:none">
+          <td colspan="5" style="background:var(--fundo)">
+            <form method="post" action="{{ url_for('editar_cliente') }}">
+              <input type="hidden" name="unidade" value="{{ unidade }}">
+              <input type="hidden" name="indice" value="{{ indice }}">
+              <input type="hidden" name="confere" value="{{ c.documento }}">
+              <input type="hidden" name="q" value="{{ termo }}">
+              <input type="hidden" name="filtro" value="{{ filtro }}">
+
+              <div style="display:grid;gap:10px;
+                   grid-template-columns:repeat(auto-fit,minmax(150px,1fr))">
+                <label style="grid-column:1/-1">
+                  <span class="rotulo-campo">Nome</span>
+                  <input type="text" name="nome" value="{{ c.nome }}"
+                         style="width:100%">
+                </label>
+                <label>
+                  <span class="rotulo-campo">CPF / CNPJ</span>
+                  <input type="text" name="documento" value="{{ c.documento }}"
+                         style="width:100%" placeholder="com ou sem pontos">
+                </label>
+                <label>
+                  <span class="rotulo-campo">Nascimento</span>
+                  <input type="text" name="nascimento"
+                         value="{{ c.nascimento }}" style="width:100%">
+                </label>
+                <label>
+                  <span class="rotulo-campo">Telefone</span>
+                  <input type="text" name="fone" value="{{ c.fone }}"
+                         style="width:100%">
+                </label>
+                <label style="grid-column:1/-1">
+                  <span class="rotulo-campo">Logradouro</span>
+                  <input type="text" name="logradouro"
+                         value="{{ c.logradouro }}" style="width:100%">
+                </label>
+                <label>
+                  <span class="rotulo-campo">Número</span>
+                  <input type="text" name="numero" value="{{ c.numero }}"
+                         style="width:100%">
+                </label>
+                <label>
+                  <span class="rotulo-campo">Bairro</span>
+                  <input type="text" name="bairro" value="{{ c.bairro }}"
+                         style="width:100%">
+                </label>
+                <label>
+                  <span class="rotulo-campo">Cidade</span>
+                  <input type="text" name="cidade" value="{{ c.cidade }}"
+                         style="width:100%">
+                </label>
+                <label>
+                  <span class="rotulo-campo">UF</span>
+                  <input type="text" name="uf" value="{{ c.uf }}"
+                         maxlength="2" style="width:100%">
+                </label>
+                <label>
+                  <span class="rotulo-campo">CEP</span>
+                  <input type="text" name="cep" value="{{ c.cep }}"
+                         style="width:100%">
+                </label>
+                <label style="grid-column:1/-1">
+                  <span class="rotulo-campo">E-mail</span>
+                  <input type="text" name="email" value="{{ c.email }}"
+                         style="width:100%">
+                </label>
+              </div>
+
+              <div style="display:flex;gap:10px;align-items:center;
+                   flex-wrap:wrap;margin-top:12px">
+                <button class="botao" type="submit">Salvar correção</button>
+                <button type="button" class="botao secundario"
+                        onclick="abrirEdicao({{ indice }})">cancelar</button>
+                <span style="color:var(--tinta-fraca);font-size:13px;flex:1;
+                             min-width:220px">
+                  A correção fica guardada e <b>não é desfeita</b> quando o
+                  relatório do TechCare vier de novo. Se lá for arrumado com
+                  outro valor, o de lá volta a valer.
+                </span>
+              </div>
+            </form>
           </td>
         </tr>
         {% endfor %}
@@ -261,4 +371,30 @@
   <a href="{{ url_for('ajuda') }}">Como usar →</a>
 </nav>
 
+{% endblock %}
+
+{% block scripts %}
+<script>
+  // Na tela de clientes, escolher uma sugestao busca por CPF: e unico, e
+  // leva direto a pessoa certa mesmo com dez homonimos.
+  sugerirPaciente("busca-cliente", {
+    aoEscolher: function (c, campo) { campo.value = c.documento || c.nome; },
+  });
+
+  function abrirEdicao(indice) {
+    var linha = document.getElementById("edicao-" + indice);
+    if (!linha) return;
+    var abrindo = linha.style.display === "none";
+    // Uma ficha por vez: duas abertas empurram a lista e o operador perde
+    // de vista qual esta corrigindo.
+    document.querySelectorAll("tr[id^='edicao-']").forEach(function (l) {
+      l.style.display = "none";
+    });
+    linha.style.display = abrindo ? "table-row" : "none";
+    if (abrindo) {
+      var campo = linha.querySelector("input[name='nome']");
+      if (campo) { campo.focus(); campo.select(); }
+    }
+  }
+</script>
 {% endblock %}

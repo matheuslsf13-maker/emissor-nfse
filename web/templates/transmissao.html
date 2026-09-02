@@ -123,6 +123,65 @@
   </div></div>
   {% endif %}
 
+  {# A pergunta seguinte a "transmitiu?" e "e agora?". Antes a tela parava
+     em "DPS n 3 aceita" -- numero de documento interno, que nao diz de quem
+     e a nota nem o que fazer com ela. #}
+  {% if entregar %}
+  <h2>Pronto. O que fazer com {{ 'esta nota' if entregar | length == 1 else 'estas notas' }}</h2>
+  <div class="moldura-tabela">
+    <table>
+      <thead>
+        <tr><th style="width:80px">Nota nº</th><th>Paciente</th>
+            <th style="width:90px" class="num">Valor</th><th></th></tr>
+      </thead>
+      <tbody>
+        {% for n in entregar %}
+        <tr>
+          <td><b>{{ n.numero_nota or '—' }}</b></td>
+          <td>
+            <b>{{ n.paciente or '—' }}</b>
+            {% if n.documento %}
+            <div class="mono" style="color:var(--tinta-fraca);font-size:12px">
+              {{ n.documento | documento }}</div>
+            {% endif %}
+          </td>
+          <td class="num">{{ n.valor | dinheiro }}</td>
+          <td style="text-align:right;white-space:nowrap">
+            {% if n.chave %}
+            <a class="botao pequeno"
+               href="{{ url_for('imprimir_nota', chave=n.chave) }}">
+              ver / imprimir
+            </a>
+            {% if n.producao %}
+            <a class="botao pequeno secundario"
+               href="{{ url_for('xml_oficial', chave=n.chave) }}">
+              abrir PDF
+            </a>
+            {% endif %}
+            {% endif %}
+            {% if n.whatsapp %}
+            <a class="botao pequeno secundario" href="{{ n.whatsapp }}"
+               target="_blank" rel="noopener"
+               title="Abre a conversa com a mensagem pronta. Você confere e envia.">
+              WhatsApp
+            </a>
+            {% elif n.producao %}
+            <span style="color:var(--tinta-fantasma);font-size:12.5px"
+                  title="Sem telefone válido no cadastro">sem telefone</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <p class="legenda" style="margin-top:10px">
+    <b>Abrir PDF</b> mostra o DANFSe no leiaute da prefeitura, de onde dá
+    para imprimir ou salvar para mandar ao paciente. <b>WhatsApp</b> abre a conversa com a mensagem escrita — você
+    confere e envia, nada sai sozinho.
+  </p>
+  {% endif %}
+
   <div class="numeros">
     <div class="numero destaque">
       <div class="rotulo">Aceitas</div>

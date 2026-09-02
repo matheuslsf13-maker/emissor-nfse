@@ -40,7 +40,7 @@
     {% endif %}
     {% if d.ambiente == '1' %}
     <a class="botao" href="{{ url_for('xml_oficial', chave=d.chave) }}">
-      Baixar NFS-e (PDF oficial)
+      Abrir NFS-e (imprimir ou salvar)
     </a>
     <a class="botao secundario"
        href="{{ url_for('xml_oficial', chave=d.chave, formato='xml') }}">
@@ -55,11 +55,11 @@
     <div>
       <b>Qual arquivo mandar para quem</b>
       <p>
-        <b>Baixar NFS-e (PDF oficial)</b> monta o DANFSe no leiaute da
-        prefeitura, com os dados que a Receita guarda — é o documento a
-        mandar para o paciente. <b>Baixar XML</b> traz a nota assinada, que
-        é o que o contador arquiva. A página abaixo é só a conferência
-        rápida na tela.
+        <b>Abrir NFS-e</b> monta o DANFSe no leiaute da prefeitura, com os
+        dados que a Receita guarda, e abre na tela — de lá dá para
+        <b>imprimir</b> ou <b>salvar em PDF</b> para mandar ao paciente.
+        <b>Baixar XML</b> traz a nota assinada, que é o que o contador
+        arquiva. A página abaixo é só a conferência rápida.
       </p>
     </div>
   </div>

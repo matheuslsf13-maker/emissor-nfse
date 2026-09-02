@@ -185,6 +185,134 @@ function filtrarTabela(idCampo, idTabela) {
 }
 
 /* --------------------------------------------------------------------------
+   Sugestao de paciente enquanto se digita.
+
+   Digitar o nome inteiro e apertar Procurar so para descobrir que a grafia
+   do cadastro era outra e trabalho repetido -- e com quase doze mil pessoas
+   na base, a grafia raramente e a que se imagina. Aqui as opcoes vao
+   aparecendo, e escolher uma preenche o campo e envia o formulario.
+
+   `opcoes.aoEscolher(cliente, campo)` permite decidir o que preencher: a
+   tela de clientes quer o nome, a de notas quer o CPF (que e unico).
+   -------------------------------------------------------------------------- */
+
+function sugerirPaciente(idCampo, opcoes) {
+  const campo = document.getElementById(idCampo);
+  if (!campo) return;
+  opcoes = opcoes || {};
+
+  const caixa = document.createElement("div");
+  caixa.className = "resultados-busca";
+  caixa.style.marginTop = "6px";
+  campo.insertAdjacentElement("afterend", caixa);
+
+  function unidade() {
+    if (opcoes.unidade) return opcoes.unidade;
+    // A unidade sai do proprio formulario: trocar de clinica no seletor tem
+    // que trocar as sugestoes junto.
+    const sel = campo.form && campo.form.querySelector("[name='unidade']");
+    return sel ? sel.value : "";
+  }
+
+  function fechar() { caixa.innerHTML = ""; }
+
+  function escolher(cliente) {
+    if (opcoes.aoEscolher) {
+      opcoes.aoEscolher(cliente, campo);
+    } else {
+      campo.value = cliente.nome;
+    }
+    fechar();
+    if (opcoes.enviar !== false && campo.form) campo.form.submit();
+  }
+
+  let timer = null;
+  let pedido = 0;
+
+  campo.addEventListener("input", () => {
+    clearTimeout(timer);
+    const termo = campo.value.trim();
+    if (termo.length < 3) { fechar(); return; }
+    timer = setTimeout(async () => {
+      const meu = ++pedido;
+      let d;
+      try {
+        const r = await fetch("/clientes/buscar?unidade=" +
+                              encodeURIComponent(unidade()) +
+                              "&q=" + encodeURIComponent(termo));
+        if (!r.ok) throw new Error("HTTP " + r.status);
+        d = await r.json();
+      } catch (e) {
+        // Sugestao e conveniencia: se falhar, o formulario normal continua
+        // funcionando e nao vale assustar ninguem com um alerta.
+        fechar();
+        return;
+      }
+      if (meu !== pedido) return;
+
+      const achados = (d && d.resultados) || [];
+      if (!achados.length) { fechar(); return; }
+
+      caixa.innerHTML = "";
+      achados.forEach((c) => {
+        const item = document.createElement("div");
+        item.className = "achado sugestao";
+        item.tabIndex = 0;
+
+        const info = document.createElement("div");
+        info.className = "info";
+        const nome = document.createElement("b");
+        nome.textContent = c.nome;
+        info.appendChild(nome);
+        const linha = document.createElement("div");
+        linha.className = "endereco";
+        linha.textContent = c.documento_formatado +
+          (c.valido ? "" : " · CPF inválido") +
+          (c.endereco ? " · " + c.endereco : "");
+        info.appendChild(linha);
+        item.appendChild(info);
+
+        item.onclick = () => escolher(c);
+        item.onkeydown = (e) => {
+          if (e.key === "Enter" || e.key === " ") { e.preventDefault(); escolher(c); }
+        };
+        caixa.appendChild(item);
+      });
+
+      if (d.total > achados.length) {
+        const mais = document.createElement("div");
+        mais.className = "achado-aviso";
+        mais.textContent = "e mais " + (d.total - achados.length) +
+                           ". Escreva mais para reduzir a lista.";
+        caixa.appendChild(mais);
+      }
+    }, 220);
+  });
+
+  campo.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") { fechar(); return; }
+    // Seta para baixo entra na lista: quem digita rapido nao quer soltar o
+    // teclado para pegar o mouse.
+    if (e.key === "ArrowDown") {
+      const primeiro = caixa.querySelector(".sugestao");
+      if (primeiro) { e.preventDefault(); primeiro.focus(); }
+    }
+  });
+  caixa.addEventListener("keydown", (e) => {
+    const itens = Array.from(caixa.querySelectorAll(".sugestao"));
+    const atual = itens.indexOf(document.activeElement);
+    if (e.key === "ArrowDown" && atual < itens.length - 1) {
+      e.preventDefault(); itens[atual + 1].focus();
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      if (atual > 0) itens[atual - 1].focus(); else campo.focus();
+    } else if (e.key === "Escape") {
+      fechar(); campo.focus();
+    }
+  });
+}
+
+/* --------------------------------------------------------------------------
    Resolucao de pendencia: apontar qual cadastro e o certo.
 
    Esta busca nao dava sinal de vida: digitava-se e, se nada aparecesse, nao
@@ -292,12 +420,10 @@ function prepararBusca(loteId, ficha, lancamentos) {
     }, 250);
   });
 
-  // Clicar fora fecha a lista: ela flutua sobre o resto da pagina.
-  document.addEventListener("click", (e) => {
-    if (!campo.contains(e.target) && !caixa.contains(e.target)) {
-      caixa.innerHTML = "";
-    }
-  });
+  // A lista NAO fecha ao clicar fora. Ela fica no fluxo da ficha, sem tapar
+  // nada, e fechar sozinha so faria o operador perder o resultado que
+  // acabou de achar por ter clicado no lugar errado. Esc limpa, e apagar o
+  // campo tambem.
   campo.addEventListener("keydown", (e) => {
     if (e.key === "Escape") { caixa.innerHTML = ""; campo.blur(); }
   });

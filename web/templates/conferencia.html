@@ -298,20 +298,24 @@
       {% endfor %}
       {% endif %}
 
-      <label class="busca-caixa" style="display:block;margin-top:12px">
-        <span style="display:block;font-size:13px;color:var(--tinta-fraca);
-                     margin-bottom:5px">
+      {# Um <div>, e nao um <label> em volta de tudo: dentro de um label,
+         clicar num resultado devolvia o foco ao campo de busca em vez de
+         acionar o botao. O rotulo aponta para o campo pelo `for`. #}
+      <div class="busca-caixa" style="margin-top:12px">
+        <label for="busca-{{ g.chave }}"
+               style="display:block;font-size:13px;color:var(--tinta-fraca);
+                      margin-bottom:5px">
           {% if g.candidatos and not g.tem_util %}
           Procure o cadastro certo desta pessoa:
           {% else %}
           Não é nenhum deles? Procure por nome ou CPF:
           {% endif %}
-        </span>
+        </label>
         <input type="search" id="busca-{{ g.chave }}"
                placeholder="nome, ou CPF com ou sem pontos" style="width:100%"
                autocomplete="off">
         <div class="resultados-busca" id="resultados-{{ g.chave }}"></div>
-      </label>
+      </div>
     </div>
   </div>
   {% endfor %}

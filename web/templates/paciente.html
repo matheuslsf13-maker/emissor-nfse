@@ -15,8 +15,10 @@
     <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">
       <label style="flex:1;min-width:240px">
         <span style="display:block;font-size:13.5px;margin-bottom:5px">Nome ou CPF do paciente</span>
-        <input type="text" name="q" value="{{ termo }}" autocomplete="off"
-               placeholder="parte do nome, ou o CPF completo" style="width:100%">
+        <input type="text" name="q" id="busca-notas" value="{{ termo }}"
+               autocomplete="off"
+               placeholder="comece a digitar o nome ou o CPF"
+               style="width:100%">
       </label>
       <label>
         <span style="display:block;font-size:13.5px;margin-bottom:5px">Clínica</span>
@@ -113,15 +115,16 @@
 
   <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px;align-items:center">
     <button class="botao" type="submit">
-      Baixar PDF <span id="quantas-pdf"></span>
+      Abrir PDF <span id="quantas-pdf"></span>
     </button>
     <button type="button" class="botao secundario"
             onclick="marcarNotas(true)">marcar todas</button>
     <button type="button" class="botao secundario"
             onclick="marcarNotas(false)">desmarcar</button>
     <span style="color:var(--tinta-fraca);font-size:13.5px">
-      Sai no leiaute da prefeitura, nomeado com o paciente — pronto para
-      anexar. Com muitas notas, leva alguns segundos.
+      Abre na tela, no leiaute da prefeitura: de lá você imprime ou salva.
+      O arquivo já sai nomeado com o paciente. Com muitas notas, leva
+      alguns segundos.
     </span>
   </div>
 
@@ -187,6 +190,12 @@
 
 {% block scripts %}
 <script>
+  // Escolher a sugestao preenche o CPF e ja abre as notas da pessoa: e o
+  // que se quer em todo caso, e evita a tela intermediaria "qual deles".
+  sugerirPaciente("busca-notas", {
+    aoEscolher: function (c, campo) { campo.value = c.documento || c.nome; },
+  });
+
   function contarNotas() {
     var n = document.querySelectorAll(".nota-escolhida:checked").length;
     var total = document.querySelectorAll(".nota-escolhida").length;

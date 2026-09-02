@@ -68,6 +68,12 @@ class Cliente:
     ficha: str = ""
     pagina: int = 0
 
+    # Campos corrigidos a mao na tela de clientes: {campo: valor que o
+    # TechCare mandava quando a correcao foi feita}. Serve para a proxima
+    # importacao nao desfazer a correcao -- e para aceita-la de volta se o
+    # TechCare passar a mandar coisa diferente, sinal de que foi arrumado la.
+    manual: dict = field(default_factory=dict)
+
     @property
     def chave(self) -> str:
         return chave_nome(self.nome)

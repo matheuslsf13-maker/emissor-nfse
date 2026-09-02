@@ -167,6 +167,21 @@ conferir a primeira nota de produção.
 
 A tela também lista as últimas notas transmitidas — é só clicar na chave.
 
+### Corrigir o cadastro de um paciente
+
+Na aba **Clientes**, comece a digitar o nome ou o CPF — as pessoas vão
+aparecendo embaixo do campo; clique na certa. Depois use o botão
+**corrigir** na linha dela.
+
+Dá para arrumar nome, CPF, endereço, CEP, telefone e e-mail.
+
+> **A correção não é desfeita** quando o relatório do TechCare vier de novo.
+> Se um dia arrumarem lá com outro valor, o do TechCare volta a valer — que
+> é o certo, porque significa que a origem foi corrigida.
+
+O CPF é conferido na hora: se for inválido, a correção é recusada, porque a
+prefeitura recusaria a nota.
+
 ### Escolher quais notas transmitir
 
 Na tela de transmitir, três opções:
@@ -179,6 +194,10 @@ Na tela de transmitir, três opções:
 > É assim que se emite **uma nota de teste**: escolha quais, filtre pelo
 > paciente, marque uma, transmita. As já aceitas aparecem marcadas e não
 > podem ser reenviadas.
+
+Depois de transmitir, aparece **o que fazer com as notas**: uma linha por
+nota aceita, com o nome do paciente, o número, e os botões para abrir o PDF
+(imprimir ou salvar) e chamar no WhatsApp.
 
 ### Quando um lançamento fica travado
 

@@ -27,7 +27,7 @@ import os
 from dataclasses import asdict
 from datetime import datetime
 
-from .documentos import documento_valido
+from .documentos import documento_valido, formatar_documento
 from .leitor_clientes import Cadastro, Cliente
 from .util import chave_nome, so_digitos
 
@@ -77,6 +77,7 @@ def _mudou(antigo, novo) -> list:
     """
     campos = ("documento", "logradouro", "numero", "bairro", "cidade", "uf",
               "cep", "email", "fone", "nascimento", "situacao")
+    manual = getattr(antigo, "manual", None) or {}
     diferencas = []
     for campo in campos:
         valor_novo = getattr(novo, campo, "") or ""
@@ -86,6 +87,12 @@ def _mudou(antigo, novo) -> list:
         if campo == "documento":
             if documento_valido(valor_antigo) and not documento_valido(valor_novo):
                 continue
+        # Campo corrigido a mao: se o TechCare continua mandando o MESMO
+        # valor de antes, a correcao permanece -- desfaze-la a cada
+        # importacao tornaria a edicao inutil. Se ele passou a mandar outra
+        # coisa, foi arrumado la e o valor de la volta a valer.
+        if campo in manual and valor_novo == manual[campo]:
+            continue
         diferencas.append((campo, valor_antigo, valor_novo))
     return diferencas
 
@@ -221,8 +228,13 @@ class BaseClientes:
 
         `filtro`: sem_documento | sem_endereco | sem_cep  (vazio = todos).
         """
-        alvo_termo = chave_nome(termo or "")
+        # Palavras soltas, em qualquer ordem: quem digita "santana priscila"
+        # quer achar "PRISCILA SANTANA FERREIRA". Exigir a frase inteira na
+        # ordem certa fazia a busca falhar justamente em nome comprido, que
+        # e onde ela mais serve.
+        palavras = [p for p in chave_nome(termo or "").split() if p]
         digitos = so_digitos(termo or "")
+
         achados = []
         for cliente in self.clientes:
             if filtro == "sem_documento" and cliente.documento_ok:
@@ -231,13 +243,93 @@ class BaseClientes:
                 continue
             if filtro == "sem_cep" and so_digitos(cliente.cep or ""):
                 continue
-            if alvo_termo and alvo_termo not in chave_nome(cliente.nome):
-                if not (digitos and digitos in so_digitos(cliente.documento or "")):
+            if palavras:
+                nome = chave_nome(cliente.nome)
+                bate_nome = all(palavra in nome for palavra in palavras)
+                bate_doc = bool(
+                    digitos and digitos in so_digitos(cliente.documento or ""))
+                if not (bate_nome or bate_doc):
                     continue
             achados.append(cliente)
-        # O nome ordena melhor do que a ordem de importação para quem procura.
-        achados.sort(key=lambda c: chave_nome(c.nome))
+
+        # Quem começa pelo que foi digitado vem antes: e quase sempre a
+        # pessoa procurada. Depois, ordem alfabetica.
+        inicio = palavras[0] if palavras else ""
+        achados.sort(key=lambda c: (not chave_nome(c.nome).startswith(inicio),
+                                    chave_nome(c.nome)))
         return achados[:limite], len(achados)
+
+    # -- correcao a mao ----------------------------------------------------
+    CAMPOS_EDITAVEIS = ("nome", "documento", "logradouro", "numero",
+                        "bairro", "cidade", "uf", "cep", "email", "fone",
+                        "nascimento")
+
+    def por_indice(self, indice: int):
+        """O cliente na posicao, ou None. A lista so cresce no fim."""
+        if 0 <= indice < len(self.clientes):
+            return self.clientes[indice]
+        return None
+
+    def editar(self, indice: int, campos: dict, confere: str = "") -> dict:
+        """Corrige o cadastro a mao, e guarda que foi a mao.
+
+        O cadastro vem do TechCare e o certo e corrigir la. Mas nem sempre
+        da: quem opera aqui pode nao ter acesso, ou o erro pode ter sido
+        cometido aqui mesmo. Sem esta tela, um cadastro errado so se
+        arrumava esperando outra pessoa.
+
+        Cada campo alterado fica marcado em `manual` com o valor que o
+        TechCare mandava. Assim a proxima importacao nao desfaz a correcao,
+        e se o TechCare passar a mandar coisa diferente -- sinal de que foi
+        arrumado la -- o valor de la volta a valer.
+
+        `confere` e o documento que a tela viu quando abriu. Se nao bater, a
+        lista mudou no meio do caminho e a edicao e recusada em vez de cair
+        na pessoa errada.
+        """
+        cliente = self.por_indice(indice)
+        if cliente is None:
+            raise ValueError("Esse cadastro não existe mais nesta base.")
+        if confere and so_digitos(confere) != so_digitos(cliente.documento or ""):
+            raise ValueError(
+                "O cadastro mudou desde que a tela foi aberta. Recarregue e "
+                "tente de novo — assim a correção não cai na pessoa errada.")
+
+        mudancas = []
+        for campo, valor in campos.items():
+            if campo not in self.CAMPOS_EDITAVEIS:
+                continue
+            valor = (valor or "").strip()
+            if campo in ("documento", "cep", "fone"):
+                valor = so_digitos(valor)
+            if campo == "uf":
+                valor = valor.upper()[:2]
+            antigo = getattr(cliente, campo, "") or ""
+            if valor == antigo:
+                continue
+            if campo == "nome" and not valor:
+                raise ValueError("O nome não pode ficar vazio.")
+            if campo == "documento" and valor and not documento_valido(valor):
+                raise ValueError(
+                    "%s não é um CPF/CNPJ válido. A prefeitura recusaria a "
+                    "nota." % formatar_documento(valor))
+            cliente.manual = dict(getattr(cliente, "manual", None) or {})
+            cliente.manual[campo] = antigo
+            setattr(cliente, campo, valor)
+            mudancas.append({"campo": campo, "de": antigo or "(vazio)",
+                             "para": valor or "(vazio)"})
+
+        if mudancas:
+            self.historico.append({
+                "em": datetime.now().isoformat(timespec="seconds"),
+                "origem": "correção manual",
+                "manual": True,
+                "cliente": cliente.nome,
+                "mudancas": mudancas,
+                "total_depois": self.total,
+            })
+            self.salvar()
+        return {"mudancas": mudancas, "cliente": cliente}
 
     def pendencias(self) -> dict:
         """Quantos estão incompletos, por tipo de falta."""
