@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+{% block titulo %}Consertar a numeração{% endblock %}
+{% block conteudo %}
+
+<h1>Consertar a numeração</h1>
+<p class="legenda">
+  A prefeitura recusou porque <b>os números destas notas já existem lá</b>.
+  Isso não se resolve mexendo na nota: é preciso avançar a numeração e gerar
+  de novo. Esta tela faz as duas coisas de uma vez.
+</p>
+
+{% if erro %}
+<div class="faixa erro">
+  <span class="icone">■</span>
+  <div><b>Não deu para consertar</b><p>{{ erro }}</p></div>
+</div>
+{% endif %}
+
+<div class="faixa info">
+  <span class="icone">›</span>
+  <div>
+    <b>Por que isso acontece</b>
+    <p>
+      O sistema guarda o último número usado. Se esse controle se perde — ou
+      se <b>outro computador</b> emitiu pela mesma clínica — ele recomeça de
+      um número que a prefeitura já registrou, e ela recusa tudo.
+    </p>
+  </div>
+</div>
+
+<div class="cartao" style="margin-top:16px">
+  <h3 style="margin-top:0">O que vai acontecer</h3>
+  <ol style="margin:0 0 18px;padding-left:20px;line-height:1.9">
+    <li>
+      As <b>{{ quantos }}</b> nota(s) desta pasta são descartadas e os
+      lançamentos voltam a ficar livres para gerar.
+      <div style="color:var(--tinta-fraca);font-size:13.5px">
+        Nota que a prefeitura <b>aceitou</b> nunca é descartada — ela existe
+        do lado de lá, e apagar o registro aqui criaria uma segunda nota para
+        o mesmo atendimento.
+      </div>
+    </li>
+    <li>
+      A numeração de <b>{{ apelido }}</b>
+      <span class="selo {{ 'ruim' if ambiente == 'producao' else 'neutro' }}"
+            style="font-size:11px">{{ ambiente }}</span>
+      passa a continuar do número que você informar abaixo.
+    </li>
+    <li>Você gera as notas de novo — elas saem com números livres.</li>
+  </ol>
+
+  <form method="post">
+    <div style="display:flex;gap:14px;align-items:flex-end;flex-wrap:wrap">
+      <label>
+        <span class="rotulo-campo">
+          Último número que a prefeitura já tem
+        </span>
+        <input type="number" name="ultimo" value="{{ sugerido }}" min="1"
+               style="width:170px;font-size:17px" required autofocus>
+      </label>
+      <button class="botao" type="submit">
+        Consertar e liberar para gerar
+      </button>
+    </div>
+
+    <p style="color:var(--tinta-fraca);font-size:13.5px;margin:12px 0 0;
+              max-width:70ch">
+      {% if sugerido > atual %}
+      Sugerimos <b>{{ sugerido }}</b> porque foi o maior número que a
+      prefeitura acabou de recusar — ou seja, ela confirmou que esse já
+      existe do lado dela. Aqui o controle estava em {{ atual }}.
+      {% else %}
+      Aqui o controle está em <b>{{ atual }}</b>. Se a prefeitura tem número
+      maior, ponha o dela.
+      {% endif %}
+    </p>
+
+    <p style="color:var(--tinta-fraca);font-size:13.5px;margin:8px 0 0;
+              max-width:70ch">
+      <b>Onde ver o número certo:</b> na última nota que a clínica emitiu —
+      pelo portal da prefeitura, ou pelo outro computador, em
+      <b>Configuração → Comparar com outro computador</b>. Na dúvida, use um
+      número um pouco maior: <b>buraco na sequência não é problema</b>, número
+      repetido é.
+    </p>
+  </form>
+</div>
+
+<nav class="rodape-nav">
+  <a href="{{ url_for('tela_transmitir', pasta=pasta) }}">← Voltar sem mexer</a>
+  <a href="{{ url_for('inicio') }}">Ir para o início →</a>
+</nav>
+{% endblock %}

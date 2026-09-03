@@ -145,6 +145,30 @@
 </div>
 
 <h2>Numeração das notas</h2>
+
+{# Duas maquinas emitindo pela mesma clinica e o caminho mais rapido para o
+   E0014: cada uma acha que o proximo numero e o dela. Este bloco existe
+   para conferir a distancia entre elas sem precisar mexer em arquivo --
+   quem esta na clinica copia o texto e manda; quem esta do outro lado
+   compara com o proprio. #}
+<div class="cartao" style="margin-bottom:16px">
+  <h3 style="margin-top:0">Comparar com outro computador</h3>
+  <p style="color:var(--tinta-fraca);font-size:14px;margin-top:0">
+    Se o sistema roda em mais de uma máquina, <b>só uma pode emitir</b> —
+    a numeração de cada uma anda sozinha, e a prefeitura recusa número
+    repetido. Copie o texto abaixo e compare com o da outra.
+  </p>
+  <pre id="situacao-numeracao" class="mono-bloco"
+       style="white-space:pre-wrap;font-size:12.5px">{% for chave, u in cfg.unidades.items() %}{{ u.apelido }}
+{%- for amb in ['producao', 'homologacao'] %}
+  {{ amb }}: último nº {{ resumo_controle.por_ambiente.get(chave, {}).get(amb, 0) }}
+{%- endfor %}
+{% endfor %}Total emitidas: {{ resumo_controle.emitidas }} · transmitidas: {{ resumo_controle.transmitidas }}
+Nesta máquina, em {{ agora }}</pre>
+  <button type="button" class="botao pequeno secundario"
+          onclick="copiarSituacao(this)">Copiar para mandar</button>
+</div>
+
 <div class="cartao">
   <div class="faixa atencao" style="margin-bottom:16px">
     <span class="icone">▲</span>
@@ -427,4 +451,25 @@
   <a href="{{ url_for('ajuda') }}">Como usar →</a>
 </nav>
 
+{% endblock %}
+
+{% block scripts %}
+<script>
+  function copiarSituacao(botao) {
+    var texto = document.getElementById("situacao-numeracao").textContent;
+    navigator.clipboard.writeText(texto).then(function () {
+      botao.textContent = "copiado ✓";
+      setTimeout(function () { botao.textContent = "Copiar para mandar"; },
+                 2200);
+    }).catch(function () {
+      var alvo = document.getElementById("situacao-numeracao");
+      var faixa = document.createRange();
+      faixa.selectNodeContents(alvo);
+      var sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(faixa);
+      botao.textContent = "selecionado — use Ctrl+C";
+    });
+  }
+</script>
 {% endblock %}

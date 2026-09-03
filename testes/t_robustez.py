@@ -1203,6 +1203,105 @@ checar("a tela de notas do paciente lista todos quando nao ha busca",
            "web/templates/paciente.html", encoding="utf-8").read())
 
 # --------------------------------------------------------------------------
+# Listas quilometricas depois de transmitir.
+#
+# Um lote de 444 notas recusadas pelo mesmo erro virava 444 cartoes
+# identicos: chegar ao fim da pagina levava minutos de rolagem, e a
+# informacao util -- qual erro, quantas pegou -- estava repetida em cada um.
+import types as _tp  # noqa: E402
+
+def _recusa(dps, erro):
+    return _tp.SimpleNamespace(numero_dps=str(dps), erro=erro, mensagem="",
+                               arquivo="%05d.xml" % dps, http=200,
+                               na_fila=False, aceita=False, bruto="<x/>",
+                               numero_nota="", chave_acesso="",
+                               codigo_verificacao="")
+
+_muitas = _tp.SimpleNamespace(recusadas=(
+    [_recusa(i, "Numero de DPS %d ja existe (E0014)" % (8000 + i))
+     for i in range(1, 401)]
+    + [_recusa(i, "Erro na assinatura") for i in range(401, 441)]))
+_grupos = appmod.agrupar_recusas(_muitas)
+checar("440 recusas viram 2 blocos, e nao 440 cartoes",
+       len(_grupos) == 2, len(_grupos))
+checar("o maior grupo vem primeiro",
+       _grupos[0]["quantas"] == 400 and _grupos[1]["quantas"] == 40)
+checar("numeros diferentes no mesmo erro caem no mesmo balde",
+       "8001" in _grupos[0]["motivo"],
+       "o motivo mostrado e o de uma delas, mas agrupa todas")
+checar("sem recusa nenhuma, nenhum bloco",
+       appmod.agrupar_recusas(_tp.SimpleNamespace(recusadas=[])) == [])
+checar("recusa sem mensagem nao some da conta",
+       appmod.agrupar_recusas(_tp.SimpleNamespace(
+           recusadas=[_recusa(1, "")]))[0]["quantas"] == 1)
+
+# Depois de um envio parcial, "mandar as 444 de uma vez" nao corresponde ao
+# que vai acontecer: as ja aceitas sao puladas.
+_pastas_tr = [d for d in os.listdir(cfgmod.PASTA_SAIDA)
+              if not d.endswith("-teste")
+              and os.path.isdir(os.path.join(cfgmod.PASTA_SAIDA, d))]
+if _pastas_tr:
+    _t_tr = cliente.get("/saida/%s/transmitir" % _pastas_tr[0]
+                        ).get_data(as_text=True)
+    checar("a tela oferece mandar as QUE FALTAM, nao o total da pasta",
+           "que faltam de uma vez" in _t_tr or "faltam=0" in _t_tr
+           or "nota(s) assinada(s) prontas" in _t_tr)
+
+# Duas maquinas emitindo pela mesma clinica e o caminho mais curto para o
+# E0014: cada uma acha que o proximo numero e o dela.
+_t_cfg2 = cliente.get("/configuracao").get_data(as_text=True)
+checar("a configuracao deixa comparar a numeracao com outra maquina",
+       "Comparar com outro computador" in _t_cfg2)
+checar("com o ultimo numero de cada ambiente no texto",
+       "último nº" in _t_cfg2)
+checar("e avisa que so uma maquina pode emitir",
+       "só uma pode emitir" in _t_cfg2)
+
+# Numero repetido nao se conserta mexendo na nota -- so andando a
+# numeracao. Confundir isso com erro de conteudo faz o operador reenviar
+# para sempre.
+from nfse.transmissao import erro_de_duplicidade as _dup  # noqa: E402
+
+checar("E0014 e reconhecido como numeracao",
+       _dup("E0014 - Conjunto de Serie, Numero ... ja existe"))
+checar("e a frase sem o codigo tambem",
+       _dup("Numero da DPS ja foi utilizado"))
+checar("erro de assinatura NAO e numeracao",
+       not _dup("Erro na assinatura: Falha na validacao"))
+checar("erro de fila NAO e numeracao",
+       not _dup("Ja consta uma requisicao em andamento"),
+       "um some sozinho ao insistir, o outro nunca")
+checar("mensagem vazia nao vira numeracao", not _dup(""))
+
+if _pastas_tr:
+    _r_num = cliente.get("/saida/%s/numeracao" % _pastas_tr[0])
+    checar("a tela de consertar numeracao abre", _r_num.status_code == 200)
+    _t_num = _r_num.get_data(as_text=True)
+    checar("ela junta descartar e ajustar num passo so",
+           "descartadas" in _t_num and "numeração" in _t_num.lower())
+    checar("sugere um numero em vez de deixar o operador adivinhar",
+           'name="ultimo"' in _t_num and "value=" in _t_num)
+    checar("e diz que buraco na sequencia nao e problema",
+           "buraco na sequência não é problema" in _t_num)
+    checar("numero zero ou negativo e recusado",
+           "maior que zero" in cliente.post(
+               "/saida/%s/numeracao" % _pastas_tr[0],
+               data={"ultimo": "0"}).get_data(as_text=True))
+
+_css = io.open("web/static/estilo.css", encoding="utf-8").read()
+checar("tabela grande rola dentro de si", ".moldura-tabela.rolavel" in _css)
+_bloco_rolavel = _css[_css.index(".moldura-tabela.rolavel"):][:400]
+checar("com o cabecalho preso no topo, para nao rolar sem saber a coluna",
+       "sticky" in _bloco_rolavel, _bloco_rolavel[:120])
+
+for _tela, _quem in (("consulta", "notas transmitidas"),
+                     ("clientes", "base de clientes"),
+                     ("paciente", "notas do paciente")):
+    _h = io.open("web/templates/%s.html" % _tela, encoding="utf-8").read()
+    checar("a lista de %s nao empurra o rodape para longe" % _quem,
+           "moldura-tabela rolavel" in _h)
+
+# --------------------------------------------------------------------------
 # O DANFSe no leiaute oficial.
 #
 # Ele nao e um arquivo que a prefeitura guarda e entrega: e uma

@@ -16,6 +16,7 @@ import io
 import json
 import os
 import sys
+import re
 import shutil
 import threading
 import time
@@ -42,7 +43,8 @@ from nfse.envio import situacao as situacao_envio
 from nfse.leitor_caixa import ler_caixa
 from nfse.leitor_clientes import ler_clientes_cache
 from nfse.pdf import ler_linhas
-from nfse.transmissao import (ambiente_do_xml, listar_xmls,
+from nfse.transmissao import (ambiente_do_xml, erro_de_duplicidade,
+                              listar_xmls,
                               transmitir)
 from nfse import atualizacao as atualizacao_mod
 from nfse.consulta import consultar, dados_para_impressao
@@ -911,6 +913,38 @@ def unidade_da_pasta(pasta: str, cfg) -> str:
     return next(iter(cfg.unidades))
 
 
+def agrupar_recusas(resultado) -> list:
+    """Junta as notas recusadas pelo MOTIVO, e nao uma a uma.
+
+    Um lote de 444 notas recusadas pelo mesmo erro virava 444 cartoes
+    identicos, um abaixo do outro: para chegar ao fim da pagina era preciso
+    rolar por minutos, e a informacao util -- qual e o erro e quantas
+    pegou -- estava repetida 444 vezes.
+
+    O motivo cru pode trazer numero de nota e chave, que mudam de uma para
+    outra; a chave de agrupamento tira digitos longos para que "numero 8967
+    ja existe" e "numero 8968 ja existe" caiam no mesmo balde.
+    """
+    grupos: dict = {}
+    for envio in getattr(resultado, "recusadas", []):
+        motivo = (getattr(envio, "erro", "") or
+                  getattr(envio, "mensagem", "") or
+                  "Sem mensagem da prefeitura")
+        chave = re.sub(r"\d{4,}", "#", motivo).strip()[:300]
+        grupo = grupos.get(chave)
+        if grupo is None:
+            grupo = grupos[chave] = {"motivo": motivo, "itens": [],
+                                     "na_fila": False}
+        grupo["itens"].append(envio)
+        if getattr(envio, "na_fila", False):
+            grupo["na_fila"] = True
+
+    lista = sorted(grupos.values(), key=lambda g: -len(g["itens"]))
+    for grupo in lista:
+        grupo["quantas"] = len(grupo["itens"])
+    return lista
+
+
 def notas_para_entregar(resultado, pasta: str, cfg) -> list:
     """As notas que acabaram de ser aceitas, prontas para entregar.
 
@@ -1032,6 +1066,7 @@ def transmitir_lote(pasta: str):
         except Exception as falha:  # noqa: BLE001
             erro = "%s: %s" % (type(falha).__name__, falha)
 
+    notas = notas_da_pasta(caminho)
     return render_template(
         "transmissao.html",
         pasta=pasta,
@@ -1040,8 +1075,14 @@ def transmitir_lote(pasta: str):
         ambiente=ambiente,
         envio=situacao_envio(cfg),
         arquivos=len(listar_xmls(caminho)),
-        notas=notas_da_pasta(caminho),
+        notas=notas,
+        faltam=sum(1 for n in notas if not n["enviada"]),
+        ja_aceitas=sum(1 for n in notas if n["enviada"]),
         entregar=notas_para_entregar(resultado, pasta, cfg),
+        recusas=agrupar_recusas(resultado),
+        duplicidade=any(
+            erro_de_duplicidade(g["motivo"])
+            for g in agrupar_recusas(resultado)),
         unidade_lote=unidade_da_pasta(pasta, cfg),
         gerado_para=ambiente_da_pasta(caminho),
         andamento=TRANSMISSOES.get(pasta),
@@ -1196,6 +1237,7 @@ def tela_transmitir(pasta: str):
         abort(404)
     cfg = cfgmod.carregar()
     resultado = RESULTADOS_TRANSMISSAO.get(pasta)
+    notas = notas_da_pasta(caminho)
     return render_template(
         "transmissao.html",
         pasta=pasta,
@@ -1204,8 +1246,14 @@ def tela_transmitir(pasta: str):
         ambiente=cfg.faturamento.get("ambiente", "homologacao"),
         envio=situacao_envio(cfg),
         arquivos=len(listar_xmls(caminho)),
-        notas=notas_da_pasta(caminho),
+        notas=notas,
+        faltam=sum(1 for n in notas if not n["enviada"]),
+        ja_aceitas=sum(1 for n in notas if n["enviada"]),
         entregar=notas_para_entregar(resultado, pasta, cfg),
+        recusas=agrupar_recusas(resultado),
+        duplicidade=any(
+            erro_de_duplicidade(g["motivo"])
+            for g in agrupar_recusas(resultado)),
         unidade_lote=unidade_da_pasta(pasta, cfg),
         gerado_para=ambiente_da_pasta(caminho),
         andamento=TRANSMISSOES.get(pasta),
@@ -1243,6 +1291,8 @@ def configuracao():
         diagnostico=cfg.diagnostico(),
         certificados=certificados,
         controle=resumo_controle,
+        resumo_controle=resumo_controle,
+        agora=datetime.now().strftime("%d/%m/%Y %H:%M"),
         envio=situacao_envio(cfg),
         caminho_config=cfgmod.CAMINHO_CONFIG,
         versao=atualizacao_mod.versao_instalada(),
@@ -1264,6 +1314,92 @@ def ajustar_numeracao():
         except (TypeError, ValueError):
             pass
     return redirect(url_for("configuracao"))
+
+
+@app.route("/saida/<path:pasta>/numeracao", methods=["GET", "POST"])
+def consertar_numeracao(pasta: str):
+    """Conserta a numeracao e libera o lote, numa tela so.
+
+    Antes eram quatro passos em duas telas: entender a mensagem da
+    prefeitura, descartar o lote, achar o ajuste de numeracao na
+    Configuracao (escolhendo unidade e ambiente na mao) e gerar de novo.
+    Quem esta na recepcao com o mes inteiro recusado nao deveria precisar
+    montar esse quebra-cabeca.
+
+    Aqui a unidade e o ambiente saem da propria pasta, o numero vem
+    sugerido pelo que a prefeitura acabou de recusar, e os dois passos
+    -- descartar e avancar a numeracao -- acontecem juntos ou nenhum.
+    """
+    caminho = os.path.join(cfgmod.PASTA_SAIDA, pasta)
+    if not os.path.isdir(caminho) or ".." in pasta:
+        abort(404)
+
+    cfg = cfgmod.carregar()
+    unidade = unidade_da_pasta(pasta, cfg)
+    ambiente = ambiente_da_pasta(caminho) or "homologacao"
+    resultado = RESULTADOS_TRANSMISSAO.get(pasta)
+
+    # A prefeitura confirmou que estes numeros ja existem do lado dela, e
+    # esse e o dado mais confiavel que temos: o proximo livre esta acima do
+    # maior deles.
+    recusados = []
+    for envio in getattr(resultado, "recusadas", []) if resultado else []:
+        motivo = (getattr(envio, "erro", "") or getattr(envio, "mensagem", ""))
+        if erro_de_duplicidade(motivo):
+            try:
+                recusados.append(int(getattr(envio, "numero_dps", "") or 0))
+            except (TypeError, ValueError):
+                pass
+
+    with Controle(os.path.join(cfgmod.PASTA_DADOS, "controle.db")) as controle:
+        atual = controle.ultimo_numero(unidade, ambiente)
+    sugerido = max(recusados) if recusados else atual
+
+    if request.method == "POST":
+        try:
+            novo_ultimo = int(request.form.get("ultimo", "0"))
+        except (TypeError, ValueError):
+            novo_ultimo = 0
+        if novo_ultimo < 1:
+            return render_template(
+                "numeracao.html", pasta=pasta, unidade=unidade,
+                apelido=cfg.unidades.get(unidade, {}).get("apelido", unidade),
+                ambiente=ambiente, atual=atual, sugerido=sugerido,
+                quantos=len(listar_xmls(caminho)),
+                erro="Informe um número maior que zero.")
+
+        nomes = listar_xmls(caminho)
+        with Controle(os.path.join(cfgmod.PASTA_DADOS,
+                                   "controle.db")) as controle:
+            descarte = controle.descartar_lote(nomes)
+            controle.ajustar_numeracao(unidade, novo_ultimo, ambiente)
+
+        # Os XMLs vão para uma pasta marcada em vez de sumirem: são
+        # documentos assinados, e apagar sem poder olhar depois é pior.
+        if descarte["descartadas"] and not descarte["protegidas"]:
+            destino = caminho + "-DESCARTADO"
+            contador = 2
+            while os.path.exists(destino):
+                destino = "%s-DESCARTADO-%d" % (caminho, contador)
+                contador += 1
+            try:
+                os.rename(caminho, destino)
+            except OSError:
+                pass
+
+        session["descarte"] = {
+            **descarte,
+            "numeracao": novo_ultimo,
+            "ambiente": ambiente,
+            "apelido": cfg.unidades.get(unidade, {}).get("apelido", unidade),
+        }
+        return redirect(url_for("inicio"))
+
+    return render_template(
+        "numeracao.html", pasta=pasta, unidade=unidade,
+        apelido=cfg.unidades.get(unidade, {}).get("apelido", unidade),
+        ambiente=ambiente, atual=atual, sugerido=sugerido,
+        quantos=len(listar_xmls(caminho)), erro="")
 
 
 @app.post("/atualizacao/procurar")
@@ -1397,7 +1533,10 @@ def consultar_nota():
              "valor": nota.get("valor"),
              "chave_acesso": nota.get("chave_acesso")},
             cfg.unidades.get(unidade, {}), fone)
-    recentes, nav = paginar(recentes, request.args.get("pagina"), 100)
+    # 50 por pagina, como no resto: 100 linhas ja exigem rolagem longa para
+    # chegar ao rodape, e o filtro em cima resolve quando se procura alguem
+    # especifico.
+    recentes, nav = paginar(recentes, request.args.get("pagina"), 50)
     return render_template("consulta.html", cfg=cfg, resultado=resultado,
                            nav=nav,
                            erro=erro, chave=chave, unidade=unidade,

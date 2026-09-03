@@ -391,6 +391,14 @@ code, .mono-bloco {
 }
 .listra { animation: listra-anda 1.4s ease-in-out infinite; }
 
+/* Tabela alta rola dentro de si, com o cabecalho preso no topo. Sem isso,
+   uma lista de centenas de linhas empurra o rodape da pagina para longe e
+   qualquer botao que venha depois vira uma viagem de scroll. */
+.moldura-tabela.rolavel { max-height: 60vh; overflow: auto; }
+.moldura-tabela.rolavel thead th {
+  position: sticky; top: 0; z-index: 2; background: var(--papel-suave);
+}
+
 /* ---------- paginacao ---------- */
 .paginacao {
   display: flex; align-items: center; gap: 4px; flex-wrap: wrap;

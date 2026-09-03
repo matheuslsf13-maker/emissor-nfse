@@ -91,6 +91,31 @@ def erro_de_fila(mensagem: str) -> bool:
     return any(marca in texto for marca in MARCAS_FILA)
 
 
+# A prefeitura escreve a duplicidade de mais de um jeito, e o codigo E0014
+# nem sempre vem junto. Sao marcas de "este numero ja foi usado" -- o unico
+# erro que se resolve mexendo na numeracao, e nao no conteudo da nota.
+MARCAS_DUPLICIDADE = (
+    "e0014",
+    "ja existe",
+    "já existe",
+    "duplicidade",
+    "ja foi utilizado",
+    "já foi utilizado",
+)
+
+
+def erro_de_duplicidade(mensagem: str) -> bool:
+    """A recusa foi porque o numero ja existe do lado da prefeitura?
+
+    Distinguir importa porque a saida e outra: nota recusada por conteudo se
+    corrige no cadastro e se reenvia; numero repetido nao tem conserto no
+    XML -- e preciso avancar a numeracao e gerar de novo. Sem separar os
+    dois, o operador tenta reenviar para sempre.
+    """
+    texto = (mensagem or "").lower()
+    return any(marca in texto for marca in MARCAS_DUPLICIDADE)
+
+
 def _numero_do_arquivo(nome: str) -> str:
     """00042-2026-08-14-123... -> 42"""
     parte = nome.split("-", 1)[0]

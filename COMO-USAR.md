@@ -167,6 +167,29 @@ conferir a primeira nota de produção.
 
 A tela também lista as últimas notas transmitidas — é só clicar na chave.
 
+### Quando a prefeitura recusa por "número já existe"
+
+Não é defeito da nota, e **reenviar não adianta**: os números já foram usados
+na prefeitura. Acontece quando o controle se perde, ou quando **outro
+computador** emitiu pela mesma clínica.
+
+Na tela de transmissão aparece o botão **Consertar a numeração**. Ele leva a
+uma tela só, que faz tudo de uma vez: descarta o lote, avança a numeração e
+libera para gerar de novo — já com o número sugerido pelo que a prefeitura
+acabou de recusar.
+
+> Na dúvida, use um número um pouco maior. **Buraco na sequência não é
+> problema; número repetido é.**
+
+### Duas máquinas, uma numeração
+
+Se o sistema roda no seu PC e no da clínica, **só uma pode emitir**. Cada uma
+conta os números por conta própria, e a prefeitura recusa repetido.
+
+Para comparar: **Configuração → Comparar com outro computador**. O botão copia
+um texto com o último número de cada clínica e ambiente — é só mandar no
+WhatsApp e conferir com a outra máquina.
+
 ### Parar um envio no meio
 
 Enquanto o envio corre, aparece **Parar depois da nota atual**. Ele nunca

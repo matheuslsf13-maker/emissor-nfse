@@ -11,7 +11,13 @@
 
 <h1>Transmitir para a prefeitura</h1>
 <p class="legenda">
-  Pasta <code>{{ pasta }}</code> — {{ arquivos }} nota(s) assinada(s) prontas.
+  Pasta <code>{{ pasta }}</code> —
+  {% if ja_aceitas %}
+  <b>{{ faltam }}</b> nota(s) ainda por enviar, de {{ arquivos }}
+  ({{ ja_aceitas }} já aceita(s) pela prefeitura).
+  {% else %}
+  {{ arquivos }} nota(s) assinada(s) prontas.
+  {% endif %}
   Só o que a prefeitura aceitar vira nota de verdade, com número e código de
   verificação para entregar ao paciente.
 </p>
@@ -299,7 +305,8 @@
     <summary style="cursor:pointer;color:var(--marca);font-weight:600">
       {{ aceitas | length }} nota(s) aceitas (clique para ver uma a uma)
     </summary>
-    <div class="moldura-tabela" style="margin-top:10px">
+    <div class="moldura-tabela" style="margin-top:10px;max-height:340px;
+         overflow:auto">
       <table>
         <thead><tr><th>DPS</th><th>Nota nº</th><th>Chave de acesso</th></tr></thead>
         <tbody>
@@ -316,20 +323,65 @@
   </details>
   {% endif %}
 
-  {% for e in resultado.enviadas if not (e.aceita and aceitas | length > 6) %}
-  <div class="cartao" style="border-left:4px solid {{ 'var(--bom)' if e.aceita else 'var(--ruim)' }}">
+  {# Um lote recusado pelo mesmo erro virava um cartao por nota, centenas
+     deles, e a informacao util -- qual erro e quantas pegou -- ficava
+     repetida em cada um. Agora e um bloco por MOTIVO, fechado. #}
+  {% for g in recusas %}
+  <div class="cartao" style="border-left:4px solid var(--ruim);margin-bottom:12px">
+    <div style="display:flex;gap:12px;align-items:baseline;flex-wrap:wrap">
+      <b style="font-size:17px">{{ g.quantas }} nota(s) recusada(s)</b>
+      {% if g.na_fila %}
+      <span class="selo atencao">fila da prefeitura</span>
+      {% endif %}
+    </div>
+    <p style="color:var(--ruim);margin:8px 0 0">{{ g.motivo }}</p>
+
+    <details style="margin-top:10px">
+      <summary style="cursor:pointer;color:var(--marca);font-size:14px">
+        Ver quais são as {{ g.quantas }}
+      </summary>
+      <div class="moldura-tabela" style="margin-top:8px;max-height:320px;
+           overflow:auto">
+        <table>
+          <thead><tr><th style="width:80px">DPS</th><th>Arquivo</th>
+                     <th style="width:70px">HTTP</th></tr></thead>
+          <tbody>
+            {% for e in g.itens %}
+            <tr>
+              <td>{{ e.numero_dps }}</td>
+              <td style="font-size:12.5px">{{ e.arquivo }}</td>
+              <td>{{ e.http or '—' }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% if g.itens and g.itens[0].bruto %}
+      <details style="margin-top:8px">
+        <summary style="cursor:pointer;color:var(--marca);font-size:13.5px">
+          Ver a resposta crua da prefeitura (a primeira do grupo)
+        </summary>
+        <code class="mono-bloco" style="margin-top:8px">{{ g.itens[0].bruto }}</code>
+      </details>
+      {% endif %}
+    </details>
+  </div>
+  {% endfor %}
+
+  {# Aceitas com poucas notas: mostrar uma a uma ainda ajuda a conferir. #}
+  {% if aceitas | length <= 6 %}
+  {% for e in aceitas %}
+  <div class="cartao" style="border-left:4px solid var(--bom);margin-bottom:12px">
     <div style="display:flex;gap:12px;align-items:baseline;flex-wrap:wrap">
       <b>DPS nº {{ e.numero_dps }}</b>
-      <span class="selo {{ 'bom' if e.aceita else 'ruim' }}">
-        {{ 'aceita' if e.aceita else 'recusada' }}
-      </span>
-      {% if e.http %}<span class="selo neutro">HTTP {{ e.http }}</span>{% endif %}
+      <span class="selo bom">aceita</span>
       {% if e.numero_nota %}<span class="selo marca">nota nº {{ e.numero_nota }}</span>{% endif %}
       {% if e.codigo_verificacao %}<span class="selo marca">cód. {{ e.codigo_verificacao }}</span>{% endif %}
-      {% if e.chave_acesso %}<span class="selo neutro" style="font-family:monospace;font-size:11px">{{ e.chave_acesso }}</span>{% endif %}
+      {% if e.chave_acesso %}
+      <span class="selo neutro" style="font-family:monospace;font-size:11px">{{ e.chave_acesso }}</span>
+      {% endif %}
       <span style="margin-left:auto;color:var(--tinta-fantasma);font-size:12.5px">{{ e.arquivo }}</span>
     </div>
-    {% if e.erro %}<p style="color:var(--ruim);margin:8px 0 0">{{ e.erro }}</p>{% endif %}
     {% if e.mensagem %}<p style="margin:8px 0 0">{{ e.mensagem }}</p>{% endif %}
     {% if e.bruto %}
     <details style="margin-top:10px">
@@ -339,14 +391,16 @@
     {% endif %}
   </div>
   {% endfor %}
+  {% endif %}
 
   {% if resultado.puladas %}
-  <details style="margin-top:18px">
+  <details style="margin-top:18px" class="puladas">
     <summary style="cursor:pointer;color:var(--marca);font-weight:600">
       {{ resultado.puladas | length }} nota(s) puladas — já tinham sido
       aceitas antes (clique para ver)
     </summary>
-    <div class="moldura-tabela" style="margin-top:10px">
+    <div class="moldura-tabela" style="margin-top:10px;max-height:320px;
+         overflow:auto">
       <table>
         <thead><tr><th>Arquivo</th><th>Motivo</th></tr></thead>
         <tbody>
@@ -414,7 +468,7 @@
         {% if gerado_para == 'producao' %}
         onsubmit="return confirm('Isto emite nota fiscal de verdade e não tem desfazer simples. Confirma?')"
         {% endif %}>
-    {% if arquivos > 1 %}
+    {% if faltam > 1 %}
     {# Com uma nota so a escolha nao existe -- "todas as 1" e ruido. #}
     <label style="display:block;margin-bottom:10px">
       <input type="radio" name="quantidade" value="uma" checked
@@ -430,7 +484,12 @@
     <label style="display:block;margin-bottom:14px">
       <input type="radio" name="quantidade" value="todas"
              onclick="mostrarEscolha(false)">
-      Mandar as {{ arquivos }} de uma vez
+      Mandar as <b>{{ faltam }}</b> que faltam de uma vez
+      {% if ja_aceitas %}
+      <span style="color:var(--tinta-fraca);font-size:13px">
+        (as {{ ja_aceitas }} já aceitas são puladas)
+      </span>
+      {% endif %}
     </label>
 
     {# A lista fica fechada ate ser pedida: 277 linhas abertas empurrariam o
@@ -508,19 +567,37 @@
 
 {% if resultado and resultado.recusadas and not resultado.aceitas %}
 <h2>Todas foram recusadas — e agora?</h2>
+
+{# Quando o motivo e numero repetido, o conserto e sempre o mesmo e agora
+   cabe num botao. Antes o operador tinha que ler tres passos, ir a outra
+   tela, escolher unidade e ambiente na mao e adivinhar o numero. #}
+{% if duplicidade %}
 <div class="cartao" style="border-left:4px solid var(--ruim)">
-  <p>
-    Se o motivo foi <b>E0014 — número já existe</b>, o problema não é o
-    arquivo: é que esta numeração já foi usada na prefeitura. Acontece quando
-    o controle da numeração se perde e o sistema recomeça do 1.
+  <h3 style="margin-top:0">O número destas notas já existe na prefeitura</h3>
+  <p style="max-width:70ch">
+    Não é defeito da nota, e não adianta reenviar: é a numeração que precisa
+    andar para a frente. Acontece quando o controle se perde, ou quando
+    <b>outro computador</b> emitiu pela mesma clínica.
   </p>
-  <p><b>Não adianta reenviar, e não adianta apagar os XMLs.</b> O caminho é:</p>
-  <ol style="margin:0 0 14px;padding-left:20px;line-height:1.9">
-    <li>Descartar este lote, no botão abaixo;</li>
-    <li>Em <b>Configuração → Ajustar numeração</b>, pôr o último número que a
-        prefeitura realmente registrou;</li>
-    <li>Gerar as notas de novo — elas saem com números livres.</li>
-  </ol>
+  <p style="max-width:70ch">
+    A tela seguinte descarta este lote e avança a numeração de uma vez, já
+    com o número sugerido pelo que a prefeitura acabou de recusar.
+  </p>
+  <a class="botao" href="{{ url_for('consertar_numeracao', pasta=pasta) }}">
+    Consertar a numeração
+  </a>
+</div>
+{% else %}
+<div class="cartao" style="border-left:4px solid var(--ruim)">
+  <p style="max-width:70ch">
+    O motivo da recusa está no bloco acima — é ele que diz o que precisa
+    mudar. Corrija no TechCare, traga os relatórios de novo e gere outra vez.
+  </p>
+  <p style="max-width:70ch">
+    Se em algum momento a mensagem falar em <b>número que já existe</b>, o
+    caminho é outro: <a href="{{ url_for('consertar_numeracao', pasta=pasta) }}">consertar
+    a numeração</a>.
+  </p>
   <form method="post" action="{{ url_for('descartar_lote', pasta=pasta) }}"
         onsubmit="return confirm('Descartar as notas deste lote para poder gerar de novo? As que já foram aceitas pela prefeitura NÃO são descartadas.')">
     <button class="botao secundario" type="submit">
@@ -533,6 +610,7 @@
     prefeitura já aceitou nunca são descartadas.
   </p>
 </div>
+{% endif %}
 {% endif %}
 
 <p style="margin-top:22px">
