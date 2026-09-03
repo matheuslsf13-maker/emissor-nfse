@@ -1115,6 +1115,94 @@ checar("e sem erro a tela diz que nada impede",
        "Nada impede a emissão" in _html_cfg)
 
 # --------------------------------------------------------------------------
+# Parar um envio em andamento, sem cortar nota pela metade.
+#
+# Interromper entre o envio e a gravacao do retorno deixaria uma nota
+# emitida na prefeitura e desconhecida aqui -- e em Vila Velha cancelar
+# exige processo administrativo. Por isso a parada e consultada ANTES de
+# cada nota, nunca durante.
+import shutil as _sh2  # noqa: E402
+import tempfile as _tf2  # noqa: E402
+from nfse import transmissao as _T  # noqa: E402
+
+_pasta_env = _tf2.mkdtemp()
+try:
+    _xml_falso = (b'<?xml version="1.0"?><DPS><infDPS><tpAmb>2</tpAmb>'
+                  b"</infDPS><Signature/></DPS>")
+    for _i in range(1, 11):
+        with open(os.path.join(_pasta_env, "%05d-x.xml" % _i), "wb") as _fh:
+            _fh.write(_xml_falso)
+
+    _enviadas = []
+
+    def _enviar_falso(xml, config, acao="gerar", timeout=60):
+        _enviadas.append(1)
+        return {"operacao": "x", "status": 200, "corpo": "",
+                "retorno": "<Retorno><Status>OK</Status><nNFSe>%d</nNFSe>"
+                           "<chaveAcesso>%s</chaveAcesso></Retorno>"
+                           % (len(_enviadas), "9" * 50)}
+
+    _enviar_real = _T.enviar
+    _situacao_real = _T.situacao
+    _amb_real = _T.ambiente_do_xml
+    _T.enviar = _enviar_falso
+    _T.situacao = lambda cfg: {"pronto": True, "ambiente": "homologacao",
+                               "url": "http://x", "faltando": []}
+    _T.ambiente_do_xml = lambda x: "homologacao"
+
+    class _CfgFalsa:
+        faturamento = {"ambiente": "homologacao"}
+        municipio = {}
+
+    _res = _T.transmitir(_pasta_env, _CfgFalsa(), pausa=0,
+                         parar=lambda: len(_enviadas) >= 3)
+    checar("a parada completa a nota em curso e nao corta no meio",
+           len(_res.enviadas) == 3, len(_res.enviadas))
+    checar("o que faltava continua na pasta para depois",
+           _res.nao_enviadas == 7, _res.nao_enviadas)
+    checar("nenhuma nota se perde na conta",
+           len(_res.enviadas) + _res.nao_enviadas == 10)
+    checar("e o resultado diz que foi interrompido", _res.interrompida)
+
+    _enviadas.clear()
+    _res2 = _T.transmitir(_pasta_env, _CfgFalsa(), pausa=0)
+    checar("sem pedido de parada, vai ate o fim",
+           len(_res2.enviadas) == 10 and not _res2.interrompida,
+           len(_res2.enviadas))
+
+    _T.enviar = _enviar_real
+    _T.situacao = _situacao_real
+    _T.ambiente_do_xml = _amb_real
+finally:
+    _sh2.rmtree(_pasta_env, ignore_errors=True)
+
+_r_parar = cliente.post("/saida/qualquer/parar")
+checar("parar sem envio em andamento e recusado com frase clara",
+       _r_parar.status_code == 400
+       and "Não há transmissão em andamento" in _r_parar.get_json()["erro"],
+       _r_parar.get_json())
+
+_html_tr3 = io.open("web/templates/transmissao.html", encoding="utf-8").read()
+checar("a tela oferece parar durante o envio", "pararEnvio" in _html_tr3)
+checar("e trava o botao de transmitir enquanto um envio corre",
+       "Envio em andamento" in _html_tr3)
+checar("envio interrompido explica que o que saiu vale",
+       "Envio interrompido a seu pedido" in _html_tr3)
+
+_js3 = io.open("web/static/app.js", encoding="utf-8").read()
+checar("a tela inicial acompanha o envio sem recarregar",
+       "acompanharEnvios" in _js3)
+checar("trocar o cadastro de alguem pede confirmacao",
+       "A nota sairá no CPF desta pessoa" in _js3,
+       "um clique sem volta decidia de quem seria a nota")
+checar("mandar so o relatorio de clientes mostra que esta lendo",
+       "Lendo os arquivos" in _js3)
+
+checar("a tela de notas do paciente lista todos quando nao ha busca",
+       "Quem tem nota emitida" in io.open(
+           "web/templates/paciente.html", encoding="utf-8").read())
+
+# --------------------------------------------------------------------------
 # O DANFSe no leiaute oficial.
 #
 # Ele nao e um arquivo que a prefeitura guarda e entrega: e uma

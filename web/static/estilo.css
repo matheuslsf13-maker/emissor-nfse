@@ -382,6 +382,15 @@ code, .mono-bloco {
 }
 .mono-bloco { display: block; padding: 12px 14px; white-space: pre-wrap; word-break: break-all; }
 
+/* Barra que anda sozinha, para espera sem percentual conhecido: a leitura
+   do PDF nao reporta progresso, mas parar tudo em silencio parece
+   travamento. */
+@keyframes listra-anda {
+  0%   { margin-left: -35%; }
+  100% { margin-left: 100%; }
+}
+.listra { animation: listra-anda 1.4s ease-in-out infinite; }
+
 /* ---------- paginacao ---------- */
 .paginacao {
   display: flex; align-items: center; gap: 4px; flex-wrap: wrap;

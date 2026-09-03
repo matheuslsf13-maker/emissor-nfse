@@ -81,8 +81,20 @@
   Estas notas já existem no seu computador, prontas e assinadas — só não foram
   transmitidas ainda. <b>Não precisa gerar de novo:</b> continue daqui.
 </p>
+
+{# O envio continua quando se sai desta tela, e isso e proposital -- um lote
+   grande leva minutos. Mas so quem ficava na tela de transmissao via o
+   progresso; aqui era preciso recarregar a pagina para descobrir que a
+   contagem tinha mudado. Agora a propria linha se atualiza. #}
+<div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;
+     margin-bottom:10px">
+  <button type="button" class="botao pequeno secundario"
+          onclick="location.reload()">Atualizar agora</button>
+  <span id="pulso-envios" style="color:var(--tinta-fraca);font-size:13px"></span>
+</div>
+
 <div class="moldura-tabela">
-  <table>
+  <table id="tabela-pendentes">
     <thead>
       <tr>
         <th>Quando foram geradas</th>
@@ -93,14 +105,23 @@
     </thead>
     <tbody>
       {% for p in pendentes %}
-      <tr>
+      <tr data-pasta="{{ p.pasta }}">
         <td>
           {{ p.quando }}
           <div style="color:var(--tinta-fantasma);font-size:12.5px">{{ p.pasta }}</div>
         </td>
         <td>
-          <b style="font-size:17px">{{ p.faltam }}</b>
+          <b style="font-size:17px" class="faltam">{{ p.faltam }}</b>
           <span style="color:var(--tinta-fraca)">de {{ p.total }}</span>
+          <div class="andamento-linha" style="display:none;margin-top:5px">
+            <div style="background:var(--borda);border-radius:20px;height:7px;
+                 overflow:hidden;max-width:170px">
+              <div class="barra-linha" style="height:100%;width:0%;
+                   background:var(--marca);transition:width .4s"></div>
+            </div>
+            <div class="texto-linha" style="color:var(--marca);font-size:12.5px;
+                 margin-top:3px"></div>
+          </div>
           {% if p.transmitidas %}
           <div style="color:var(--bom);font-size:12.5px">
             {{ p.transmitidas }} já aceita(s)
@@ -207,5 +228,8 @@
 {% endblock %}
 
 {% block scripts %}
-<script>iniciarEnvio();</script>
+<script>
+  iniciarEnvio();
+  acompanharEnvios();
+</script>
 {% endblock %}

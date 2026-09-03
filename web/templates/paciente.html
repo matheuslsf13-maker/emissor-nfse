@@ -45,6 +45,44 @@
   </form>
 </div>
 
+{% if todos_pacientes %}
+<h2>Quem tem nota emitida{% if ano %} em {{ ano }}{% endif %}</h2>
+<p class="legenda">
+  <b>{{ nav_todos.total }}</b> paciente(s). Clique para ver as notas — ou
+  procure pelo nome ali em cima.
+</p>
+{{ paginacao(nav_todos, 'notas_do_paciente',
+             {'unidade': unidade, 'ano': ano}) }}
+<div class="moldura-tabela">
+  <table>
+    <thead>
+      <tr><th>Paciente</th><th style="width:110px">CPF/CNPJ</th>
+          <th style="width:80px" class="num">Notas</th>
+          <th style="width:110px" class="num">Total</th><th></th></tr>
+    </thead>
+    <tbody>
+      {% for p in todos_pacientes %}
+      <tr>
+        <td><b>{{ p.nome or '—' }}</b></td>
+        <td class="mono" style="font-size:12.5px">{{ p.documento | documento }}</td>
+        <td class="num">{{ p.quantas }}</td>
+        <td class="num">R$ {{ brl(p.total) }}</td>
+        <td style="text-align:right">
+          <a class="botao pequeno secundario"
+             href="{{ url_for('notas_do_paciente', q=p.documento,
+                              unidade=unidade, ano=ano) }}">
+            ver as notas
+          </a>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{{ paginacao(nav_todos, 'notas_do_paciente',
+             {'unidade': unidade, 'ano': ano}) }}
+{% endif %}
+
 {% if encontrados|length > 1 and not notas %}
 <h2>Qual deles?</h2>
 {{ paginacao(nav_gente, 'notas_do_paciente',

@@ -65,6 +65,16 @@
     <span id="falta-tempo" style="color:var(--tinta-fraca)"></span>
     <span id="ultimo" style="margin-left:auto;color:var(--tinta-fantasma)"></span>
   </div>
+
+  <div style="margin-top:14px;display:flex;gap:12px;align-items:center;
+       flex-wrap:wrap">
+    <button type="button" class="botao secundario" id="botao-parar"
+            onclick="pararEnvio()">Parar depois da nota atual</button>
+    <span style="color:var(--tinta-fraca);font-size:13px" id="aviso-parar">
+      O que já saiu continua valendo. O envio nunca é cortado no meio de uma
+      nota — só entre uma e outra.
+    </span>
+  </div>
 </div>
 
 <script>
@@ -94,11 +104,41 @@
             ? '~' + m + ' min restante(s)'
             : 'menos de 1 min';
         } else { falta.textContent = ''; }
+        var parar = document.getElementById('botao-parar');
+        if (d.parando && parar) {
+          parar.disabled = true;
+          parar.textContent = 'Parando…';
+          document.getElementById('aviso-parar').textContent =
+            'Vai parar assim que a nota em curso terminar.';
+        }
         setTimeout(passo, 1200);
       })
       .catch(function () { setTimeout(passo, 3000); });
   }
   passo();
+
+  window.pararEnvio = function () {
+    var aviso = 'Parar o envio depois da nota atual?' +
+      String.fromCharCode(10, 10) +
+      'As notas já enviadas continuam valendo. As que faltam ficam para ' +
+      'um próximo envio.';
+    if (!confirm(aviso)) return;
+    var b = document.getElementById('botao-parar');
+    b.disabled = true;
+    b.textContent = 'Parando…';
+    fetch({{ url_for('parar_transmissao', pasta=pasta) | tojson }},
+          { method: 'POST' })
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (d.erro) { alert(d.erro); b.disabled = false;
+                      b.textContent = 'Parar depois da nota atual'; }
+      })
+      .catch(function () {
+        alert('Não consegui pedir a parada. Tente de novo.');
+        b.disabled = false;
+        b.textContent = 'Parar depois da nota atual';
+      });
+  };
 })();
 </script>
 {% endif %}
@@ -107,7 +147,20 @@
   {% set aceitas = resultado.aceitas %}
   {% set recusadas = resultado.recusadas %}
 
-  {% if aceitas and not recusadas %}
+  {% if resultado.interrompida %}
+  <div class="faixa atencao"><span class="icone">▲</span><div>
+    <b>Envio interrompido a seu pedido</b>
+    <p>
+      As <b>{{ aceitas | length }}</b> nota(s) já aceitas valem normalmente —
+      nenhuma foi cortada pela metade. Faltam
+      <b>{{ resultado.nao_enviadas }}</b>, que continuam na pasta prontas e
+      assinadas: é só transmitir de novo quando quiser, daqui ou pela tela
+      inicial.
+    </p>
+  </div></div>
+  {% endif %}
+
+  {% if aceitas and not recusadas and not resultado.interrompida %}
   <div class="faixa bom"><span class="icone">✓</span><div>
     <b>{{ aceitas | length }} nota(s) aceita(s) pela prefeitura</b>
     <p>Ambiente <b>{{ resultado.ambiente }}</b>. O número devolvido já ficou gravado.</p>
@@ -341,6 +394,22 @@
   </p>
   {% endif %}
 
+  {% set enviando = andamento and andamento.estado == 'enviando' %}
+  {% if enviando %}
+  <div class="faixa atencao">
+    <span class="icone">▲</span>
+    <div>
+      <b>Já há um envio em andamento nesta pasta</b>
+      <p>
+        Espere terminar, ou use <b>Parar depois da nota atual</b> ali em
+        cima. Mandar de novo por cima do envio em curso faria as duas
+        transmissões disputarem a fila da prefeitura, que aceita uma nota
+        por vez por CNPJ.
+      </p>
+    </div>
+  </div>
+  {% endif %}
+
   <form method="post" action="{{ url_for('transmitir_lote', pasta=pasta) }}"
         {% if gerado_para == 'producao' %}
         onsubmit="return confirm('Isto emite nota fiscal de verdade e não tem desfazer simples. Confirma?')"
@@ -425,11 +494,14 @@
     </label>
     <input type="text" name="confirmacao" placeholder="PRODUCAO"
            autocomplete="off" style="width:170px">
-    <button class="botao perigo" type="submit" style="margin-left:8px">
-      Transmitir valendo
+    <button class="botao perigo" type="submit" style="margin-left:8px"
+            {{ 'disabled' if enviando }}>
+      {{ 'Envio em andamento…' if enviando else 'Transmitir valendo' }}
     </button>
     {% else %}
-    <button class="botao" type="submit">Transmitir</button>
+    <button class="botao" type="submit" {{ 'disabled' if enviando }}>
+      {{ 'Envio em andamento…' if enviando else 'Transmitir' }}
+    </button>
     {% endif %}
   </form>
 </div>

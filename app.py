@@ -262,6 +262,33 @@ def obter_cadastro(caminho: str, progresso=None):
     return cadastro
 
 
+# Caixa ja lido, por caminho. Reler os PDFs a cada carga da tela de
+# conferencia custava quase tres segundos: o operador troca de aba, resolve
+# uma pendencia, volta -- e paga o pdfplumber inteiro de novo, sempre com o
+# mesmo resultado, porque o arquivo nao muda depois de enviado.
+CACHE_CAIXA: dict = {}
+
+
+def ler_caixa_cache(caminho: str):
+    try:
+        marca = os.stat(caminho)
+        assinatura = (marca.st_mtime_ns, marca.st_size)
+    except OSError:
+        assinatura = None
+
+    guardado = CACHE_CAIXA.get(caminho)
+    if guardado is not None and guardado[0] == assinatura:
+        return guardado[1]
+
+    caixa = ler_caixa(caminho)
+    CACHE_CAIXA[caminho] = (assinatura, caixa)
+    # Um lote descartado nao volta; sem teto, uma sessao longa acumularia
+    # todos os meses ja conferidos na memoria.
+    if len(CACHE_CAIXA) > 12:
+        CACHE_CAIXA.pop(next(iter(CACHE_CAIXA)))
+    return caixa
+
+
 def conciliar_lote(lote: dict):
     """Reconcilia o lote na hora.
 
@@ -269,7 +296,7 @@ def conciliar_lote(lote: dict):
     alimentar a base. Assim a operadora pode mandar só os dois caixas.
     """
     cfg = cfgmod.carregar()
-    caixas = [ler_caixa(c) for c in lote["arquivos"]["caixas"]]
+    caixas = [ler_caixa_cache(c) for c in lote["arquivos"]["caixas"]]
     unidade = lote.get("unidade") or cfg.unidade_por_relatorio(caixas[0].empresa)
     if not unidade:
         raise ValueError(
@@ -1021,6 +1048,27 @@ def transmitir_lote(pasta: str):
     )
 
 
+PARADAS: set = set()
+
+
+@app.post("/saida/<path:pasta>/parar")
+def parar_transmissao(pasta: str):
+    """Pede para a transmissao parar depois da nota atual.
+
+    Nunca no meio de uma nota: interromper entre o envio e a gravacao do
+    retorno deixaria uma nota emitida na prefeitura e desconhecida aqui --
+    o pior estado possivel, porque em Vila Velha cancelar exige processo
+    administrativo. Por isso o pedido e um pedido, e nao um corte.
+    """
+    with _TRAVA:
+        andamento = TRANSMISSOES.get(pasta)
+        if not andamento or andamento.get("estado") != "enviando":
+            return jsonify({"erro": "Não há transmissão em andamento aqui."}), 400
+        PARADAS.add(pasta)
+        andamento["parando"] = True
+    return jsonify({"ok": True})
+
+
 def _transmitir_em_segundo_plano(pasta: str, caminho: str, ambiente: str,
                                  apenas: set = None) -> None:
     """Envia o lote fora da requisição, atualizando o andamento."""
@@ -1053,7 +1101,8 @@ def _transmitir_em_segundo_plano(pasta: str, caminho: str, ambiente: str,
 
     try:
         resultado = transmitir(caminho, cfg, apenas=apenas,
-                               progresso=andou)
+                               progresso=andou,
+                               parar=lambda: pasta in PARADAS)
         with _TRAVA:
             TRANSMISSOES[pasta] = {
                 "estado": "pronto",
@@ -1064,11 +1113,18 @@ def _transmitir_em_segundo_plano(pasta: str, caminho: str, ambiente: str,
                 "na_fila": sum(1 for e in resultado.enviadas if e.na_fila),
                 "ambiente": ambiente, "ultimo": "", "erro": "",
             }
+        with _TRAVA:
+            TRANSMISSOES[pasta]["interrompida"] = resultado.interrompida
+            TRANSMISSOES[pasta]["faltam"] = resultado.nao_enviadas
         RESULTADOS_TRANSMISSAO[pasta] = resultado
     except Exception as falha:  # noqa: BLE001
         with _TRAVA:
             TRANSMISSOES.setdefault(pasta, {})["estado"] = "erro"
             TRANSMISSOES[pasta]["erro"] = "%s: %s" % (type(falha).__name__, falha)
+    finally:
+        # O pedido de parada vale para ESTE envio. Deixá-lo de pé barraria o
+        # próximo, e o operador não entenderia por que nada sai.
+        PARADAS.discard(pasta)
 
 
 @app.get("/saida/<path:pasta>/andamento")
@@ -1077,6 +1133,31 @@ def andamento_transmissao(pasta: str):
     if not estado:
         return jsonify({"estado": "parado"})
     return jsonify(estado)
+
+
+@app.get("/envios")
+def envios_em_andamento():
+    """O que esta sendo transmitido agora, para a tela inicial acompanhar.
+
+    O envio continua quando se volta ao inicio -- e isso e proposital, um
+    lote grande leva minutos. Mas so quem ficava na tela de transmissao via
+    o progresso; no inicio era preciso recarregar a pagina para descobrir
+    que a contagem tinha mudado.
+    """
+    with _TRAVA:
+        andamentos = {
+            pasta: dict(estado)
+            for pasta, estado in TRANSMISSOES.items()
+            if estado.get("estado") == "enviando"
+        }
+    return jsonify({
+        "enviando": andamentos,
+        "pendentes": [
+            {"pasta": p["pasta"], "faltam": p["faltam"],
+             "ambiente": p.get("ambiente", "")}
+            for p in lotes_por_transmitir()
+        ],
+    })
 
 
 def notas_da_pasta(caminho: str) -> list:
@@ -1275,10 +1356,8 @@ def telefone_do_paciente(unidade: str, documento: str) -> str:
     base = base_clientes.abrir(cfgmod.PASTA_DADOS, unidade)
     if not base.existe:
         return ""
-    for cliente in base.clientes:
-        if so_digitos(cliente.documento or "") == digitos:
-            return cliente.fone or ""
-    return ""
+    achado = base.por_documento().get(digitos)
+    return (achado.fone or "") if achado else ""
 
 
 @app.route("/consultar", methods=["GET", "POST"])
@@ -1494,12 +1573,22 @@ def notas_do_paciente():
 
     encontrados, notas, paciente = [], [], None
     documento = ""
+    # Tela em branco: em vez de nada ate alguem digitar, a lista de quem
+    # tem nota. E a resposta certa para "quem esta ai dentro?".
+    todos_pacientes = []
     # Quando a pessoa foi identificada mas nao ha nota, o motivo importa: a
     # operadora precisa saber se e ano errado, se so tem nota de teste, ou se
     # de fato nunca se emitiu para ela.
     em_teste, outros_anos = 0, 0
     with Controle(os.path.join(cfgmod.PASTA_DADOS, "controle.db")) as controle:
         anos = controle.anos_com_notas()
+        if not termo:
+            todos_pacientes = [{
+                "documento": p["documento"],
+                "nome": (p["descricao"] or "").split(" - ")[0],
+                "quantas": p["quantas"],
+                "total": p["total"] or 0,
+            } for p in controle.pacientes_com_notas(ano=ano)]
         if termo:
             base = base_clientes.abrir(cfgmod.PASTA_DADOS, unidade)
             if base.existe:
@@ -1529,7 +1618,10 @@ def notas_do_paciente():
 
     # Duas listas podem crescer: os homonimos ("Marcela" da 12 na Gloria) e
     # as notas de quem trata ha anos. Cada uma pagina por conta.
-    nav_gente = nav_notas = None
+    nav_gente = nav_notas = nav_todos = None
+    if todos_pacientes:
+        todos_pacientes, nav_todos = paginar(todos_pacientes,
+                                             request.args.get("pagina"), 40)
     if encontrados and not notas:
         encontrados, nav_gente = paginar(encontrados,
                                          request.args.get("pagina"), 25)
@@ -1541,7 +1633,8 @@ def notas_do_paciente():
                            encontrados=encontrados, paciente=paciente,
                            nome=nome, documento=documento, em_teste=em_teste,
                            outros_anos=outros_anos, nav_gente=nav_gente,
-                           nav_notas=nav_notas,
+                           nav_notas=nav_notas, nav_todos=nav_todos,
+                           todos_pacientes=todos_pacientes,
                            notas=notas, total=total, brl=brl)
 
 

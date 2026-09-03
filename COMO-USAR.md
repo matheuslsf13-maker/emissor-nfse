@@ -167,6 +167,25 @@ conferir a primeira nota de produção.
 
 A tela também lista as últimas notas transmitidas — é só clicar na chave.
 
+### Parar um envio no meio
+
+Enquanto o envio corre, aparece **Parar depois da nota atual**. Ele nunca
+corta uma nota pela metade — termina a que está em curso e para ali.
+
+As notas já aceitas **valem normalmente**. As que faltam continuam na pasta,
+prontas e assinadas: é só transmitir de novo depois, daqui ou pela tela
+inicial.
+
+> Enquanto um envio está rodando, o botão de transmitir daquela pasta fica
+> travado. Dois envios ao mesmo tempo disputariam a fila da prefeitura, que
+> aceita uma nota por vez por CNPJ.
+
+### Sair da tela sem parar o envio
+
+Pode voltar ao início — o envio continua. Na tela inicial, a linha do lote
+mostra uma **barrinha de progresso** que se atualiza sozinha, com quantas
+faltam. Tem também **Atualizar agora**, se preferir.
+
 ### Só atualizar a base de clientes
 
 Quando entrar paciente novo e você **não** quiser conferir caixa nenhum:

@@ -373,6 +373,32 @@ class Controle:
             % " AND ".join(condicoes), valores).fetchall()
         return [dict(linha) for linha in linhas]
 
+    def pacientes_com_notas(self, ambiente: str = "producao",
+                            ano: str = "") -> list:
+        """Quem tem nota, com quantas e quanto -- para a busca vazia.
+
+        Abrir "Notas do paciente" e nao ver nada ate digitar um nome obriga
+        a adivinhar quem esta la. A lista de quem tem nota e a resposta
+        certa para a tela em branco.
+        """
+        condicoes = ["transmitida = 1", "documento IS NOT NULL",
+                     "documento <> ''"]
+        valores = []
+        if ambiente:
+            condicoes.append("ambiente = ?")
+            valores.append(ambiente)
+        if ano:
+            condicoes.append("competencia LIKE ?")
+            valores.append("%s%%" % ano)
+        linhas = self._conexao.execute(
+            "SELECT documento, COUNT(*) AS quantas, SUM(valor) AS total,"
+            " MAX(transmitida_em) AS ultima,"
+            " MIN(descricao) AS descricao"
+            " FROM emitidas WHERE %s GROUP BY documento"
+            " ORDER BY MIN(descricao)" % " AND ".join(condicoes),
+            valores).fetchall()
+        return [dict(linha) for linha in linhas]
+
     def anos_com_notas(self, documento: str = "") -> list:
         """Anos em que houve nota, para oferecer o filtro certo."""
         if documento:

@@ -111,6 +111,19 @@ function iniciarEnvio() {
     const dados = new FormData();
     arquivos.forEach((a) => dados.append("arquivos", a));
 
+    // O relatorio de clientes tem mais de mil paginas: a leitura demora, e
+    // sem nada na tela parecia travamento. O lote de caixa tem tela propria
+    // de progresso; este caminho nao tinha nenhuma.
+    mensagem.innerHTML =
+      '<div class="faixa info"><span class="icone">›</span><div>' +
+      "<b>Lendo os arquivos…</b><p>Relatório grande pode levar um " +
+      "minuto. Não feche esta janela.</p>" +
+      '<div style="background:var(--borda);border-radius:20px;height:8px;' +
+      'overflow:hidden;margin-top:10px;max-width:320px">' +
+      '<div class="listra" style="height:100%;width:35%;' +
+      'background:var(--marca);border-radius:20px"></div></div>' +
+      "</div></div>";
+
     try {
       const resposta = await fetch("/lote", { method: "POST", body: dados });
       const corpo = await resposta.json();
@@ -176,6 +189,77 @@ function acompanhar(loteId) {
     setTimeout(bater, 900);
   }
   bater();
+}
+
+/* --------------------------------------------------------------------------
+   Acompanhar, na tela inicial, o envio que continua rodando.
+
+   Sair da tela de transmissao nao para o envio -- isso e proposital, um lote
+   grande leva minutos. Mas a contagem de "faltam enviar" ficava congelada no
+   que era quando a pagina carregou, e so recarregando dava para ver que
+   tinha mudado. Agora cada linha se atualiza sozinha.
+   -------------------------------------------------------------------------- */
+
+function acompanharEnvios() {
+  const tabela = document.getElementById("tabela-pendentes");
+  if (!tabela) return;
+  const pulso = document.getElementById("pulso-envios");
+
+  async function passo() {
+    let d;
+    try {
+      const r = await fetch("/envios");
+      if (!r.ok) throw new Error("HTTP " + r.status);
+      d = await r.json();
+    } catch (e) {
+      // Servidor ocupado transmitindo: tenta de novo mais devagar, sem
+      // encher a tela de erro.
+      setTimeout(passo, 5000);
+      return;
+    }
+
+    const enviando = d.enviando || {};
+    const faltando = {};
+    (d.pendentes || []).forEach((p) => { faltando[p.pasta] = p.faltam; });
+
+    let algum = false;
+    tabela.querySelectorAll("tr[data-pasta]").forEach((tr) => {
+      const pasta = tr.dataset.pasta;
+      const conta = tr.querySelector(".faltam");
+      if (conta && faltando[pasta] !== undefined) {
+        conta.textContent = faltando[pasta];
+      }
+
+      const caixa = tr.querySelector(".andamento-linha");
+      const e = enviando[pasta];
+      if (!caixa) return;
+      if (e) {
+        algum = true;
+        const total = e.total || 0;
+        const pct = total ? Math.round((e.feitos / total) * 100) : 0;
+        caixa.style.display = "block";
+        tr.querySelector(".barra-linha").style.width = pct + "%";
+        let texto = "enviando " + (e.feitos || 0) + " de " + (total || "?");
+        if (e.parando) texto = "parando… " + texto;
+        else if (e.faltam_seg > 0) {
+          const m = Math.round(e.faltam_seg / 60);
+          texto += m >= 1 ? " · ~" + m + " min" : " · menos de 1 min";
+        }
+        tr.querySelector(".texto-linha").textContent = texto;
+      } else {
+        caixa.style.display = "none";
+      }
+    });
+
+    if (pulso) {
+      pulso.textContent = algum
+        ? "Um envio está em andamento — esta lista se atualiza sozinha."
+        : "Nenhum envio em andamento.";
+    }
+    // De pé em pé mais rápido enquanto há envio; devagar quando não há.
+    setTimeout(passo, algum ? 1500 : 8000);
+  }
+  passo();
 }
 
 function trocarAba(nome) {
@@ -490,7 +574,7 @@ function prepararBusca(loteId, ficha, lancamentos) {
         botao.textContent = alvos.length > 1
           ? "É este (" + alvos.length + ")" : "É este";
         botao.onclick = () =>
-          escolherCadastro(loteId, alvos, c.documento, c.valido);
+          escolherCadastro(loteId, alvos, c.documento, c.valido, c.nome);
         item.appendChild(botao);
 
         caixa.appendChild(item);
@@ -515,12 +599,23 @@ function prepararBusca(loteId, ficha, lancamentos) {
   });
 }
 
-async function escolherCadastro(loteId, lancamentos, documento, valido) {
+async function escolherCadastro(loteId, lancamentos, documento, valido,
+                                nome) {
   if (valido === false) {
     alert("Esse cadastro tem CPF inválido — a prefeitura recusaria a nota. " +
           "Corrija no TechCare e exporte os relatórios de novo.");
     return;
   }
+  // Um clique sem volta decidia de quem seria a nota. Errar aqui emite no
+  // CPF da pessoa errada, e em Vila Velha cancelar exige processo
+  // administrativo -- vale a pergunta.
+  const quantos = Array.isArray(lancamentos) ? lancamentos.length : 1;
+  const alvo = nome ? '"' + nome + '"' : "este cadastro";
+  const pergunta = "Usar " + alvo + " para " +
+    (quantos > 1 ? "os " + quantos + " lançamentos" : "este lançamento") +
+    "?" + String.fromCharCode(10, 10) +
+    "A nota sairá no CPF desta pessoa.";
+  if (!confirm(pergunta)) return;
   // Aceita um lancamento solto ou a lista inteira da pessoa.
   const alvos = Array.isArray(lancamentos) ? lancamentos : [lancamentos];
   let d;

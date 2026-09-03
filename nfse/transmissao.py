@@ -55,6 +55,9 @@ class ResultadoTransmissao:
     enviadas: list = field(default_factory=list)
     puladas: list = field(default_factory=list)
     nao_enviadas: int = 0
+    # Ligada quando o operador pediu para parar. O que ja saiu continua
+    # valendo -- a diferenca esta em como a tela conta a historia.
+    interrompida: bool = False
 
     @property
     def aceitas(self):
@@ -116,7 +119,7 @@ def listar_xmls(pasta: str) -> list:
 
 def transmitir(pasta: str, config, limite: int = None, apenas: set = None,
                progresso=None, tentativas: int = 4, espera: float = 1.5,
-               pausa: float = 0.4) -> ResultadoTransmissao:
+               pausa: float = 0.4, parar=None) -> ResultadoTransmissao:
     """Envia os XMLs da pasta. `limite=1` manda so o primeiro (recomendado).
 
     `progresso(feitos, total, ultimo)` e chamado a cada nota, para a tela
@@ -125,6 +128,12 @@ def transmitir(pasta: str, config, limite: int = None, apenas: set = None,
 
     `tentativas`/`espera` cuidam da trava de envio simultaneo da prefeitura;
     `pausa` e o respiro entre notas diferentes, que evita bater nela.
+
+    `parar()` e consultado ANTES de cada nota. Devolvendo verdadeiro, o
+    envio para ali -- nunca no meio de uma nota. Isso importa: interromper
+    entre o envio e a gravacao do retorno deixaria uma nota emitida na
+    prefeitura e desconhecida aqui, que e o pior estado possivel. O que ja
+    saiu continua valendo; o que falta fica para um proximo envio.
     """
     estado = situacao(config)
     resultado = ResultadoTransmissao(
@@ -153,6 +162,11 @@ def transmitir(pasta: str, config, limite: int = None, apenas: set = None,
         total_previsto = min(total_previsto, limite)
 
     for nome in arquivos:
+        # Antes de comecar a nota, nunca no meio dela.
+        if parar is not None and parar():
+            resultado.interrompida = True
+            resultado.nao_enviadas += 1
+            continue
         if limite is not None and len(resultado.enviadas) >= limite:
             resultado.nao_enviadas += 1
             continue

@@ -169,6 +169,7 @@ class BaseClientes:
         self.criada_em = ""
         self.atualizada_em = ""
         self.historico: list = []
+        self._indice_documento = None
         self._carregar()
 
     # -- disco -------------------------------------------------------------
@@ -320,6 +321,7 @@ class BaseClientes:
                              "para": valor or "(vazio)"})
 
         if mudancas:
+            self._indice_documento = None
             self.historico.append({
                 "em": datetime.now().isoformat(timespec="seconds"),
                 "origem": "correção manual",
@@ -330,6 +332,23 @@ class BaseClientes:
             })
             self.salvar()
         return {"mudancas": mudancas, "cliente": cliente}
+
+    def por_documento(self) -> dict:
+        """documento (so digitos) -> cliente, montado uma vez so.
+
+        Procurar o telefone de cada nota varrendo a lista inteira dava
+        261 x 11.995 comparacoes numa tela so. O indice fica preso a esta
+        instancia, que por sua vez e reaproveitada enquanto o arquivo nao
+        mudar.
+        """
+        if self._indice_documento is None:
+            indice = {}
+            for cliente in self.clientes:
+                digitos = so_digitos(cliente.documento or "")
+                if digitos:
+                    indice.setdefault(digitos, cliente)
+            self._indice_documento = indice
+        return self._indice_documento
 
     def pendencias(self) -> dict:
         """Quantos estão incompletos, por tipo de falta."""
@@ -433,6 +452,7 @@ class BaseClientes:
             "iguais": iguais,
             "total_depois": self.total,
         }
+        self._indice_documento = None
         self.historico.append(registro)
         self.salvar()
 
@@ -447,8 +467,40 @@ def caminho_base(pasta: str, unidade: str) -> str:
     return os.path.join(pasta, "clientes", "%s.json" % unidade)
 
 
+# Base ja aberta, por caminho. A tela de notas transmitidas chamava
+# `abrir()` uma vez por nota para achar o telefone do paciente: 261 notas
+# viravam 261 leituras do JSON de 11.995 pessoas -- vinte segundos de tela
+# parada, crescendo a cada mes emitido.
+#
+# A chave inclui data e tamanho do arquivo: se alguem importar um relatorio
+# em outra aba, ou o proprio programa salvar, a proxima leitura pega a
+# versao nova em vez de servir cadastro velho.
+_ABERTAS: dict = {}
+
+
 def abrir(pasta: str, unidade: str) -> BaseClientes:
-    return BaseClientes(caminho_base(pasta, unidade), unidade)
+    caminho = caminho_base(pasta, unidade)
+    try:
+        marca = os.stat(caminho)
+        assinatura = (marca.st_mtime_ns, marca.st_size)
+    except OSError:
+        assinatura = None
+
+    guardada = _ABERTAS.get(caminho)
+    if guardada is not None and guardada[0] == assinatura:
+        return guardada[1]
+
+    base = BaseClientes(caminho, unidade)
+    _ABERTAS[caminho] = (assinatura, base)
+    return base
+
+
+def esquecer_cache(caminho: str = "") -> None:
+    """Solta a base guardada. So para testes -- o disco manda no resto."""
+    if caminho:
+        _ABERTAS.pop(caminho, None)
+    else:
+        _ABERTAS.clear()
 
 
 def unidades_com_base(pasta: str) -> list:

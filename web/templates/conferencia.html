@@ -285,7 +285,7 @@
         </div>
         {% if c.valido %}
         <button class="botao pequeno" type="button"
-                onclick="escolherCadastro('{{ lote.id }}', {{ g.ids | tojson }}, '{{ c.documento }}', true)">
+                onclick="escolherCadastro('{{ lote.id }}', {{ g.ids | tojson }}, '{{ c.documento }}', true, {{ c.nome | tojson }})">
           É este{% if g.ids | length > 1 %} ({{ g.ids | length }}){% endif %}
         </button>
         {% else %}
