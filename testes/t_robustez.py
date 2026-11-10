@@ -406,7 +406,7 @@ checar("e o default e vazio (cai na configuracao)",
 corpo_conf = cliente.get("/configuracao").data.decode("utf-8", "replace")
 checar("a configuracao nao tem mais chave de ambiente",
        "configuracao/ambiente" not in corpo_conf)
-checar("e explica onde a escolha e feita",
+checar("e diz que a numeracao segue sozinha ao gerar",
        "gerar as notas" in corpo_conf.lower())
 
 checar("rota antiga de trocar ambiente sumiu",
