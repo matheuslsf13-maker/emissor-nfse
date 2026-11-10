@@ -87,8 +87,8 @@ def situacao(config) -> dict:
     if not municipio.get("permitir_envio"):
         faltando.append(
             "o credenciamento do CNPJ para emitir por WebService, que a "
-            "prefeitura precisa liberar — depois disso, ligar permitir_envio "
-            "em config/empresas.json"
+            "prefeitura precisa liberar — depois disso, quem cuida do programa "
+            "liga o envio (permitir_envio)"
         )
     return {
         "pronto": not faltando,

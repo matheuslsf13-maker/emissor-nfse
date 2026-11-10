@@ -12,11 +12,13 @@ import json
 import os
 
 from .documentos import cnpj_valido
-from .util import chave_nome
+from .municipios import codigo_ibge
+from .util import chave_nome, so_digitos
 
 RAIZ = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CAMINHO_CONFIG = os.path.join(RAIZ, "config", "empresas.json")
 PASTA_CERTIFICADOS = os.path.join(RAIZ, "config", "certificados")
+CAMINHO_SENHAS = os.path.join(RAIZ, "config", "senhas.json")
 PASTA_DADOS = os.path.join(RAIZ, "dados")
 PASTA_CACHE = os.path.join(PASTA_DADOS, "cache")
 PASTA_LOTES = os.path.join(PASTA_DADOS, "lotes")
@@ -97,13 +99,12 @@ class Config:
             if not os.path.exists(caminho):
                 itens.append(_atencao(
                     "Certificado de %s não encontrado" % nome,
-                    "Coloque o arquivo %s na pasta config/certificados/."
-                    % dados.get("certificado")))
+                    "Envie o arquivo do certificado (.pfx) em Configuração, "
+                    "no cartão da clínica."))
             elif not os.environ.get(dados.get("variavel_senha", "")):
                 itens.append(_atencao(
                     "Senha do certificado de %s não definida" % nome,
-                    "Defina a variável de ambiente %s (ou preencha config/senhas.bat) antes de assinar."
-                    % dados.get("variavel_senha")))
+                    "Informe a senha em Configuração, no cartão da clínica."))
             else:
                 itens.extend(self._conferir_certificado(chave, nome, dados, caminho))
 
@@ -202,6 +203,92 @@ def carregar(caminho: str = None) -> Config:
             )
     with open(alvo, encoding="utf-8") as fh:
         return Config(json.load(fh))
+
+
+def carregar_senhas(caminho: str = None) -> None:
+    """Poe no ambiente as senhas de certificado informadas pela tela.
+
+    Valem sobre as do senhas.bat: a da tela e sempre a mais recente, e foi
+    conferida contra o certificado na hora em que foi salva.
+    """
+    try:
+        with open(caminho or CAMINHO_SENHAS, encoding="utf-8") as fh:
+            senhas = json.load(fh)
+    except (OSError, ValueError):
+        return
+    for variavel, senha in senhas.items():
+        if senha:
+            os.environ[variavel] = senha
+
+
+def guardar_senha(variavel: str, senha: str, caminho: str = None) -> None:
+    alvo = caminho or CAMINHO_SENHAS
+    try:
+        with open(alvo, encoding="utf-8") as fh:
+            senhas = json.load(fh)
+    except (OSError, ValueError):
+        senhas = {}
+    senhas[variavel] = senha
+    with open(alvo + ".tmp", "w", encoding="utf-8") as fh:
+        json.dump(senhas, fh, ensure_ascii=False, indent=2)
+    os.replace(alvo + ".tmp", alvo)
+    os.environ[variavel] = senha
+
+
+carregar_senhas()
+
+
+LISTAS_DE_REGRAS = ("secoes_que_emitem", "secoes_ignoradas",
+                    "palavras_que_bloqueiam", "prefixos_convenio")
+
+
+def salvar_faturamento(mudancas: dict, caminho: str = None) -> None:
+    """Grava mudancas no bloco `faturamento`, sem tocar no resto do arquivo."""
+    alvo = caminho or CAMINHO_CONFIG
+    with open(alvo, encoding="utf-8") as fh:
+        bruto = json.load(fh)
+    bruto["faturamento"].update(mudancas)
+    # Grava ao lado e troca: queda de energia no meio nao deixa a
+    # configuracao pela metade.
+    with open(alvo + ".tmp", "w", encoding="utf-8") as fh:
+        json.dump(bruto, fh, ensure_ascii=False, indent=2)
+    os.replace(alvo + ".tmp", alvo)
+
+
+CAMPOS_CONVENIO = ("nome", "cnpj", "cep", "logradouro", "numero", "bairro",
+                   "cidade", "uf")
+
+
+def validar_convenio(form) -> tuple:
+    """Confere os dados de um convenio vindos da tela: (dados, erros).
+
+    O convenio e o tomador da nota consolidada: CNPJ ou cidade errados so
+    apareceriam como rejeicao da prefeitura, com a nota ja montada.
+    """
+    dados = {campo: " ".join((form.get(campo) or "").upper().split())
+             for campo in CAMPOS_CONVENIO}
+    dados["cnpj"] = so_digitos(dados["cnpj"])
+    dados["cep"] = so_digitos(dados["cep"])
+    dados["numero"] = dados["numero"] or "SN"
+    erros = []
+    if not dados["nome"]:
+        erros.append("Informe a razão social.")
+    if not cnpj_valido(dados["cnpj"]):
+        erros.append("O CNPJ não passa na validação: confira os números.")
+    if len(dados["cep"]) != 8:
+        erros.append("O CEP precisa ter 8 números.")
+    if not dados["logradouro"] or not dados["bairro"]:
+        erros.append("Informe a rua e o bairro.")
+    if not codigo_ibge(dados["cidade"], dados["uf"]):
+        erros.append("Cidade e UF não foram reconhecidas: confira a grafia.")
+    return dados, erros
+
+
+def salvar_convenio(chave: str, dados: dict, caminho: str = None) -> None:
+    """Grava os dados de um convenio, sem tocar nos outros."""
+    convenios = dict(carregar(caminho).faturamento.get("convenios", {}))
+    convenios[chave] = {**convenios.get(chave, {}), **dados}
+    salvar_faturamento({"convenios": convenios}, caminho)
 
 
 def garantir_pastas() -> None:

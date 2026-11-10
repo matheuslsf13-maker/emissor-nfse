@@ -61,10 +61,12 @@ e prepara o arquivo de senhas sozinho.
 > Eles nunca viajam junto com o programa: certificado e senha no mesmo
 > pacote, passando por pen drive e e-mail, é assinatura digital vazada.
 
-**5. Preencher `config\senhas.bat`** — o instalador já criou o arquivo.
+**5. Abrir com `Iniciar.bat`** e ir em **Configuração**. No cartão de cada
+clínica, escolha o arquivo do certificado e digite a senha. O programa
+confere a senha, o CNPJ e a validade antes de guardar — certificado de outra
+empresa é recusado.
 
-**6. Abrir com `Iniciar.bat`** e conferir em **Configuração** se não sobrou
-nenhum aviso vermelho.
+**6. Conferir em Configuração** se não sobrou nenhum aviso vermelho.
 
 > Faça um atalho: botão direito no `Iniciar.bat` → Enviar para → Área de
 > trabalho.
@@ -131,30 +133,31 @@ intacto.
 
 ---
 
-## 4. Teste e produção
+## 4. Emissão
 
-Não há configuração de ambiente para ligar. A escolha é feita **em cada
-lote**, na hora de gerar:
+A tela oferece **um caminho só: Emitir as notas**, que gera nota fiscal
+real. Não há mais "Só conferir" nem "Gerar para teste" para o operador — o
+ambiente de homologação continua existindo por dentro do programa, usado
+pelos testes automáticos.
 
-| Botão | O que faz |
-|---|---|
-| **Só conferir** | Sem gastar numeração e sem falar com a prefeitura |
-| **Gerar para teste** | Homologação — a prefeitura responde, nada vale fiscalmente |
-| **Emitir valendo** | Nota fiscal real, pede `EMITIR` digitado |
+Três travas ficam no lugar do teste:
 
-**Testar não gasta nota real.** As numerações são independentes, como na
-prefeitura. A tela mostra onde cada lote está:
-
-```
-Teste:   todas as 276 já foram geradas ✓
-Valendo: nenhuma ainda — as 276 continuam disponíveis
-```
+- **A clínica vem do relatório.** O programa lê `EMPRESA:` no cabeçalho de
+  cada PDF. Relatórios das duas clínicas podem ser anexados juntos: sai um
+  lote por clínica, e cada cadastro vai para a base da sua clínica. Arquivo
+  de uma clínica nunca entra no lote da outra.
+- **Confirmação com nome e CNPJ.** Antes de emitir, a tela mostra por qual
+  clínica as notas saem e pede `EMITIR` digitado.
+- **Sem repetição.** Emitir o mesmo lote de novo gera só o que falta.
 
 Dá para **escolher quais notas** emitir: na lista, marque só as que quiser.
-Serve para soltar uma nota específica valendo antes de comprometer o resto.
 
-**A transmissão não pergunta o ambiente** — ele já está assinado dentro de
-cada nota.
+### Regras do que vira nota
+
+Em **Configuração → O que vira nota**: seções do caixa que emitem, seções
+ignoradas, palavras que bloqueiam e prefixos de convênio. Quando o caixa
+traz uma seção que o programa não conhece, a própria conferência pergunta:
+**Gera nota** ou **Ignorar sempre**. Não é preciso editar arquivo nenhum.
 
 ### Avisar o paciente no WhatsApp
 
@@ -229,7 +232,7 @@ tributo federal/estadual/municipal e a situação atual do documento.
 
 ### Notas de um paciente, em PDF
 
-**Notas do paciente** busca por nome ou CPF, filtra por ano e gera um PDF
+**Por paciente** busca por nome ou CPF, filtra por ano e gera um PDF
 com uma página por nota — o pedido de imposto de renda.
 
 Dois detalhes de desenho:
@@ -296,7 +299,7 @@ MOSTRAR PARA ALGUÉM
 INSTALAR NA CLÍNICA
   lá: instalar o Python ("Add python.exe to PATH")
   copiar a pasta + rodar instalar.bat
-  pôr os .pfx e preencher config\senhas.bat
+  abrir → Configuração → certificado e senha de cada clínica
 
 CORRIGIR DE LONGE
   publicar.bat 2.1.0 "o que mudou"
@@ -304,8 +307,8 @@ CORRIGIR DE LONGE
       e fechar/abrir o programa
 
 EMITIR O MÊS (na clínica)
-  gerar para TESTE → transmitir → conferir
-  gerar VALENDO    → transmitir uma → conferir → o resto
+  anexar os relatórios (as duas clínicas juntas, se quiser)
+  conferir → digitar EMITIR → transmitir → conferir
 ```
 
 **Uma vez por mês, na clínica:** Configuração → Backup.

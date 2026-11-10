@@ -54,9 +54,13 @@ Salve em PDF.
 ### 2. Arrastar para o programa
 
 Na tela inicial, arraste os PDFs para a área indicada. Pode arrastar todos de
-uma vez, em qualquer ordem — o programa reconhece qual é qual sozinho.
+uma vez, em qualquer ordem, **das duas clínicas juntas** — o programa lê no
+cabeçalho de cada relatório de qual clínica ele é e separa sozinho.
 
 Clique em **Conferir**.
+
+> Se você mandou relatórios das duas clínicas, aparece um botão de conferir
+> para cada uma. Cada clínica é conferida e emitida separadamente.
 
 ### 3. Conferir
 
@@ -77,33 +81,22 @@ cadastro ou com CPF errado no TechCare. Cada item explica o que fazer.
 
 > Não precisa resolver tudo de uma vez. O que ficar de fora não se perde.
 
-### 4. Gerar as notas
+### 4. Emitir as notas
 
-Três opções, e o ambiente é escolhido **aqui** — não há configuração para
-mexer:
+Um botão só: **Emitir as notas**.
 
-| Botão | O que faz |
-|---|---|
-| **Só conferir** | Monta as notas sem gastar numeração e sem falar com a prefeitura. Pode repetir à vontade. |
-| **Gerar para teste** | Cria as notas em **homologação**. Dá para transmitir e a prefeitura responde de verdade, mas nada vale fiscalmente. |
-| **Emitir valendo** | Cria **nota fiscal de verdade**. Pede para digitar `EMITIR`. |
+São notas fiscais de verdade. Por isso a tela mostra **por qual clínica elas
+saem** (nome e CNPJ) e pede para digitar `EMITIR`. Confira a clínica antes de
+confirmar — cancelar nota em Vila Velha é processo na prefeitura.
 
-> **Gerar não envia.** As notas ficam no seu computador. Nada foi para a
-> prefeitura ainda — isso é o passo 5.
+> **Emitir aqui ainda não envia.** As notas ficam prontas no computador. O
+> envio para a prefeitura é o passo 5.
 
-Acima dos botões, o programa mostra **onde aquele lote está**:
+> **Emitir de novo não repete nota.** O programa lembra o que já saiu: se
+> você emitir o mesmo relatório outra vez, saem só as que faltam.
 
-```
-Teste:   todas as 276 já foram geradas ✓
-Valendo: nenhuma ainda — as 276 continuam disponíveis para emitir
-```
-
-Assim dá para saber o que já foi testado e o que ainda falta emitir de
-verdade, sem precisar lembrar.
-
-> **Testar não gasta nota real.** As numerações de teste e de produção são
-> separadas, como na prefeitura. Testar o mês inteiro e depois emitir valendo
-> é o caminho normal, não retrabalho.
+Dá para emitir só algumas: na lista **Vão virar nota**, marque as que quer.
+Sem marcar nada, saem todas.
 
 > **Para o contador:** o botão **Baixar planilha (.xlsx)** gera um arquivo
 > com quatro abas — resumo, as notas que vão sair, as travadas e o que não
@@ -157,15 +150,21 @@ compara e atualiza só quem mudou.
 
 ---
 
-## Conferir uma nota
+## Achar e conferir uma nota
 
-Menu **Consultar nota**. Cole a chave de acesso e clique em Consultar.
+Menu **Notas emitidas**. A lista mostra todas as notas que a prefeitura
+aceitou, com a clínica de cada uma. Use a busca (nome, CPF ou número da
+nota) e os filtros de **clínica** e **mês**.
 
-O programa pergunta direto ao sistema da prefeitura e mostra o que está
-registrado lá. Serve quando o paciente liga perguntando, e serve para
-conferir a primeira nota de produção.
+Em cada nota: **Imprimir** (abre pronta para imprimir ou salvar em PDF) e
+**WhatsApp** (abre a conversa com a mensagem pronta — você confere e envia).
+Para várias de uma vez, marque as caixinhas e clique em **Imprimir ou salvar
+as marcadas**.
 
-A tela também lista as últimas notas transmitidas — é só clicar na chave.
+No fim da tela, **Conferir uma nota direto na prefeitura**: cole a chave de
+acesso (ou clique no número de uma nota da lista) e o programa pergunta ao
+sistema da prefeitura o que está registrado lá. Serve quando o paciente liga
+perguntando.
 
 ### Quando a prefeitura recusa por "número já existe"
 
@@ -284,7 +283,7 @@ hora. Sai igual ao que sairia se você emitisse pelo portal.
 
 ### Notas de um paciente (imposto de renda)
 
-Menu **Notas do paciente**. Busque por nome ou CPF e escolha o ano.
+Menu **Por paciente**. Busque por nome ou CPF e escolha o ano.
 
 Aparecem todas as notas daquela pessoa, com o total. Marque as que quiser —
 ou deixe todas — e clique em **Baixar PDF**. Sai um PDF com **uma página por nota, no leiaute da prefeitura**, já
@@ -377,12 +376,10 @@ certificados e as notas já emitidas ficam onde estão.
 1. TechCare  →  PDF de caixa (e de clientes, se houver paciente novo)
 2. Arrastar para o programa  →  Conferir
 3. Olhar o que travou  →  resolver ou deixar de fora
-4. Gerar para TESTE  →  transmitir  →  ver se a prefeitura aceitou
-5. Gerar VALENDO    →  transmitir UMA  →  conferir  →  o resto
+4. Conferir a clínica  →  digitar EMITIR  →  Emitir as notas
+5. Transmitir  →  ver se a prefeitura aceitou
+6. Notas emitidas  →  imprimir ou avisar o paciente, se precisar
 ```
-
-O passo 4 é opcional depois que você pegar confiança — mas testar não gasta
-nota real, então nunca custa.
 
 **Uma vez por mês:** Configuração → Backup.
 
@@ -393,5 +390,5 @@ nota real, então nunca custa.
 **Modo noturno.** O botão ◐ no canto superior direito alterna entre claro e
 escuro. A escolha fica salva nesse computador.
 
-**Voltar.** Toda tela tem, no rodapé, um link para o início — não precisa
-usar o botão do navegador.
+**Voltar.** Toda tela tem, no alto, o link **← Voltar** — não precisa usar
+o botão do navegador.

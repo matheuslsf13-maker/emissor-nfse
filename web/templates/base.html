@@ -20,14 +20,19 @@
 <body>
   <header class="topo">
     <div class="topo-interno">
-      <a class="marca" href="{{ url_for('inicio') }}">Emissor de <span>NFS-e</span></a>
+      <a class="marca" href="{{ url_for('inicio') }}" title="Início">
+        <img src="{{ url_for('static', filename='logo-odontocompany.svg') }}" alt="OdontoCompany">
+        <span class="marca-app">Emissor de NFS-e</span>
+      </a>
       <nav>
-        <a href="{{ url_for('inicio') }}" class="{{ 'ativo' if pagina == 'inicio' }}">Início</a>
+        {# Na ordem em que se usa: emitir, achar a nota, o resto. #}
+        <a href="{{ url_for('inicio') }}" class="{{ 'ativo' if pagina == 'inicio' }}">Emitir</a>
+        <a href="{{ url_for('consultar_nota') }}" class="{{ 'ativo' if pagina == 'consulta' }}">Notas emitidas</a>
+        <a href="{{ url_for('notas_do_paciente') }}" class="{{ 'ativo' if pagina == 'paciente' }}">Por paciente</a>
         <a href="{{ url_for('clientes') }}" class="{{ 'ativo' if pagina == 'clientes' }}">Clientes</a>
-        <a href="{{ url_for('notas_do_paciente') }}" class="{{ 'ativo' if pagina == 'paciente' }}">Notas do paciente</a>
-        <a href="{{ url_for('consultar_nota') }}" class="{{ 'ativo' if pagina == 'consulta' }}">Consultar nota</a>
+        <span class="separador"></span>
         <a href="{{ url_for('configuracao') }}" class="{{ 'ativo' if pagina == 'configuracao' }}">Configuração</a>
-        <a href="{{ url_for('ajuda') }}" class="{{ 'ativo' if pagina == 'ajuda' }}">Como usar</a>
+        <a href="{{ url_for('ajuda') }}" class="{{ 'ativo' if pagina == 'ajuda' }}">Ajuda</a>
         <button type="button" id="botao-tema" class="botao-tema"
                 onclick="alternarTema()" title="Alternar claro e escuro"
                 aria-label="Alternar entre tema claro e escuro">◐</button>
@@ -48,6 +53,11 @@
       </p>
     </div>
   </div>
+  {% endif %}
+  {% if pagina != 'inicio' %}
+  {# Volta para a tela de onde a pessoa veio; aberta direto, vai ao inicio. #}
+  <a class="voltar" href="{{ url_for('inicio') }}"
+     onclick="if (document.referrer && history.length > 1) { history.back(); return false; }">← Voltar</a>
   {% endif %}
   {% block conteudo %}{% endblock %}
   </main>

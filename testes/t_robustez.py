@@ -406,7 +406,7 @@ checar("e o default e vazio (cai na configuracao)",
 corpo_conf = cliente.get("/configuracao").data.decode("utf-8", "replace")
 checar("a configuracao nao tem mais chave de ambiente",
        "configuracao/ambiente" not in corpo_conf)
-checar("e explica onde a escolha e feita",
+checar("e diz que a numeracao segue sozinha ao gerar",
        "gerar as notas" in corpo_conf.lower())
 
 checar("rota antiga de trocar ambiente sumiu",
@@ -463,9 +463,12 @@ import glob as _glob  # noqa: E402
 html_conf = io.open("web/templates/conferencia.html", encoding="utf-8").read()
 checar("cada nota tem caixa de selecao", 'class="escolha"' in html_conf)
 checar("ha como marcar e desmarcar todas", 'id="marcar-todas"' in html_conf)
-checar("e os botoes levam a selecao junto",
-       html_conf.count("levarEscolhas(this)") >= 3,
-       "os tres caminhos (conferir, teste, valendo)")
+checar("e o botao de emitir leva a selecao junto",
+       "levarEscolhas(this)" in html_conf)
+checar("a tela so oferece emitir valendo, sem teste nem simulacao",
+       'value="producao"' in html_conf
+       and 'value="homologacao"' not in html_conf
+       and 'value="simular"' not in html_conf)
 
 js = io.open("web/static/app.js", encoding="utf-8").read()
 checar("o javascript monta a lista de escolhidas", "function levarEscolhas" in js)
@@ -537,11 +540,11 @@ for rota in ("/clientes", "/configuracao", "/consultar", "/ajuda"):
 # a ajuda embutida e o manual que a operadora tem a mao: nao pode descrever
 # um fluxo que deixou de existir
 ajuda = cliente.get("/ajuda").data.decode("utf-8", "replace")
-checar("a ajuda mostra os tres caminhos de gerar",
-       "Só conferir" in ajuda and "Gerar para teste" in ajuda
-       and "Emitir valendo" in ajuda)
-checar("e explica que testar nao gasta nota real",
-       "gasta nota real" in ajuda)
+checar("a ajuda mostra um caminho so: emitir",
+       "Emitir as notas" in ajuda and "Só conferir" not in ajuda
+       and "Gerar para teste" not in ajuda)
+checar("e explica que emitir de novo nao repete nota",
+       "gera só as que faltam" in ajuda)
 checar("nao manda mais mexer na configuracao para trocar ambiente",
        "mude na Configuração" not in ajuda)
 
@@ -1646,6 +1649,304 @@ try:
 except EnvioIndisponivel as erro:
     checar("envio desligado bloqueia a transmissao com motivo em portugues",
            "credenciamento" in str(erro) or "falta" in str(erro).lower(), str(erro))
+
+
+# ==========================================================================
+print("\n25. Arquivos de clinicas diferentes no mesmo envio")
+# O bug de 02/09/2026: seis PDFs das duas clinicas num envio so, e tudo
+# saiu pela clinica do primeiro caixa.
+
+_unidades = list(cfgmod.carregar().unidades.items())
+
+
+def _pdf_de(titulo, dados):
+    # segunda linha no mesmo PDF: fecha o texto, desce, abre outro
+    return pdf_falso("%s) Tj 0 -20 Td (EMPRESA: CIDADE - %s - CLINICA"
+                     % (titulo, dados["empresa_no_relatorio"]))
+
+
+if len(_unidades) >= 2:
+    (_ua, _da), (_ub, _db) = _unidades[:2]
+    # base vazia para as duas, senao o envio pede o cadastro primeiro
+    subir([("cli-a.pdf", _pdf_de("RELATORIO - CLIENTES E FORNECEDORES", _da)),
+           ("cli-b.pdf", _pdf_de("RELATORIO - CLIENTES E FORNECEDORES", _db))])
+    r = subir([("caixa-a.pdf", _pdf_de("CAIXA - LANCAMENTOS", _da)),
+               ("caixa-b.pdf", _pdf_de("CAIXA - LANCAMENTOS", _db)),
+               ("caixa-a2.pdf", _pdf_de("CAIXA - LANCAMENTOS", _da)),
+               ("cli-b.pdf", _pdf_de("RELATORIO - CLIENTES E FORNECEDORES", _db))])
+    _lotes = (r.get_json() or {}).get("lotes", [])
+    checar("arquivos das duas clinicas viram um lote por clinica",
+           r.status_code == 200
+           and [(l["unidade"], l["caixas"]) for l in _lotes] == [(_ua, 2), (_ub, 1)],
+           r.data[:300])
+    _salvos = {l["unidade"]: appmod.LOTES[l["id"]] for l in _lotes}
+    checar("cada lote so tem os caixas da sua clinica, e eles existem",
+           all(os.path.exists(c) for l in _salvos.values()
+               for c in l["arquivos"]["caixas"])
+           and sorted(os.path.basename(c)
+                      for c in _salvos[_ub]["arquivos"]["caixas"]) == ["caixa-b.pdf"]
+           and sorted(os.path.basename(c)
+                      for c in _salvos[_ua]["arquivos"]["caixas"])
+           == ["caixa-a.pdf", "caixa-a2.pdf"])
+    checar("o cadastro acompanha o lote da propria clinica",
+           [u for _, u in _salvos[_ub]["arquivos"]["clientes"]] == [_ub]
+           and _salvos[_ua]["arquivos"]["clientes"] == [])
+
+    r = subir([("caixa-a.pdf", _pdf_de("CAIXA - LANCAMENTOS", _da))],
+              unidade=_ub)
+    checar("unidade escolhida diferente da do cabecalho e recusada",
+           r.status_code == 400, r.data[:300])
+
+    r = subir([("cli-a.pdf", _pdf_de("RELATORIO - CLIENTES E FORNECEDORES", _da)),
+               ("cli-b.pdf", _pdf_de("RELATORIO - CLIENTES E FORNECEDORES", _db))])
+    corpo = r.get_json()
+    checar("dois relatorios de clientes vao cada um para a sua clinica",
+           r.status_code == 200
+           and [x["unidade"] for x in corpo.get("resumos", [])] == [_ua, _ub],
+           r.data[:300])
+
+    _cli = os.path.join(cfgmod.PASTA_DADOS, "cli-b.pdf")
+    with open(_cli, "wb") as fh:
+        fh.write(_pdf_de("RELATORIO - CLIENTES E FORNECEDORES", _db))
+    try:
+        appmod.importar_so_clientes(_cli, _ua)
+        checar("clientes de uma clinica nao entram na base da outra", False)
+    except ValueError:
+        checar("clientes de uma clinica nao entram na base da outra", True)
+
+    # lote antigo, gravado antes da trava, com caixa de outra clinica
+    _cx = os.path.join(cfgmod.PASTA_DADOS, "caixa-b.pdf")
+    with open(_cx, "wb") as fh:
+        fh.write(_pdf_de("CAIXA - LANCAMENTOS", _db))
+    try:
+        appmod.conciliar_lote({"unidade": _ua,
+                               "arquivos": {"caixas": [_cx]}})
+        checar("lote antigo misturado nao concilia", False)
+    except ValueError as erro:
+        checar("lote antigo misturado nao concilia", "caixa-b.pdf" in str(erro),
+               str(erro))
+
+
+print("\n26. Regras editaveis pela tela")
+from nfse.regras import M_IGNORADA, M_SECAO, Regras  # noqa: E402
+
+_config_real = cfgmod.CAMINHO_CONFIG
+_config_teste = os.path.join(cfgmod.PASTA_DADOS, "empresas-teste.json")
+shutil.copy2(_config_real, _config_teste)
+cfgmod.CAMINHO_CONFIG = _config_teste
+try:
+    class _Lanc:
+        sinal, tipo, nome_bruto = "+", "CLI", "FULANO DE TAL"
+        secao = "Seção Nova - PIX"
+
+    checar("secao nunca vista cai como desconhecida",
+           Regras(cfgmod.carregar()).avaliar(_Lanc)[1] == M_SECAO)
+    r = cliente.post("/configuracao/secao",
+                     data={"secao": _Lanc.secao, "decisao": "ignora"})
+    checar("ignorar a secao grava e ela deixa de ser desconhecida",
+           r.status_code == 302
+           and Regras(cfgmod.carregar()).avaliar(_Lanc)[1] == M_IGNORADA)
+    cliente.post("/configuracao/secao",
+                 data={"secao": _Lanc.secao, "decisao": "emite"})
+    _f = cfgmod.carregar().faturamento
+    checar("mudar para 'gera nota' tira da lista de ignoradas",
+           Regras(cfgmod.carregar()).avaliar(_Lanc)[0] == "emite"
+           and "SECAO NOVA PIX" not in _f["secoes_ignoradas"])
+    r = cliente.post("/configuracao/regras", data={
+        "secoes_que_emitem": "venda - pix\nVENDA - PIX\n\n",
+        "secoes_ignoradas": "VENDA - PIX\nsangria",
+        "palavras_que_bloqueiam": "DINHEIRO",
+        "prefixos_convenio": "AMIL",
+        "emitir_particulares": "on"})
+    _f = cfgmod.carregar().faturamento
+    checar("a tela de regras grava as listas sem repetir",
+           r.status_code == 302 and _f["secoes_que_emitem"] == ["VENDA PIX"]
+           and _f["secoes_ignoradas"] == ["SANGRIA"]
+           and _f["emitir_particulares"] is True
+           and _f["emitir_convenios"] is False, _f)
+    checar("o resto da configuracao continua la",
+           list(cfgmod.carregar().unidades) == [u for u, _ in _unidades])
+    checar("a tela de configuracao abre com as regras",
+           b"Salvar regras" in cliente.get("/configuracao").data)
+
+    print("\n26b. Dados dos convenios pela tela")
+    _amil = {"convenio": "amil", "nome": "Amil  Teste S/A",
+             "cnpj": "29.309.127/0001-79", "cep": "04711-130",
+             "logradouro": "Av Um", "numero": "", "bairro": "Centro",
+             "cidade": "São Paulo", "uf": "sp"}
+    _antes = cfgmod.carregar().faturamento.get("convenios", {}).get("AMIL")
+    r = cliente.post("/configuracao/convenio",
+                     data=dict(_amil, cnpj="29.309.127/0001-70"))
+    _t = cliente.get("/configuracao").data.decode("utf-8")
+    checar("CNPJ invalido de convenio nao e gravado",
+           r.status_code == 302
+           and cfgmod.carregar().faturamento.get("convenios", {}).get("AMIL")
+           == _antes)
+    checar("a tela diz o motivo e devolve o que foi digitado",
+           "O CNPJ não passa na validação" in _t and "AMIL TESTE S/A" in _t)
+    cliente.post("/configuracao/convenio", data=dict(_amil, cidade="Xyzw"))
+    checar("cidade desconhecida de convenio nao e gravada",
+           cfgmod.carregar().faturamento.get("convenios", {}).get("AMIL")
+           == _antes)
+    r = cliente.post("/configuracao/convenio", data=_amil)
+    _c = cfgmod.carregar().faturamento["convenios"]["AMIL"]
+    checar("convenio valido e gravado limpo",
+           r.status_code == 302 and _c["cnpj"] == "29309127000179"
+           and _c["cep"] == "04711130" and _c["nome"] == "AMIL TESTE S/A"
+           and _c["numero"] == "SN" and _c["uf"] == "SP", _c)
+    checar("gravar o convenio nao mexe nas regras nem nas clinicas",
+           cfgmod.carregar().faturamento["secoes_que_emitem"] == ["VENDA PIX"]
+           and list(cfgmod.carregar().unidades) == [u for u, _ in _unidades])
+    checar("convenio fora da lista de regras e recusado",
+           cliente.post("/configuracao/convenio",
+                        data=dict(_amil, convenio="OUTRO")).status_code == 400)
+    checar("a tela mostra o convenio salvo",
+           "29.309.127/0001-79" in cliente.get("/configuracao").data.decode("utf-8"))
+finally:
+    cfgmod.CAMINHO_CONFIG = _config_real
+
+
+# ==========================================================================
+print("\n27. Notas emitidas: clinica de cada nota e filtros")
+# A lista misturava as duas clinicas sem dizer qual, e imprimir ou avisar o
+# paciente usava a clinica escolhida na tela -- ou a primeira da configuracao.
+
+if len(_unidades) >= 2:
+    _ca, _cb = "1" * 50, "2" * 50
+    _ct = "3" * 50
+    with Controle(os.path.join(cfgmod.PASTA_DADOS, "controle.db")) as c:
+        for _un, _amb, _cac, _num, _nome in (
+                (_ua, "producao", _ca, "9001", "ZULMIRA TESTE DA CLINICA A"),
+                (_ub, "producao", _cb, "9002", "XISTO TESTE DA CLINICA B"),
+                (_ub, "homologacao", _ct, "9003", "WANDA TESTE DE HOMOLOGACAO")):
+            _k = c.chave(_un, "FILTRO:%s" % _num, _amb)
+            c.registrar(_k, numero=int(_num), arquivo="f%s.xml" % _num,
+                        descricao="%s - R$ 10,00" % _nome, valor="10.00",
+                        documento="12345678909", competencia="2031-05")
+            c.registrar_transmissao(_k, numero_nota=_num, chave_acesso=_cac,
+                                    ambiente=_amb)
+        _donas = c.unidades_das_notas([_ca, _cb, "9" * 50])
+    checar("o controle sabe de qual clinica e cada nota",
+           _donas == {_ca: _ua, _cb: _ub}, _donas)
+    _cfg27 = cfgmod.carregar()
+    checar("nota desconhecida cai na clinica pedida, nao na primeira",
+           appmod.unidades_das_notas(["9" * 50], _cfg27, _ub)["9" * 50] == _ub)
+    checar("e a clinica da nota vale sobre a pedida",
+           appmod.unidades_das_notas([_cb], _cfg27, _ua)[_cb] == _ub)
+
+    _t = cliente.get("/consultar?mes=2031-05").get_data(as_text=True)
+    checar("a lista mostra as notas valendo das duas clinicas",
+           "ZULMIRA TESTE" in _t and "XISTO TESTE" in _t)
+    checar("e esconde as notas de teste, a nao ser que pecam",
+           "WANDA TESTE" not in _t
+           and "WANDA TESTE" in cliente.get(
+               "/consultar?mes=2031-05&teste=1").get_data(as_text=True))
+    checar("cada linha manda imprimir pela clinica da propria nota",
+           ("/nota/%s/imprimir?unidade=%s" % (_cb, _ub)) in _t
+           and ("/nota/%s/imprimir?unidade=%s" % (_ca, _ua)) in _t)
+    _t = cliente.get("/consultar?mes=2031-05&unidade=%s" % _ub
+                     ).get_data(as_text=True)
+    checar("o filtro de clinica separa",
+           "XISTO TESTE" in _t and "ZULMIRA TESTE" not in _t)
+    _t = cliente.get("/consultar?q=zulmira").get_data(as_text=True)
+    checar("a busca acha pelo nome, sem ligar para maiuscula",
+           "ZULMIRA TESTE" in _t and "XISTO TESTE" not in _t)
+    _t = cliente.get("/consultar?q=9002").get_data(as_text=True)
+    checar("e pelo numero da nota", "XISTO TESTE" in _t
+           and "ZULMIRA TESTE" not in _t)
+    _t = cliente.get("/consultar?q=ninguem-com-esse-nome").get_data(as_text=True)
+    checar("sem resultado, a tela diz isso em vez de ficar vazia",
+           "Nenhuma nota com esses filtros" in _t)
+
+    # PDF de notas das duas clinicas: cada grupo com o certificado da sua.
+    _pedidos = []
+    _carregar_real = appmod.nacional.baixar_varios
+    import nfse.assinatura as _ass
+    _pfx_real = _ass.carregar_pfx
+    try:
+        _ass.carregar_pfx = lambda caminho, senha: os.path.basename(caminho)
+        appmod.nacional.baixar_varios = (
+            lambda chaves, cert: _pedidos.append((cert, list(chaves))) or {})
+        cliente.post("/notas/pdf", data={"chave": [_ca, _cb]})
+    finally:
+        _ass.carregar_pfx = _pfx_real
+        appmod.nacional.baixar_varios = _carregar_real
+    checar("o PDF em lote baixa cada nota com o certificado da clinica dela",
+           sorted(_pedidos) == sorted([
+               (_cfg27.unidades[_ua]["certificado"], [_ca]),
+               (_cfg27.unidades[_ub]["certificado"], [_cb])]), _pedidos)
+
+
+print("\n28. Certificado e senha pela tela")
+import json as _json  # noqa: E402
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from apoio import certificado_de_teste  # noqa: E402
+
+_guardar = (cfgmod.CAMINHO_CONFIG, cfgmod.CAMINHO_SENHAS,
+            cfgmod.PASTA_CERTIFICADOS, dict(os.environ))
+_pasta28 = tempfile.mkdtemp(prefix="nfse-rob-cert-")
+try:
+    with open(cfgmod.CAMINHO_CONFIG, encoding="utf-8") as fh:
+        _bruto28 = _json.load(fh)
+    _u28 = next(iter(_bruto28["unidades"]))
+    _var28 = _bruto28["unidades"][_u28]["variavel_senha"]
+    cfgmod.CAMINHO_CONFIG = os.path.join(_pasta28, "empresas.json")
+    cfgmod.CAMINHO_SENHAS = os.path.join(_pasta28, "senhas.json")
+    cfgmod.PASTA_CERTIFICADOS = os.path.join(_pasta28, "certificados")
+    with open(cfgmod.CAMINHO_CONFIG, "w", encoding="utf-8") as fh:
+        _json.dump(_bruto28, fh)
+    os.environ.pop(_var28, None)
+    _pfx28 = open(certificado_de_teste(os.path.join(_pasta28, "t.pfx")),
+                  "rb").read()
+    _destino28 = cfgmod.carregar().caminho_certificado(_u28)
+
+    def _mandar(senha):
+        return cliente.post("/configuracao/certificado", data={
+            "unidade": _u28, "senha": senha,
+            "arquivo": (io.BytesIO(_pfx28), "meu-certificado.pfx")},
+            content_type="multipart/form-data")
+
+    r = _mandar("senha-errada")
+    checar("senha errada e recusada e nada fica guardado",
+           r.status_code == 302 and not os.path.exists(_destino28)
+           and not os.path.exists(cfgmod.CAMINHO_SENHAS)
+           and not os.path.exists(_destino28 + ".novo"))
+    checar("e a tela diz que o certificado nao foi aceito",
+           "O certificado não foi aceito" in
+           cliente.get("/configuracao").get_data(as_text=True))
+
+    # O certificado de teste e de outro CNPJ (11.222.333/0001-81).
+    r = _mandar("teste123")
+    checar("certificado de outra empresa e recusado, mesmo com a senha certa",
+           not os.path.exists(_destino28)
+           and not os.path.exists(cfgmod.CAMINHO_SENHAS))
+
+    _bruto28["unidades"][_u28]["cnpj"] = "11222333000181"
+    with open(cfgmod.CAMINHO_CONFIG, "w", encoding="utf-8") as fh:
+        _json.dump(_bruto28, fh)
+    r = _mandar("teste123")
+    checar("certificado da propria clinica e guardado no lugar certo",
+           os.path.exists(_destino28)
+           and not os.path.exists(_destino28 + ".novo"))
+    checar("a senha fica guardada e ja vale, sem reiniciar",
+           os.path.exists(cfgmod.CAMINHO_SENHAS)
+           and _json.load(open(cfgmod.CAMINHO_SENHAS))[_var28] == "teste123"
+           and cfgmod.carregar().senha_certificado(_u28) == "teste123")
+    os.environ.pop(_var28, None)
+    cfgmod.carregar_senhas()
+    checar("e volta sozinha quando o programa abre de novo",
+           os.environ.get(_var28) == "teste123")
+    _t28 = cliente.get("/configuracao").get_data(as_text=True)
+    checar("a configuracao mostra o certificado como valido",
+           "certificado válido até" in _t28)
+    checar("e nao manda ninguem mexer em variavel de ambiente",
+           "senhas.bat" not in _t28 and "variável de ambiente" not in _t28)
+finally:
+    (cfgmod.CAMINHO_CONFIG, cfgmod.CAMINHO_SENHAS,
+     cfgmod.PASTA_CERTIFICADOS) = _guardar[:3]
+    os.environ.clear()
+    os.environ.update(_guardar[3])
+    shutil.rmtree(_pasta28, ignore_errors=True)
 
 
 # ==========================================================================

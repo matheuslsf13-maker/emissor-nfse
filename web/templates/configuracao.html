@@ -1,15 +1,12 @@
 {% extends "base.html" %}
 {% set pagina = 'configuracao' %}
-{% block titulo %}Configuração
-{% endblock %}
+{% block titulo %}Configuração{% endblock %}
 {% block conteudo %}
 
 <h1>Configuração</h1>
 <p class="legenda">
-  Tudo que o sistema sabe sobre as clínicas está em
-  <code>config/empresas.json</code>. Nada de CNPJ, endereço ou alíquota está
-  escrito dentro do programa — é o que permite acrescentar uma unidade nova sem
-  mexer no código.
+  As clínicas e seus certificados, o que vira nota, o backup e as
+  atualizações. Tudo se resolve aqui, sem mexer em arquivo.
 </p>
 
 {# O titulo antigo era "O que falta antes de emitir valendo" -- e mentia:
@@ -17,48 +14,56 @@
    ja estava emitindo lia ali que nao podia. Agora o que IMPEDE fica
    separado do que so vale saber. #}
 {% set impedem = diagnostico | selectattr('nivel', 'equalto', 'erro') | list %}
-{% set observar = diagnostico | rejectattr('nivel', 'equalto', 'erro') | list %}
+{% set observar = diagnostico | selectattr('nivel', 'equalto', 'atencao') | list %}
+{% set saber = diagnostico | selectattr('nivel', 'equalto', 'info') | list %}
 
 {% if impedem %}
 <h2>O que impede a emissão</h2>
 {% for d in impedem %}
 <div class="faixa erro">
-  <span class="icone">■</span>
+  <span class="icone">!</span>
   <div><b>{{ d.titulo }}</b><p>{{ d.detalhe }}</p></div>
 </div>
 {% endfor %}
 {% else %}
-<h2>Situação</h2>
 <div class="faixa bom"><span class="icone">✓</span><div>
   <b>Nada impede a emissão</b>
-  <p>
-    O sistema está pronto para gerar e transmitir notas
-    {%- if observar %}. As observações abaixo não bloqueiam nada{% endif %}.
-  </p>
+  <p>O sistema está pronto para gerar e transmitir notas.</p>
 </div></div>
 {% endif %}
 
 {% if observar %}
 <h2>Vale observar</h2>
-<p class="legenda" style="margin-top:-6px">
-  Nada aqui impede emitir — são coisas para saber e, quando for o caso,
-  resolver com calma.
-</p>
 {% for d in observar %}
-<div class="faixa {{ 'atencao' if d.nivel == 'atencao' else 'info' }}">
-  <span class="icone">{{ '▲' if d.nivel == 'atencao' else '›' }}</span>
+<div class="faixa atencao">
+  <span class="icone">!</span>
   <div><b>{{ d.titulo }}</b><p>{{ d.detalhe }}</p></div>
 </div>
 {% endfor %}
 {% endif %}
 
-<h2>Unidades</h2>
+
+{# ------------------------------------------------------------ clinicas #}
+<section class="secao" id="clinicas">
+<h2>Clínicas</h2>
+<p class="legenda">
+  Cada clínica emite com o próprio CNPJ e o próprio certificado digital.
+</p>
 <div class="grade-2">
   {% for chave, u in cfg.unidades.items() %}
+  {% set c = certificados[chave] %}
+  {% set certo = c.existe and c.senha_definida and not c.erro and not c.vencido %}
   <div class="cartao">
-    <h3>{{ u.apelido }}</h3>
+    <div class="clinica-topo">
+      <h3>{{ u.apelido }}</h3>
+      {% if certo %}<span class="selo bom">certificado válido até {{ c.validade }}</span>
+      {% elif not c.existe %}<span class="selo ruim">falta o certificado</span>
+      {% elif not c.senha_definida %}<span class="selo aviso">falta a senha do certificado</span>
+      {% elif c.vencido %}<span class="selo ruim">certificado vencido em {{ c.validade }}</span>
+      {% else %}<span class="selo ruim">certificado não abre</span>{% endif %}
+    </div>
     <div class="linha-dado"><span class="chave">Razão social</span><span class="valor">{{ u.razao_social }}</span></div>
-    <div class="linha-dado"><span class="chave">CNPJ</span><span class="valor">{{ u.cnpj }}</span></div>
+    <div class="linha-dado"><span class="chave">CNPJ</span><span class="valor">{{ u.cnpj | documento }}</span></div>
     <div class="linha-dado"><span class="chave">Inscrição municipal</span><span class="valor">{{ u.inscricao_municipal }}</span></div>
     <div class="linha-dado"><span class="chave">Endereço</span><span class="valor">
       {{ u.endereco.logradouro }}, {{ u.endereco.numero }}
@@ -66,32 +71,263 @@
       {{ u.endereco.bairro }} — CEP {{ u.endereco.cep }}
     </span></div>
     <div class="linha-dado"><span class="chave">E-mail</span><span class="valor">{{ u.email }}</span></div>
-
-    {% set c = certificados[chave] %}
-    <div class="linha-dado"><span class="chave">Certificado A1</span><span class="valor">
-      {% if not c.existe %}
-        <span class="selo ruim">não encontrado</span> — coloque <code>{{ c.arquivo }}</code> em <code>config/certificados/</code>
-      {% elif not c.senha_definida %}
-        <span class="selo aviso">senha não definida</span> — variável <code>{{ c.variavel }}</code>
-      {% elif c.erro %}
-        <span class="selo ruim">erro</span> {{ c.erro }}
-      {% elif c.vencido %}
-        <span class="selo ruim">vencido em {{ c.validade }}</span>
-      {% else %}
-        <span class="selo bom">válido até {{ c.validade }}</span>
-      {% endif %}
-    </span></div>
     {% if c.titular %}
     <div class="linha-dado"><span class="chave">Titular do certificado</span><span class="valor" style="font-size:13px">{{ c.titular }}</span></div>
     {% endif %}
+    {% if c.erro %}
+    <p style="font-size:13.5px;color:var(--ruim);margin:10px 0 0">{{ c.erro }}</p>
+    {% endif %}
+
+    {% set aviso = aviso_certificado if aviso_certificado and aviso_certificado.unidade == chave else None %}
+    {% if aviso %}
+    <div class="faixa {{ 'erro' if aviso.erro else 'bom' }}" style="margin:14px 0 0">
+      <span class="icone">!</span>
+      <div><b>{{ 'O certificado não foi aceito' if aviso.erro else 'Certificado salvo' }}</b>
+        <p>{{ aviso.erro or aviso.ok }}</p></div>
+    </div>
+    {% endif %}
+
+    <details class="dobra" {{ 'open' if not certo or (aviso and aviso.erro) }}>
+      <summary>{{ 'Trocar certificado ou senha' if c.existe else 'Enviar o certificado' }}</summary>
+      <div class="dentro">
+        <form method="post" action="{{ url_for('salvar_certificado') }}"
+              enctype="multipart/form-data" class="form-linha">
+          <input type="hidden" name="unidade" value="{{ chave }}">
+          <label>Arquivo do certificado (.pfx){{ ' — só se for trocar' if c.existe }}
+            <input type="file" name="arquivo" accept=".pfx,.p12" {{ 'required' if not c.existe }}>
+          </label>
+          <label>Senha do certificado
+            <input type="password" name="senha" autocomplete="new-password" required>
+          </label>
+          <button class="botao" type="submit">Salvar e conferir</button>
+        </form>
+        <p style="font-size:13.5px;color:var(--tinta-fraca);margin:10px 0 0">
+          O sistema abre o certificado na hora e só guarda se a senha estiver
+          certa e ele for mesmo desta clínica (confere o CNPJ).
+        </p>
+      </div>
+    </details>
   </div>
   {% endfor %}
 </div>
+</section>
 
-<h2>Dados fiscais do serviço</h2>
+
+{# ------------------------------------------------------ o que vira nota #}
+<section class="secao" id="regras">
+<h2>O que vira nota</h2>
+{% set f = cfg.faturamento %}
+{% macro lista(campo, titulo, ajuda) %}
+  <div class="cartao">
+    <h3><label for="{{ campo }}">{{ titulo }}</label></h3>
+    <p style="font-size:13.5px;color:var(--tinta-fraca);margin-top:0">{{ ajuda }}</p>
+    <textarea id="{{ campo }}" name="{{ campo }}" rows="{{ [f.get(campo, []) | length + 2, 5] | max }}"
+              style="width:100%;font-family:monospace">{{ f.get(campo, []) | join('\n') }}</textarea>
+  </div>
+{% endmacro %}
+<p class="legenda">
+  Uma por linha, com o nome igual ao do relatório de caixa (acento e
+  maiúscula não importam). Vale já na próxima conferência.
+</p>
+<form method="post" action="{{ url_for('salvar_regras') }}">
+  <div class="grade-2 dupla">
+    {{ lista('secoes_que_emitem', 'Seções do caixa que geram nota',
+             'Só o que está aqui vira nota. Seção nova aparece como aviso na conferência, com botão para decidir.') }}
+    {{ lista('secoes_ignoradas', 'Seções ignoradas de propósito',
+             'Não geram nota e param de aparecer como aviso.') }}
+    {{ lista('palavras_que_bloqueiam', 'Palavras que bloqueiam',
+             'Qualquer seção que contenha uma destas palavras nunca gera nota, mesmo estando na primeira lista.') }}
+    {{ lista('prefixos_convenio', 'Convênios / planos',
+             'Paciente cujo nome no caixa começa com um destes é tratado como convênio, não como particular.') }}
+  </div>
+  <div class="cartao" style="margin-top:16px">
+    <label style="display:block"><input type="checkbox" name="emitir_particulares"
+      {{ 'checked' if f.emitir_particulares }}> Emitir nota para particulares</label>
+    <label style="display:block;margin-top:6px"><input type="checkbox" name="emitir_convenios"
+      {{ 'checked' if f.emitir_convenios }}> Emitir nota de convênio (uma consolidada por competência)</label>
+    <button class="botao" type="submit" style="margin-top:12px">Salvar regras</button>
+  </div>
+</form>
+</section>
+
+
+{# ----------------------------------------------------------- convenios #}
+{% if convenios %}
+<section class="secao" id="convenios">
+<h2>Dados dos convênios</h2>
+<p class="legenda">
+  A nota de convênio sai em nome da operadora, com estes dados. Para
+  acrescentar um convênio, escreva o nome dele em "Convênios / planos",
+  logo acima, e salve as regras.
+</p>
+<div class="grade-2 dupla">
+  {% for chave, salvo in convenios %}
+  {% set aviso = aviso_convenio if aviso_convenio and aviso_convenio.chave == chave else None %}
+  {% set d = aviso.dados if aviso and aviso.erro else salvo %}
+  <div class="cartao">
+    <div class="clinica-topo">
+      <h3>{{ chave }}</h3>
+      {% if salvo.cnpj %}<span class="selo bom">dados preenchidos</span>
+      {% else %}<span class="selo aviso">faltam os dados</span>{% endif %}
+    </div>
+    {% if salvo.cnpj %}
+    <div class="linha-dado"><span class="chave">Razão social</span><span class="valor">{{ salvo.nome }}</span></div>
+    <div class="linha-dado"><span class="chave">CNPJ</span><span class="valor">{{ salvo.cnpj | documento }}</span></div>
+    <div class="linha-dado"><span class="chave">Endereço</span><span class="valor">
+      {{ salvo.logradouro }}, {{ salvo.numero }} — {{ salvo.bairro }} —
+      {{ salvo.cidade }}/{{ salvo.uf }} — CEP {{ salvo.cep }}
+    </span></div>
+    {% endif %}
+    {% if aviso %}
+    <div class="faixa {{ 'erro' if aviso.erro else 'bom' }}" style="margin:14px 0 0">
+      <span class="icone">{{ '!' if aviso.erro else '✓' }}</span>
+      <div><b>{{ 'Os dados não foram salvos' if aviso.erro else 'Convênio salvo' }}</b>
+        <p>{{ aviso.erro or aviso.ok }}</p></div>
+    </div>
+    {% endif %}
+    <details class="dobra" {{ 'open' if not salvo.cnpj or (aviso and aviso.erro) }}>
+      <summary>{{ 'Alterar os dados' if salvo.cnpj else 'Preencher os dados' }}</summary>
+      <div class="dentro">
+        <form method="post" action="{{ url_for('salvar_convenio') }}" class="form-linha">
+          <input type="hidden" name="convenio" value="{{ chave }}">
+          <label style="flex:1 1 100%">Razão social
+            <input type="text" name="nome" value="{{ d.nome }}" required>
+          </label>
+          <label>CNPJ
+            <input type="text" name="cnpj" value="{{ d.cnpj | documento if d.cnpj }}"
+                   inputmode="numeric" style="width:180px" required>
+          </label>
+          <label>CEP
+            <input type="text" name="cep" value="{{ d.cep }}"
+                   inputmode="numeric" style="width:110px" required>
+          </label>
+          <label style="flex:1 1 100%">Rua / avenida
+            <input type="text" name="logradouro" value="{{ d.logradouro }}" required>
+          </label>
+          <label>Número
+            <input type="text" name="numero" value="{{ d.numero }}"
+                   placeholder="SN" style="width:90px">
+          </label>
+          <label style="flex:1">Bairro
+            <input type="text" name="bairro" value="{{ d.bairro }}" required>
+          </label>
+          <label style="flex:1">Cidade
+            <input type="text" name="cidade" value="{{ d.cidade }}" required>
+          </label>
+          <label>UF
+            <input type="text" name="uf" value="{{ d.uf }}" maxlength="2"
+                   style="width:60px" required>
+          </label>
+          <button class="botao" type="submit">Salvar e conferir</button>
+        </form>
+        <p style="font-size:13.5px;color:var(--tinta-fraca);margin:10px 0 0">
+          O sistema confere o CNPJ e a cidade antes de guardar.
+        </p>
+      </div>
+    </details>
+  </div>
+  {% endfor %}
+</div>
+</section>
+{% endif %}
+
+
+{# ----------------------------------------------------------- numeracao #}
+<section class="secao" id="numeracao">
+<h2>Numeração das notas</h2>
 <div class="cartao">
-  <div class="linha-dado"><span class="chave">Código nacional (cTribNac)</span><span class="valor">{{ cfg.servico.codigo_tributacao_nacional }} — {{ cfg.servico.descricao_tributacao_nacional }}</span></div>
-  <div class="linha-dado"><span class="chave">Código NBS</span><span class="valor">{{ cfg.servico.codigo_nbs }}</span></div>
+  {% for chave, u in cfg.unidades.items() %}
+  {% set ultima = controle.por_ambiente.get(chave, {}).get('producao', 0) %}
+  <div class="linha-dado">
+    <span class="chave">{{ u.apelido }}</span>
+    <span class="valor">
+      {% if ultima %}última nota valendo nº <b>{{ ultima }}</b>{% else %}nenhuma nota valendo ainda{% endif %}
+    </span>
+  </div>
+  {% endfor %}
+  <p style="font-size:13.5px;color:var(--tinta-fraca);margin:10px 0 0">
+    O sistema continua a contagem sozinho na hora de gerar as notas — aqui
+    não há chave para esquecer ligada. Faça o backup depois de emitir: é
+    ele que guarda de onde a numeração parou.
+  </p>
+
+  <details class="dobra">
+    <summary>Ajustar a numeração
+      <small>só se a clínica emitiu nota fora do sistema</small></summary>
+    <div class="dentro">
+      {% for chave, u in cfg.unidades.items() %}
+        {% for amb in ['producao', 'homologacao'] %}
+        <form method="post" action="{{ url_for('ajustar_numeracao') }}"
+              style="display:flex;gap:10px;align-items:center;margin-bottom:8px;flex-wrap:wrap">
+          <input type="hidden" name="unidade" value="{{ chave }}">
+          <input type="hidden" name="ambiente" value="{{ amb }}">
+          <span style="min-width:170px">
+            {{ u.apelido }}
+            <span class="selo {{ 'marca' if amb == 'producao' else 'neutro' }}"
+                  style="font-size:11px">{{ 'valendo' if amb == 'producao' else 'teste' }}</span>
+          </span>
+          <span style="color:var(--tinta-fraca)">última nota nº</span>
+          <input type="text" name="ultimo" style="width:110px"
+                 value="{{ controle.por_ambiente.get(chave, {}).get(amb, 0) }}">
+          <button class="botao pequeno secundario" type="submit">Ajustar</button>
+        </form>
+        {% endfor %}
+      {% endfor %}
+      <p style="font-size:13.5px;color:var(--tinta-fraca)">
+        As notas de teste têm contagem própria e não gastam número das notas
+        valendo. Série usada: <code>{{ cfg.faturamento.serie }}</code>.
+      </p>
+
+      {# Duas maquinas emitindo pela mesma clinica e o caminho mais rapido
+         para numero repetido: cada uma acha que o proximo e o dela. #}
+      <h3 style="margin-top:18px">Comparar com outro computador</h3>
+      <p style="color:var(--tinta-fraca);font-size:14px;margin-top:0">
+        Se o sistema roda em mais de uma máquina, <b>só uma pode emitir</b> —
+        a prefeitura recusa número repetido. Copie o texto e compare com o
+        da outra.
+      </p>
+      <pre id="situacao-numeracao" class="mono-bloco"
+           style="white-space:pre-wrap;font-size:12.5px">{% for chave, u in cfg.unidades.items() %}{{ u.apelido }}
+{%- for amb in ['producao', 'homologacao'] %}
+  {{ amb }}: último nº {{ resumo_controle.por_ambiente.get(chave, {}).get(amb, 0) }}
+{%- endfor %}
+{% endfor %}Total emitidas: {{ resumo_controle.emitidas }} · transmitidas: {{ resumo_controle.transmitidas }}
+Nesta máquina, em {{ agora }}</pre>
+      <button type="button" class="botao pequeno secundario"
+              onclick="copiarSituacao(this)">Copiar para mandar</button>
+    </div>
+  </details>
+</div>
+</section>
+
+
+{# -------------------------------------------------------------- backup #}
+<section class="secao" id="backup">
+<h2>Backup</h2>
+<div class="cartao">
+  <p style="margin-top:0">
+    Um arquivo só, com a numeração, o registro das notas emitidas, o cadastro
+    de clientes e esta configuração. <b>Baixe depois de cada emissão</b> e
+    guarde fora deste computador — pen drive ou Google Drive.
+  </p>
+  <form method="post" action="{{ url_for('backup') }}">
+    <button class="botao" type="submit">Baixar backup agora</button>
+  </form>
+  <p style="margin:12px 0 0;color:var(--tinta-fraca);font-size:13.5px">
+    Os certificados e as senhas ficam de fora de propósito: certificado e
+    senha no mesmo arquivo, circulando por aí, é como uma assinatura vaza.
+    Os XMLs das notas (pasta <code>dados/saida</code>) também não entram, pelo
+    tamanho — copie a pasta de tempos em tempos e guarde por 5 anos.
+  </p>
+</div>
+</section>
+
+
+{# --------------------------------------------------------- dados da nota #}
+<section class="secao" id="nota">
+<h2>Dados que saem na nota</h2>
+<div class="cartao">
+  <div class="linha-dado"><span class="chave">Serviço</span><span class="valor">{{ cfg.servico.codigo_tributacao_nacional }} — {{ cfg.servico.descricao_tributacao_nacional }}</span></div>
   <div class="linha-dado"><span class="chave">Descrição na nota</span><span class="valor">{{ cfg.servico.descricao }}</span></div>
   <div class="linha-dado"><span class="chave">Alíquota de ISS</span><span class="valor">{{ cfg.servico.aliquota_iss }}%</span></div>
   <div class="linha-dado"><span class="chave">ISS retido?</span><span class="valor">
@@ -100,6 +336,11 @@
   <div class="linha-dado"><span class="chave">Simples Nacional</span><span class="valor">
     {{ 'Não optante' if cfg.servico.opcao_simples_nacional == '1' else 'Optante' }}
   </span></div>
+  <div class="linha-dado"><span class="chave">Município</span><span class="valor">{{ cfg.municipio.nome }}</span></div>
+  <div class="linha-dado"><span class="chave">Envio à prefeitura</span><span class="valor">
+    {% if envio.pronto %}<span class="selo bom">liberado</span>
+    {% else %}<span class="selo aviso">ainda não liberado</span> {{ envio.faltando | join('; ') }}{% endif %}
+  </span></div>
   <div class="linha-dado"><span class="chave">IBS/CBS</span><span class="valor">
     {% if cfg.ibscbs.emitir %}
       <span class="selo bom">ligado</span> classificação {{ cfg.ibscbs.codigo_classificacao_tributaria }}
@@ -107,203 +348,24 @@
       <span class="selo neutro">desligado</span>
     {% endif %}
   </span></div>
-</div>
-
-<h2>Regras de faturamento</h2>
-<div class="grade-2">
-  <div class="cartao">
-    <h3>Seções que geram nota</h3>
-    <p style="font-size:13.5px;color:var(--tinta-fraca);margin-top:0">
-      A classificação é sempre pelo <b>nome</b> da seção. O código numérico não
-      serve: <code>54</code> é “MANUT ORTO - CARTAO DEBITO” no caixa da clínica e
-      “REC ODC - BOLETO” no de contratos.
-    </p>
-    {% for s in cfg.faturamento.secoes_que_emitem %}
-      <span class="selo neutro" style="margin:2px 2px 2px 0;display:inline-block">{{ s }}</span>
-    {% endfor %}
-  </div>
-  <div class="cartao">
-    <h3>O que nunca gera nota</h3>
-    {% for p in cfg.faturamento.palavras_que_bloqueiam %}
-      <span class="selo ruim" style="margin:2px 2px 2px 0;display:inline-block">qualquer seção com {{ p }}</span>
-    {% endfor %}
-    <div class="linha-dado" style="margin-top:10px">
-      <span class="chave">Particulares</span>
-      <span class="valor">{{ 'emitindo' if cfg.faturamento.emitir_particulares else 'desligado' }}</span>
-    </div>
-    <div class="linha-dado">
-      <span class="chave">Convênios</span>
-      <span class="valor">
-        {{ 'emitindo (nota consolidada)' if cfg.faturamento.emitir_convenios else 'desligado nesta fase' }}
-      </span>
-    </div>
-    <div class="linha-dado">
-      <span class="chave">Convênios reconhecidos</span>
-      <span class="valor">{{ cfg.faturamento.prefixos_convenio | join(', ') }}</span>
-    </div>
-  </div>
-</div>
-
-<h2>Numeração das notas</h2>
-
-{# Duas maquinas emitindo pela mesma clinica e o caminho mais rapido para o
-   E0014: cada uma acha que o proximo numero e o dela. Este bloco existe
-   para conferir a distancia entre elas sem precisar mexer em arquivo --
-   quem esta na clinica copia o texto e manda; quem esta do outro lado
-   compara com o proprio. #}
-<div class="cartao" style="margin-bottom:16px">
-  <h3 style="margin-top:0">Comparar com outro computador</h3>
-  <p style="color:var(--tinta-fraca);font-size:14px;margin-top:0">
-    Se o sistema roda em mais de uma máquina, <b>só uma pode emitir</b> —
-    a numeração de cada uma anda sozinha, e a prefeitura recusa número
-    repetido. Copie o texto abaixo e compare com o da outra.
+  {% for d in saber %}
+  <p style="font-size:13.5px;color:var(--tinta-fraca);margin:10px 0 0">
+    <b>{{ d.titulo }}.</b> {{ d.detalhe }}
   </p>
-  <pre id="situacao-numeracao" class="mono-bloco"
-       style="white-space:pre-wrap;font-size:12.5px">{% for chave, u in cfg.unidades.items() %}{{ u.apelido }}
-{%- for amb in ['producao', 'homologacao'] %}
-  {{ amb }}: último nº {{ resumo_controle.por_ambiente.get(chave, {}).get(amb, 0) }}
-{%- endfor %}
-{% endfor %}Total emitidas: {{ resumo_controle.emitidas }} · transmitidas: {{ resumo_controle.transmitidas }}
-Nesta máquina, em {{ agora }}</pre>
-  <button type="button" class="botao pequeno secundario"
-          onclick="copiarSituacao(this)">Copiar para mandar</button>
-</div>
-
-<div class="cartao">
-  <div class="faixa atencao" style="margin-bottom:16px">
-    <span class="icone">▲</span>
-    <div>
-      <b>Não apague <code>dados/controle.db</code></b>
-      <p>
-        É esse arquivo que guarda o último número usado e quais notas já saíram.
-        Perdê-lo faz a numeração recomeçar, e a prefeitura rejeita número repetido.
-      </p>
-    </div>
-  </div>
-  <p style="font-size:14px;color:var(--tinta-fraca)">
-    <b>Cada ambiente tem a própria contagem</b>, do mesmo jeito que a
-    prefeitura mantém dois bancos separados. As notas de teste não gastam
-    números da produção.
-  </p>
-
-  {% for chave, u in cfg.unidades.items() %}
-    {% for amb in ['homologacao', 'producao'] %}
-    <form method="post" action="{{ url_for('ajustar_numeracao') }}"
-          style="display:flex;gap:10px;align-items:center;margin-bottom:8px">
-      <input type="hidden" name="unidade" value="{{ chave }}">
-      <input type="hidden" name="ambiente" value="{{ amb }}">
-      <span style="min-width:150px">
-        {{ u.apelido }}
-        <span class="selo {{ 'ruim' if amb == 'producao' else 'neutro' }}"
-              style="font-size:11px">{{ amb }}</span>
-      </span>
-      <span style="color:var(--tinta-fraca)">última nota nº</span>
-      <input type="text" name="ultimo" style="width:110px"
-             value="{{ controle.por_ambiente.get(chave, {}).get(amb, 0) }}">
-      <button class="botao pequeno secundario" type="submit">Ajustar</button>
-    </form>
-    {% endfor %}
   {% endfor %}
-  <p style="font-size:13.5px;color:var(--tinta-fraca);margin-bottom:0">
-    Ajuste só se a clínica já emitiu notas fora do sistema e a numeração precisa
-    continuar de onde parou. Série usada: <code>{{ cfg.faturamento.serie }}</code>
-    (a prefeitura usa 49999 na emissão manual, por isso não colidem).
+  <p style="font-size:13.5px;color:var(--tinta-fraca);margin:10px 0 0">
+    São definições fiscais, combinadas com o contador. Quase nunca mudam.
   </p>
 </div>
+</section>
 
-<h2>Backup</h2>
-<div class="cartao">
-  <p>
-    Três coisas não podem ser perdidas, e só uma delas é insubstituível:
-  </p>
-  <div class="linha-dado">
-    <span class="chave"><code>dados/controle.db</code></span>
-    <span class="valor">
-      <b>Insubstituível.</b> Guarda a numeração e quais notas já foram emitidas
-      e transmitidas. Sem ele a numeração recomeça e a prefeitura rejeita tudo.
-    </span>
-  </div>
-  <div class="linha-dado">
-    <span class="chave"><code>dados/clientes/</code></span>
-    <span class="valor">
-      A base de pacientes. Se perder, dá para refazer reexportando o cadastro
-      do TechCare — leva alguns minutos, não é tragédia.
-    </span>
-  </div>
-  <div class="linha-dado">
-    <span class="chave"><code>config/empresas.json</code></span>
-    <span class="valor">CNPJ, endereços, alíquota, regras. Refazível, mas dá trabalho.</span>
-  </div>
-  <div class="linha-dado">
-    <span class="chave"><code>dados/saida/</code></span>
-    <span class="valor">
-      Os XMLs emitidos. São documento fiscal — guarde por 5 anos. Não entram no
-      zip por causa do tamanho; copie a pasta junto, de tempos em tempos.
-    </span>
-  </div>
 
-  <div class="faixa atencao" style="margin:16px 0 0">
-    <span class="icone">▲</span>
-    <div>
-      <b>Os certificados ficam de fora do backup, de propósito</b>
-      <p>
-        Um <code>.pfx</code> com a senha do lado, num arquivo que circula por
-        e-mail ou pen drive, é exatamente como uma assinatura digital vaza.
-        Guarde os certificados e o <code>senhas.bat</code> separadamente, em
-        lugar seguro.
-      </p>
-    </div>
-  </div>
-
-  <form method="post" action="{{ url_for('backup') }}" style="margin-top:16px">
-    <button class="botao" type="submit">Baixar backup agora (.zip)</button>
-  </form>
-  <p style="margin:12px 0 0;color:var(--tinta-fraca);font-size:13.5px">
-    Faça isso depois de cada emissão valendo. Guarde em outro lugar — pen drive,
-    Google Drive, o que for. Backup na mesma máquina não salva de HD queimado.
-  </p>
-</div>
-
-<h2 id="ambiente">Teste e produção</h2>
-<div class="cartao">
-  <p>
-    <b>Não há chave a ligar aqui.</b> O ambiente é escolhido na hora de
-    <b>gerar as notas</b>, em cada lote: "Gerar para teste" ou "Emitir
-    valendo". A escolha fica assinada dentro de cada XML, e a transmissão
-    manda para onde a nota foi feita.
-  </p>
-  <p style="color:var(--tinta-fraca);font-size:14px;margin-bottom:0">
-    Isso evita o pior erro possível: emitir valendo achando que era teste,
-    porque alguém deixou uma configuração ligada da vez anterior.
-  </p>
-</div>
-
-<h2>Envio à prefeitura</h2>
-<div class="cartao">
-  {% if envio.pronto %}
-  <div class="faixa bom"><span class="icone">✓</span><div><b>Envio liberado</b>
-    <p>Ambiente {{ envio.ambiente }} — {{ envio.url }}</p></div></div>
-  {% else %}
-  <div class="faixa atencao">
-    <span class="icone">▲</span>
-    <div>
-      <b>O envio automático ainda não está ligado</b>
-      <p>Falta: {{ envio.faltando | join('; ') }}.</p>
-    </div>
-  </div>
-  {% endif %}
-  <div class="linha-dado"><span class="chave">Município emitente</span><span class="valor">{{ cfg.municipio.nome }} ({{ cfg.municipio.codigo_ibge }})</span></div>
-  <div class="linha-dado"><span class="chave">Padrão do XML</span><span class="valor">{{ cfg.municipio.padrao }} — provedor {{ cfg.municipio.provedor }}</span></div>
-  <div class="linha-dado"><span class="chave">Ambiente escolhido</span><span class="valor">{{ cfg.faturamento.ambiente }}</span></div>
-  <div class="linha-dado"><span class="chave">Homologação</span><span class="valor" style="font-size:12.5px">{{ cfg.municipio.endpoints.homologacao or '—' }}</span></div>
-  <div class="linha-dado"><span class="chave">Produção</span><span class="valor" style="font-size:12.5px">{{ cfg.municipio.endpoints.producao or 'a confirmar com a prefeitura' }}</span></div>
-</div>
-
-<h2>Versão e atualização</h2>
-
+{# ---------------------------------------------------------- atualizacao #}
+<section class="secao" id="atualizacao">
+<h2>Atualização do programa</h2>
 {% if atualizacao %}
   {% if atualizacao.erro_aplicar %}
-  <div class="faixa erro"><span class="icone">■</span><div>
+  <div class="faixa erro"><span class="icone">!</span><div>
     <b>A atualização não foi aplicada</b><p>{{ atualizacao.erro_aplicar }}</p>
   </div></div>
   {% elif atualizacao.aplicado %}
@@ -311,12 +373,10 @@ Nesta máquina, em {{ agora }}</pre>
     <b>{{ atualizacao.mensagem }}</b>
     <p style="font-size:13px">A versão anterior ficou guardada — dá para voltar.</p>
   </div></div>
-
   {% set ap = atualizacao.aplicado %}
   {% if ap.novidades or ap.correcoes %}
-  <div class="cartao" style="border-left:4px solid var(--bom)">
+  <div class="cartao">
     <h3 style="margin-top:0">O que mudou nesta atualização</h3>
-
     {% if ap.novidades %}
     <div style="margin-bottom:14px">
       <span class="selo bom">novidades</span>
@@ -325,7 +385,6 @@ Nesta máquina, em {{ agora }}</pre>
       </ul>
     </div>
     {% endif %}
-
     {% if ap.correcoes %}
     <div>
       <span class="selo marca">correções</span>
@@ -334,7 +393,6 @@ Nesta máquina, em {{ agora }}</pre>
       </ul>
     </div>
     {% endif %}
-
     {% if ap.config %}
     <p style="margin:14px 0 0;font-size:14px;color:var(--tinta-fraca)">
       <b>Configuração ajustada:</b> {{ ap.config | join('; ') }}
@@ -343,15 +401,14 @@ Nesta máquina, em {{ agora }}</pre>
   </div>
   {% endif %}
   {% elif atualizacao.novidade %}
-  <div class="faixa atencao"><span class="icone">▲</span><div>
+  <div class="faixa info"><span class="icone">i</span><div>
     <b>Existe uma versão nova: {{ atualizacao.disponivel }}</b>
     <p>{{ atualizacao.notas or 'Sem descrição do que mudou.' }}</p>
   </div></div>
   {% elif atualizacao.mensagem %}
-  <div class="faixa"><span class="icone">ℹ</span><div><p>{{ atualizacao.mensagem }}</p></div></div>
+  <div class="faixa info"><span class="icone">i</span><div><p>{{ atualizacao.mensagem }}</p></div></div>
   {% endif %}
 {% endif %}
-
 <div class="cartao">
   <div class="linha-dado">
     <span class="chave">Versão instalada</span>
@@ -359,7 +416,7 @@ Nesta máquina, em {{ agora }}</pre>
   </div>
   {% if atualizacao and atualizacao.disponivel %}
   <div class="linha-dado">
-    <span class="chave">Disponível no servidor</span>
+    <span class="chave">Versão disponível</span>
     <span class="valor">{{ atualizacao.disponivel }}
       {% if atualizacao.publicado_em %}
       <span style="color:var(--tinta-fantasma);font-size:12.5px">
@@ -368,7 +425,6 @@ Nesta máquina, em {{ agora }}</pre>
     </span>
   </div>
   {% endif %}
-
   <div style="margin-top:14px;display:flex;gap:10px;flex-wrap:wrap">
     <form method="post" action="{{ url_for('procurar_atualizacao') }}">
       <button class="botao secundario" type="submit">Procurar atualizações</button>
@@ -382,73 +438,65 @@ Nesta máquina, em {{ agora }}</pre>
     </form>
     {% endif %}
   </div>
-
-  <p style="color:var(--tinta-fraca);font-size:13.5px;margin-top:14px">
-    A atualização troca <b>só o programa</b>. A numeração das notas, a base de
-    clientes, os certificados e esta configuração ficam como estão — e a versão
-    anterior é guardada antes de qualquer troca.
+  <p style="color:var(--tinta-fraca);font-size:13.5px;margin:14px 0 0">
+    Atualizar troca só o programa. As notas, a numeração, os clientes, os
+    certificados e esta configuração ficam como estão, e a versão anterior é
+    guardada antes da troca.
   </p>
-</div>
 
-{% if historico_atualizacoes %}
-<details style="margin-top:14px">
-  <summary style="cursor:pointer;color:var(--marca)">
-    Atualizações já instaladas ({{ historico_atualizacoes | length }})
-  </summary>
-  <div class="cartao" style="margin-top:10px">
-    {% for h in historico_atualizacoes %}
-    <div style="padding:10px 0;{% if not loop.last %}border-bottom:1px solid var(--borda-fraca){% endif %}">
-      <div style="display:flex;gap:10px;align-items:baseline;flex-wrap:wrap">
-        <b>Versão {{ h.para }}</b>
-        <span style="color:var(--tinta-fantasma);font-size:13px">
-          instalada em {{ h.em[:10] | data_br }}
-          {% if h.de and h.de != h.para %}· veio da {{ h.de }}{% endif %}
-        </span>
+  {% if historico_atualizacoes %}
+  <details class="dobra">
+    <summary>Atualizações já instaladas <small>{{ historico_atualizacoes | length }}</small></summary>
+    <div class="dentro">
+      {% for h in historico_atualizacoes %}
+      <div style="padding:10px 0;{% if not loop.last %}border-bottom:1px solid var(--borda-fraca){% endif %}">
+        <div style="display:flex;gap:10px;align-items:baseline;flex-wrap:wrap">
+          <b>Versão {{ h.para }}</b>
+          <span style="color:var(--tinta-fantasma);font-size:13px">
+            instalada em {{ h.em[:10] | data_br }}
+            {% if h.de and h.de != h.para %}· veio da {{ h.de }}{% endif %}
+          </span>
+        </div>
+        {% if h.novidades or h.correcoes %}
+        <ul style="margin:6px 0 0;padding-left:20px;font-size:14px;color:var(--tinta-fraca)">
+          {% for item in h.novidades %}<li>{{ item }}</li>{% endfor %}
+          {% for item in h.correcoes %}<li>{{ item }}</li>{% endfor %}
+        </ul>
+        {% elif h.notas %}
+        <p style="margin:4px 0 0;font-size:14px;color:var(--tinta-fraca)">{{ h.notas }}</p>
+        {% endif %}
       </div>
-      {% if h.novidades or h.correcoes %}
-      <ul style="margin:6px 0 0;padding-left:20px;font-size:14px;color:var(--tinta-fraca)">
-        {% for item in h.novidades %}<li>{{ item }}</li>{% endfor %}
-        {% for item in h.correcoes %}<li>{{ item }}</li>{% endfor %}
-      </ul>
-      {% elif h.notas %}
-      <p style="margin:4px 0 0;font-size:14px;color:var(--tinta-fraca)">{{ h.notas }}</p>
-      {% endif %}
+      {% endfor %}
     </div>
-    {% endfor %}
-  </div>
-</details>
-{% endif %}
+  </details>
+  {% endif %}
 
-{% if versoes_guardadas %}
-<details style="margin-top:14px">
-  <summary style="cursor:pointer;color:var(--marca)">
-    Voltar para uma versão anterior ({{ versoes_guardadas | length }} guardada(s))
-  </summary>
-  <div class="cartao" style="margin-top:10px">
-    <p style="color:var(--tinta-fraca);font-size:13.5px">
-      Use se uma atualização deixou o sistema com problema. Volta só o
-      programa; os dados continuam onde estão.
-    </p>
-    {% for v in versoes_guardadas %}
-    <form method="post" action="{{ url_for('reverter_atualizacao') }}"
-          style="display:flex;gap:10px;align-items:center;margin-bottom:8px"
-          onsubmit="return confirm('Voltar o programa para {{ v }}?')">
-      <input type="hidden" name="versao" value="{{ v }}">
-      <code style="flex:1">{{ v }}</code>
-      <button class="botao secundario" type="submit">Voltar para esta</button>
-    </form>
-    {% endfor %}
-  </div>
-</details>
-{% endif %}
-
-<p style="margin-top:20px;color:var(--tinta-fraca);font-size:13.5px">
-  Arquivo de configuração: <code>{{ caminho_config }}</code>
-</p>
+  {% if versoes_guardadas %}
+  <details class="dobra">
+    <summary>Voltar para uma versão anterior
+      <small>se uma atualização deixou o sistema com problema</small></summary>
+    <div class="dentro">
+      <p style="color:var(--tinta-fraca);font-size:13.5px;margin-top:0">
+        Volta só o programa; os dados continuam onde estão.
+      </p>
+      {% for v in versoes_guardadas %}
+      <form method="post" action="{{ url_for('reverter_atualizacao') }}"
+            style="display:flex;gap:10px;align-items:center;margin-bottom:8px"
+            onsubmit="return confirm('Voltar o programa para {{ v }}?')">
+        <input type="hidden" name="versao" value="{{ v }}">
+        <code style="flex:1">{{ v }}</code>
+        <button class="botao pequeno secundario" type="submit">Voltar para esta</button>
+      </form>
+      {% endfor %}
+    </div>
+  </details>
+  {% endif %}
+</div>
+</section>
 
 <nav class="rodape-nav">
   <a href="{{ url_for('inicio') }}">← Voltar ao início</a>
-  <a href="{{ url_for('ajuda') }}">Como usar →</a>
+  <a href="{{ url_for('ajuda') }}">Ajuda →</a>
 </nav>
 
 {% endblock %}

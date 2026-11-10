@@ -636,3 +636,191 @@ tbody tr { transition: background .1s; }
   .so-tela { display: none !important; }
   .danfse { border: none; padding: 0; max-width: none; }
 }
+
+
+/* ==========================================================================
+   Visual 4 — identidade OdontoCompany
+
+   Camada por cima do que ja existia: troca a paleta para o verde da marca,
+   poe a logo no topo e refaz os avisos. Os avisos eram caixas inteiras
+   pintadas de amarelo, verde ou vermelho; com varios na mesma tela, tudo
+   gritava e nada se destacava. Agora sao cartoes neutros com um unico ponto
+   de cor -- o icone -- e a cor forte fica reservada para o que e acao.
+   ========================================================================== */
+
+:root {
+  --marca: #0b7a3e;
+  --marca-escura: #075c2e;
+  --marca-clara: #e7f5ec;
+  --info-borda: #bfe2cc;
+  --fundo: #f4f7f5;
+  --topo: #0a5c33;
+  --topo-tinta: #ffffff;
+  --zap: #128c4a;
+  --raio: 12px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-tema="claro"]) {
+    --marca: #4cc270;
+    --marca-escura: #8fdfa8;
+    --marca-clara: #12301f;
+    --sobre-cor: #06210f;
+    --info-borda: #1d4a2f;
+    --fundo: #0d1411;
+    --papel: #141d18;
+    --papel-suave: #19241e;
+    --borda: #25342b;
+    --borda-fraca: #1c2821;
+    --borda-forte: #38493f;
+    --topo: #0c2a1a;
+    --zap: #4cc270;
+  }
+}
+
+:root[data-tema="escuro"] {
+  --marca: #4cc270;
+  --marca-escura: #8fdfa8;
+  --marca-clara: #12301f;
+  --sobre-cor: #06210f;
+  --info-borda: #1d4a2f;
+  --fundo: #0d1411;
+  --papel: #141d18;
+  --papel-suave: #19241e;
+  --borda: #25342b;
+  --borda-fraca: #1c2821;
+  --borda-forte: #38493f;
+  --topo: #0c2a1a;
+  --zap: #4cc270;
+}
+
+/* ---------- topo ---------- */
+.topo { background: var(--topo); border-bottom: 0; box-shadow: 0 1px 0 rgba(0, 0, 0, .12); }
+.topo-interno { padding: 10px 24px; gap: 28px; }
+.marca { display: flex; align-items: center; gap: 12px; color: var(--topo-tinta); }
+.marca img { height: 30px; width: auto; display: block; }
+.marca .marca-app {
+  font-size: 13px; font-weight: 600; letter-spacing: .02em;
+  color: rgba(255, 255, 255, .78);
+  padding-left: 12px; border-left: 1px solid rgba(255, 255, 255, .25);
+  white-space: nowrap;
+}
+.topo nav { gap: 2px; align-items: center; flex-wrap: wrap; }
+.topo nav a { color: rgba(255, 255, 255, .82); padding: 7px 12px; font-size: 14.5px; }
+.topo nav a:hover { background: rgba(255, 255, 255, .12); color: #fff; }
+.topo nav a.ativo { background: #fff; color: #0a5c33; }
+.topo nav .separador { width: 1px; height: 20px; background: rgba(255, 255, 255, .22); margin: 0 6px; }
+.botao-tema { color: rgba(255, 255, 255, .82); }
+.botao-tema:hover { background: rgba(255, 255, 255, .12); color: #fff; }
+
+/* ---------- voltar ---------- */
+.voltar {
+  display: inline-flex; align-items: center; gap: 6px;
+  margin: -8px 0 14px -10px; padding: 5px 10px; border-radius: 8px;
+  font-size: 14px; font-weight: 500; text-decoration: none;
+  color: var(--tinta-fraca);
+}
+.voltar:hover { background: var(--borda-fraca); color: var(--tinta); }
+
+/* ---------- avisos ---------- */
+.faixa,
+.faixa.info, .faixa.bom, .faixa.atencao, .faixa.erro {
+  background: var(--papel); color: var(--tinta);
+  border: 1px solid var(--borda); border-radius: var(--raio);
+  padding: 14px 16px; gap: 12px; box-shadow: none;
+}
+.faixa.erro { border-color: var(--ruim-borda); }
+.faixa > div { min-width: 0; flex: 1; }
+.faixa > div > b:first-child { color: var(--tinta); font-weight: 600; }
+.faixa p { color: var(--tinta-fraca); }
+.faixa p b { color: var(--tinta); }
+/* O sinal antigo (triangulo, quadrado, seta) vinha escrito em cada tela.
+   Some aqui e vira um ponto redondo com o simbolo certo para o tipo. */
+.faixa .icone {
+  flex: none; width: 22px; height: 22px; margin-top: 1px; border-radius: 50%;
+  display: grid; place-items: center; font-size: 0; line-height: 1;
+  background: var(--marca); color: var(--sobre-cor);
+}
+.faixa .icone::before { content: "i"; font-size: 13px; font-weight: 700; font-family: Georgia, serif; }
+.faixa.bom .icone { background: var(--bom); }
+.faixa.bom .icone::before { content: "\2713"; font-family: inherit; font-size: 12px; }
+.faixa.atencao .icone { background: var(--aviso); }
+.faixa.atencao .icone::before { content: "!"; font-family: inherit; }
+.faixa.erro .icone { background: var(--ruim); }
+.faixa.erro .icone::before { content: "!"; font-family: inherit; }
+
+/* ---------- cartoes, botoes, campos ---------- */
+.cartao { box-shadow: 0 1px 2px rgba(18, 33, 46, .05); }
+.botao { border-radius: 10px; padding: 10px 20px; }
+.botao.pequeno { border-radius: 8px; }
+.botao.zap { background: var(--papel); color: var(--zap); border-color: var(--zap); }
+.botao.zap:hover { background: var(--marca-clara); }
+.botao.fantasma { background: transparent; color: var(--tinta-fraca); border-color: transparent; }
+.botao.fantasma:hover { background: var(--borda-fraca); color: var(--tinta); }
+input[type="password"], input[type="file"], input[type="month"] {
+  font-family: inherit; font-size: var(--t-corpo); padding: 9px 12px;
+  border: 1px solid var(--borda-forte); border-radius: 8px;
+  background: var(--papel); color: var(--tinta);
+}
+input[type="password"]:focus, input[type="month"]:focus, textarea:focus {
+  border-color: var(--marca); box-shadow: 0 0 0 3px var(--marca-clara); outline: none;
+}
+textarea { line-height: 1.5; resize: vertical; }
+
+/* ---------- filtros ---------- */
+.filtros {
+  display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;
+  background: var(--papel); border: 1px solid var(--borda);
+  border-radius: var(--raio); padding: 14px 16px; margin-bottom: 14px;
+}
+.filtros .campo { display: flex; flex-direction: column; gap: 4px; }
+.filtros .campo.cresce { flex: 1; min-width: 220px; }
+.filtros .campo > span {
+  font-size: 12px; font-weight: 600; color: var(--tinta-fraca);
+  text-transform: uppercase; letter-spacing: .04em;
+}
+.filtros .campo input, .filtros .campo select { width: 100%; }
+.filtros .marcar { display: flex; align-items: center; gap: 6px; font-size: 14px; padding: 9px 0; }
+
+.barra-acoes {
+  display: flex; gap: 10px; align-items: center; flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+.barra-acoes .empurra { margin-left: auto; color: var(--tinta-fraca); font-size: 13.5px; }
+
+/* ---------- blocos que abrem ---------- */
+details.dobra {
+  background: var(--papel); border: 1px solid var(--borda);
+  border-radius: var(--raio); margin-top: 14px;
+}
+details.dobra > summary {
+  cursor: pointer; padding: 13px 16px; font-weight: 600; list-style: none;
+  display: flex; align-items: center; gap: 10px;
+}
+details.dobra > summary::-webkit-details-marker { display: none; }
+details.dobra > summary::before {
+  content: "\203A"; font-size: 18px; line-height: 1; color: var(--tinta-fantasma);
+  transition: transform .15s;
+}
+details.dobra[open] > summary::before { transform: rotate(90deg); }
+details.dobra > summary small { font-weight: 400; color: var(--tinta-fraca); font-size: 13.5px; }
+details.dobra > .dentro { padding: 2px 16px 16px; }
+
+/* ---------- configuracao ---------- */
+.secao { margin-top: var(--e6); }
+.secao > h2 { margin-top: 0; }
+.secao > .legenda { margin-bottom: var(--e4); font-size: var(--t-corpo); }
+.clinica-topo { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; }
+.clinica-topo h3 { margin: 0; }
+.form-linha { display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap; }
+.form-linha label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--tinta-fraca); }
+
+@media print {
+  .voltar, .filtros, .barra-acoes { display: none !important; }
+}
+
+/* Cartoes lado a lado nao levam a margem de "cartao embaixo de cartao":
+   ela empurrava o segundo para baixo e a fileira ficava torta. */
+.grade-2 > .cartao + .cartao, .numeros > .cartao + .cartao { margin-top: 0; }
+.grade-2.dupla { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+@media (max-width: 760px) { .grade-2.dupla { grid-template-columns: 1fr; } }

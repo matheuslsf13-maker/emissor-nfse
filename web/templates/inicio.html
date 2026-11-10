@@ -5,7 +5,7 @@
 <div class="passos">
   <div class="passo ativo"><b>1</b> Trazer os relatórios</div>
   <div class="passo"><b>2</b> Conferir</div>
-  <div class="passo"><b>3</b> Gerar as notas</div>
+  <div class="passo"><b>3</b> Emitir as notas</div>
   <div class="passo"><b>4</b> Transmitir</div>
 </div>
 
@@ -14,8 +14,9 @@
   Arraste os PDFs aqui de uma vez — o sistema reconhece sozinho qual é qual e
   de qual unidade vieram.
   {% if bases %}
-  O cadastro de clientes já está salvo, então no dia a dia bastam os
-  <b>dois caixas</b>.
+  Pode misturar as duas clínicas: cada uma ganha a sua conferência,
+  separada. O cadastro de clientes já fica salvo, então no dia a dia bastam
+  os <b>relatórios de caixa</b>.
   {% else %}
   Na primeira vez, mande também o <b>cadastro de clientes</b>: ele fica salvo
   e não precisa ser enviado de novo.
@@ -70,7 +71,7 @@
   <div class="acoes">
     <button type="submit" class="botao" id="enviar" disabled>Conferir os lançamentos</button>
     <span id="dica" style="color:var(--tinta-fraca);font-size:14px">
-      {% if bases %}Selecione os dois caixas.{% else %}Selecione os dois caixas e o cadastro de clientes.{% endif %}
+      {% if bases %}Selecione os relatórios de caixa.{% else %}Selecione os relatórios de caixa e o cadastro de clientes.{% endif %}
     </span>
   </div>
 </form>
@@ -155,7 +156,7 @@
     <tbody>
       {% for l in lotes %}
       <tr>
-        <td class="mono">{{ l.criado_em.replace('T', ' ')[:16] }}</td>
+        <td class="mono">{{ l.criado_em[:10] | data_br }} {{ l.criado_em[11:16] }}</td>
         <td>{{ l.detalhes | map(attribute='arquivo') | join(', ') }}</td>
         <td>{{ unidades.get(l.unidade, {}).get('apelido') or l.unidade or '—' }}</td>
         <td>
@@ -175,9 +176,12 @@
 <div class="grade-2">
   <div class="cartao">
     <h3>Numeração das notas</h3>
-    {% if controle.unidades %}
-      {% for unidade, numero in controle.unidades.items() %}
-      <div class="linha-dado"><span class="chave">{{ unidade }}</span><span class="valor">última nota nº {{ numero }}</span></div>
+    {% if controle.por_ambiente %}
+      {# So as notas valendo: a contagem de teste aqui so confundia. #}
+      {% for unidade, ambientes in controle.por_ambiente.items() %}
+      <div class="linha-dado"><span class="chave">{{ unidades.get(unidade, {}).get('apelido') or unidade }}</span><span class="valor">
+        {% if ambientes.get('producao') %}última nota valendo nº {{ ambientes.producao }}{% else %}nenhuma nota valendo ainda{% endif %}
+      </span></div>
       {% endfor %}
     {% else %}
       <p style="color:var(--tinta-fraca);margin:0">Nenhuma nota emitida valendo ainda.</p>

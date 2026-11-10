@@ -97,8 +97,8 @@ def carregar_pfx(caminho: str, senha: str) -> Certificado:
         raise ErroCertificado("Certificado não encontrado: %s" % caminho)
     if not senha:
         raise ErroCertificado(
-            "A senha do certificado não foi informada. Preencha config/senhas.bat "
-            "ou defina a variável de ambiente da unidade."
+            "A senha do certificado não foi informada. Informe em "
+            "Configuração, no cartão da clínica."
         )
     with open(caminho, "rb") as fh:
         dados = fh.read()
