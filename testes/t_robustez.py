@@ -1768,6 +1768,40 @@ try:
            list(cfgmod.carregar().unidades) == [u for u, _ in _unidades])
     checar("a tela de configuracao abre com as regras",
            b"Salvar regras" in cliente.get("/configuracao").data)
+
+    print("\n26b. Dados dos convenios pela tela")
+    _amil = {"convenio": "amil", "nome": "Amil  Teste S/A",
+             "cnpj": "29.309.127/0001-79", "cep": "04711-130",
+             "logradouro": "Av Um", "numero": "", "bairro": "Centro",
+             "cidade": "São Paulo", "uf": "sp"}
+    _antes = cfgmod.carregar().faturamento.get("convenios", {}).get("AMIL")
+    r = cliente.post("/configuracao/convenio",
+                     data=dict(_amil, cnpj="29.309.127/0001-70"))
+    _t = cliente.get("/configuracao").data.decode("utf-8")
+    checar("CNPJ invalido de convenio nao e gravado",
+           r.status_code == 302
+           and cfgmod.carregar().faturamento.get("convenios", {}).get("AMIL")
+           == _antes)
+    checar("a tela diz o motivo e devolve o que foi digitado",
+           "O CNPJ não passa na validação" in _t and "AMIL TESTE S/A" in _t)
+    cliente.post("/configuracao/convenio", data=dict(_amil, cidade="Xyzw"))
+    checar("cidade desconhecida de convenio nao e gravada",
+           cfgmod.carregar().faturamento.get("convenios", {}).get("AMIL")
+           == _antes)
+    r = cliente.post("/configuracao/convenio", data=_amil)
+    _c = cfgmod.carregar().faturamento["convenios"]["AMIL"]
+    checar("convenio valido e gravado limpo",
+           r.status_code == 302 and _c["cnpj"] == "29309127000179"
+           and _c["cep"] == "04711130" and _c["nome"] == "AMIL TESTE S/A"
+           and _c["numero"] == "SN" and _c["uf"] == "SP", _c)
+    checar("gravar o convenio nao mexe nas regras nem nas clinicas",
+           cfgmod.carregar().faturamento["secoes_que_emitem"] == ["VENDA PIX"]
+           and list(cfgmod.carregar().unidades) == [u for u, _ in _unidades])
+    checar("convenio fora da lista de regras e recusado",
+           cliente.post("/configuracao/convenio",
+                        data=dict(_amil, convenio="OUTRO")).status_code == 400)
+    checar("a tela mostra o convenio salvo",
+           "29.309.127/0001-79" in cliente.get("/configuracao").data.decode("utf-8"))
 finally:
     cfgmod.CAMINHO_CONFIG = _config_real
 

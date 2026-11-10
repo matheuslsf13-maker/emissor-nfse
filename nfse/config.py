@@ -12,7 +12,8 @@ import json
 import os
 
 from .documentos import cnpj_valido
-from .util import chave_nome
+from .municipios import codigo_ibge
+from .util import chave_nome, so_digitos
 
 RAIZ = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CAMINHO_CONFIG = os.path.join(RAIZ, "config", "empresas.json")
@@ -252,6 +253,42 @@ def salvar_faturamento(mudancas: dict, caminho: str = None) -> None:
     with open(alvo + ".tmp", "w", encoding="utf-8") as fh:
         json.dump(bruto, fh, ensure_ascii=False, indent=2)
     os.replace(alvo + ".tmp", alvo)
+
+
+CAMPOS_CONVENIO = ("nome", "cnpj", "cep", "logradouro", "numero", "bairro",
+                   "cidade", "uf")
+
+
+def validar_convenio(form) -> tuple:
+    """Confere os dados de um convenio vindos da tela: (dados, erros).
+
+    O convenio e o tomador da nota consolidada: CNPJ ou cidade errados so
+    apareceriam como rejeicao da prefeitura, com a nota ja montada.
+    """
+    dados = {campo: " ".join((form.get(campo) or "").upper().split())
+             for campo in CAMPOS_CONVENIO}
+    dados["cnpj"] = so_digitos(dados["cnpj"])
+    dados["cep"] = so_digitos(dados["cep"])
+    dados["numero"] = dados["numero"] or "SN"
+    erros = []
+    if not dados["nome"]:
+        erros.append("Informe a razão social.")
+    if not cnpj_valido(dados["cnpj"]):
+        erros.append("O CNPJ não passa na validação: confira os números.")
+    if len(dados["cep"]) != 8:
+        erros.append("O CEP precisa ter 8 números.")
+    if not dados["logradouro"] or not dados["bairro"]:
+        erros.append("Informe a rua e o bairro.")
+    if not codigo_ibge(dados["cidade"], dados["uf"]):
+        erros.append("Cidade e UF não foram reconhecidas: confira a grafia.")
+    return dados, erros
+
+
+def salvar_convenio(chave: str, dados: dict, caminho: str = None) -> None:
+    """Grava os dados de um convenio, sem tocar nos outros."""
+    convenios = dict(carregar(caminho).faturamento.get("convenios", {}))
+    convenios[chave] = {**convenios.get(chave, {}), **dados}
+    salvar_faturamento({"convenios": convenios}, caminho)
 
 
 def garantir_pastas() -> None:

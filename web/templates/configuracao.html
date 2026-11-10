@@ -151,6 +151,87 @@
 </section>
 
 
+{# ----------------------------------------------------------- convenios #}
+{% if convenios %}
+<section class="secao" id="convenios">
+<h2>Dados dos convênios</h2>
+<p class="legenda">
+  A nota de convênio sai em nome da operadora, com estes dados. Para
+  acrescentar um convênio, escreva o nome dele em "Convênios / planos",
+  logo acima, e salve as regras.
+</p>
+<div class="grade-2 dupla">
+  {% for chave, salvo in convenios %}
+  {% set aviso = aviso_convenio if aviso_convenio and aviso_convenio.chave == chave else None %}
+  {% set d = aviso.dados if aviso and aviso.erro else salvo %}
+  <div class="cartao">
+    <div class="clinica-topo">
+      <h3>{{ chave }}</h3>
+      {% if salvo.cnpj %}<span class="selo bom">dados preenchidos</span>
+      {% else %}<span class="selo aviso">faltam os dados</span>{% endif %}
+    </div>
+    {% if salvo.cnpj %}
+    <div class="linha-dado"><span class="chave">Razão social</span><span class="valor">{{ salvo.nome }}</span></div>
+    <div class="linha-dado"><span class="chave">CNPJ</span><span class="valor">{{ salvo.cnpj | documento }}</span></div>
+    <div class="linha-dado"><span class="chave">Endereço</span><span class="valor">
+      {{ salvo.logradouro }}, {{ salvo.numero }} — {{ salvo.bairro }} —
+      {{ salvo.cidade }}/{{ salvo.uf }} — CEP {{ salvo.cep }}
+    </span></div>
+    {% endif %}
+    {% if aviso %}
+    <div class="faixa {{ 'erro' if aviso.erro else 'bom' }}" style="margin:14px 0 0">
+      <span class="icone">{{ '!' if aviso.erro else '✓' }}</span>
+      <div><b>{{ 'Os dados não foram salvos' if aviso.erro else 'Convênio salvo' }}</b>
+        <p>{{ aviso.erro or aviso.ok }}</p></div>
+    </div>
+    {% endif %}
+    <details class="dobra" {{ 'open' if not salvo.cnpj or (aviso and aviso.erro) }}>
+      <summary>{{ 'Alterar os dados' if salvo.cnpj else 'Preencher os dados' }}</summary>
+      <div class="dentro">
+        <form method="post" action="{{ url_for('salvar_convenio') }}" class="form-linha">
+          <input type="hidden" name="convenio" value="{{ chave }}">
+          <label style="flex:1 1 100%">Razão social
+            <input type="text" name="nome" value="{{ d.nome }}" required>
+          </label>
+          <label>CNPJ
+            <input type="text" name="cnpj" value="{{ d.cnpj | documento if d.cnpj }}"
+                   inputmode="numeric" style="width:180px" required>
+          </label>
+          <label>CEP
+            <input type="text" name="cep" value="{{ d.cep }}"
+                   inputmode="numeric" style="width:110px" required>
+          </label>
+          <label style="flex:1 1 100%">Rua / avenida
+            <input type="text" name="logradouro" value="{{ d.logradouro }}" required>
+          </label>
+          <label>Número
+            <input type="text" name="numero" value="{{ d.numero }}"
+                   placeholder="SN" style="width:90px">
+          </label>
+          <label style="flex:1">Bairro
+            <input type="text" name="bairro" value="{{ d.bairro }}" required>
+          </label>
+          <label style="flex:1">Cidade
+            <input type="text" name="cidade" value="{{ d.cidade }}" required>
+          </label>
+          <label>UF
+            <input type="text" name="uf" value="{{ d.uf }}" maxlength="2"
+                   style="width:60px" required>
+          </label>
+          <button class="botao" type="submit">Salvar e conferir</button>
+        </form>
+        <p style="font-size:13.5px;color:var(--tinta-fraca);margin:10px 0 0">
+          O sistema confere o CNPJ e a cidade antes de guardar.
+        </p>
+      </div>
+    </details>
+  </div>
+  {% endfor %}
+</div>
+</section>
+{% endif %}
+
+
 {# ----------------------------------------------------------- numeracao #}
 <section class="secao" id="numeracao">
 <h2>Numeração das notas</h2>

@@ -1384,7 +1384,16 @@ def configuracao():
         atualizacao=session.pop("atualizacao", None),
         descarte=session.pop("descarte", None),
         aviso_certificado=session.pop("certificado", None),
+        convenios=_convenios(cfg),
+        aviso_convenio=session.pop("convenio", None),
     )
+
+
+def _convenios(cfg) -> list:
+    """(chave, dados) de cada convenio da lista de regras, na ordem dela."""
+    f = cfg.faturamento
+    chaves = dict.fromkeys(chave_nome(p) for p in f.get("prefixos_convenio", []))
+    return [(c, f.get("convenios", {}).get(c, {})) for c in chaves if c]
 
 
 def _linhas(texto: str) -> list:
@@ -1407,6 +1416,24 @@ def salvar_regras():
         **listas,
     })
     return redirect(url_for("configuracao") + "#regras")
+
+
+@app.post("/configuracao/convenio")
+def salvar_convenio():
+    """CNPJ e endereco do convenio, que e o tomador da nota consolidada."""
+    chave = chave_nome(request.form.get("convenio", ""))
+    if chave not in dict(_convenios(cfgmod.carregar())):
+        abort(400)
+    dados, erros = cfgmod.validar_convenio(request.form)
+    if erros:
+        # Devolve o que foi digitado: ninguem redigita oito campos por um erro.
+        session["convenio"] = {"chave": chave, "erro": " ".join(erros),
+                               "dados": dados}
+    else:
+        cfgmod.salvar_convenio(chave, dados)
+        session["convenio"] = {"chave": chave, "ok": "Dados conferidos e "
+                               "guardados. Valem já na próxima conferência."}
+    return redirect(url_for("configuracao") + "#convenios")
 
 
 @app.post("/configuracao/certificado")
