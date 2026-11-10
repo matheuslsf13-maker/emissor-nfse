@@ -339,11 +339,27 @@ class Controle:
     def transmitidas(self, limite: int = 15) -> list:
         """As ultimas notas aceitas pela prefeitura, para a tela de consulta."""
         linhas = self._conexao.execute(
-            "SELECT numero, numero_nota, chave_acesso, ambiente, transmitida_em,"
-            " descricao, valor, documento FROM emitidas WHERE transmitida = 1"
+            "SELECT chave, numero, numero_nota, chave_acesso, ambiente,"
+            " transmitida_em, descricao, valor, documento, competencia"
+            " FROM emitidas WHERE transmitida = 1"
             " ORDER BY transmitida_em DESC LIMIT ?", (int(limite),)
         ).fetchall()
         return [dict(linha) for linha in linhas]
+
+    def unidades_das_notas(self, chaves_acesso) -> dict:
+        """chave de acesso -> clinica que emitiu.
+
+        A chave interna comeca pela unidade ("gloria|producao|..."). E o que
+        impede imprimir a nota de uma clinica com o certificado da outra.
+        """
+        achadas = {}
+        for chave_acesso in chaves_acesso:
+            linha = self._conexao.execute(
+                "SELECT chave FROM emitidas WHERE chave_acesso = ? LIMIT 1",
+                (chave_acesso,)).fetchone()
+            if linha:
+                achadas[chave_acesso] = linha["chave"].split("|", 1)[0]
+        return achadas
 
     def notas_do_paciente(self, documento: str, ambiente: str = "producao",
                           ano: str = "") -> list:

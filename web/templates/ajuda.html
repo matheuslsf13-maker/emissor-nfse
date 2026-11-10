@@ -65,46 +65,23 @@
 </div>
 
 <div class="cartao">
-  <h2 style="margin-top:0">Passo 4 — Gerar</h2>
+  <h2 style="margin-top:0">Passo 4 — Emitir</h2>
   <p>
-    O ambiente é escolhido <b>aqui</b>, em cada lote. Não há configuração para
-    mexer antes.
+    Um botão só: <b>Emitir as notas</b>. São notas fiscais de verdade, então
+    a tela mostra por qual clínica elas saem (nome e CNPJ) e pede para
+    digitar <b>EMITIR</b>. Não tem desfazer — cancelar é processo na
+    prefeitura.
   </p>
-  <div class="grade-3" style="display:grid;gap:14px;
-       grid-template-columns:repeat(auto-fit,minmax(13rem,1fr))">
-    <div>
-      <h3><span class="selo neutro">Só conferir</span></h3>
-      <p>Monta os XMLs sem gastar numeração e sem falar com a prefeitura.
-         Pode repetir à vontade.</p>
-    </div>
-    <div>
-      <h3><span class="selo bom">Gerar para teste</span></h3>
-      <p>Vai para a homologação e pode ser transmitido. A prefeitura responde
-         de verdade, mas nada vale fiscalmente.</p>
-    </div>
-    <div>
-      <h3><span class="selo ruim">Emitir valendo</span></h3>
-      <p>Nota fiscal de verdade. Pede para digitar EMITIR, e não tem
-         desfazer.</p>
-    </div>
-  </div>
 
-  <div class="linha-dado">
-    <span class="chave">Testar gasta nota real?</span>
-    <span class="valor"><b>Não.</b> As numerações de teste e de produção são
-      separadas, como na prefeitura. Testar o mês inteiro e depois emitir
-      valendo não é retrabalho.</span>
-  </div>
   <div class="linha-dado">
     <span class="chave">Escolher quais notas</span>
     <span class="valor">Na lista <b>Vão virar nota</b>, use as caixinhas para
-      marcar só algumas. Serve para soltar <b>uma nota</b> valendo, de um
-      paciente específico, antes do mês inteiro.</span>
+      marcar só algumas. Sem marcar nada, saem todas.</span>
   </div>
   <div class="linha-dado">
-    <span class="chave">Onde o lote está</span>
-    <span class="valor">Acima dos botões, o sistema mostra quantas já saíram
-      em teste e quantas já saíram valendo.</span>
+    <span class="chave">Emitir de novo repete nota?</span>
+    <span class="valor"><b>Não.</b> O sistema lembra o que já saiu: emitir o
+      mesmo lote outra vez gera só as que faltam.</span>
   </div>
 
   <p style="margin-top:12px">

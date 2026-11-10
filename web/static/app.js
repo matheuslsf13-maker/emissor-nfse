@@ -138,8 +138,7 @@ function iniciarEnvio() {
       // So o relatorio de clientes: nao ha lote de conferencia para abrir,
       // a base foi atualizada e o que importa e dizer o que entrou.
       if (corpo.tipo === "base") {
-        const r = corpo.resumo;
-        mensagem.innerHTML =
+        mensagem.innerHTML = (corpo.resumos || [corpo.resumo]).map((r) =>
           '<div class="faixa bom"><span class="icone">✓</span><div>' +
           "<b>Base de clientes de " + r.apelido + " atualizada</b><p>" +
           "<b>" + r.novos + "</b> pessoa(s) nova(s), <b>" + r.atualizados +
@@ -148,7 +147,26 @@ function iniciarEnvio() {
           "</p><p style='margin-top:6px'>Ninguém foi duplicado: quem já " +
           "estava na base foi reconhecido e só recebeu o que mudou. " +
           "<a href='/clientes?unidade=" + encodeURIComponent(r.unidade) +
-          "'>Ver a base</a></p></div></div>";
+          "'>Ver a base</a></p></div></div>").join("");
+        botao.disabled = false;
+        botao.textContent = "Conferir os lançamentos";
+        arquivos.length = 0;
+        desenhar();
+        return;
+      }
+      // Arquivos das duas clinicas: um lote para cada. Ficar nesta tela com
+      // os dois links evita abrir so um e esquecer o outro.
+      if (corpo.lotes && corpo.lotes.length > 1) {
+        mensagem.innerHTML =
+          '<div class="faixa bom"><span class="icone">✓</span><div>' +
+          "<b>Separei os arquivos por clínica</b><p>Cada clínica tem a sua " +
+          "conferência. Abra uma de cada vez:</p>" +
+          corpo.lotes.map((l) =>
+            "<p style='margin-top:6px'><a class='botao pequeno' target='_blank' " +
+            "href='/lote/" + encodeURIComponent(l.id) + "'>Conferir " +
+            (l.apelido || "clínica não reconhecida") + "</a> " + l.caixas +
+            " relatório(s) de caixa</p>").join("") +
+          "</div></div>";
         botao.disabled = false;
         botao.textContent = "Conferir os lançamentos";
         arquivos.length = 0;

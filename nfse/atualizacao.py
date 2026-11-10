@@ -48,6 +48,7 @@ from . import config as cfgmod
 # Pastas e arquivos que uma atualizacao jamais sobrescreve.
 PRESERVAR = (
     "dados", "entrada", "saida", "config/certificados", "config/senhas.bat",
+    "config/senhas.json",
     "config/empresas.json", ".git", "__pycache__",
 )
 

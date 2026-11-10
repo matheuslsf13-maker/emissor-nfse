@@ -291,6 +291,10 @@ def ler_caixa_cache(caminho: str):
     return caixa
 
 
+def _apelido(cfg, unidade: str) -> str:
+    return cfg.unidades.get(unidade, {}).get("apelido", unidade)
+
+
 def conciliar_lote(lote: dict):
     """Reconcilia o lote na hora.
 
@@ -305,6 +309,15 @@ def conciliar_lote(lote: dict):
             "Não reconheci a unidade no cabeçalho do relatório (%s). "
             "Confira empresa_no_relatorio em config/empresas.json." % caixas[0].empresa
         )
+    # Ultima trava: um caixa de outra clinica neste lote sairia como nota
+    # com o CNPJ errado. Foi o que aconteceu em 02/09/2026.
+    for caixa in caixas:
+        dona = cfg.unidade_por_relatorio(caixa.empresa)
+        if dona and dona != unidade:
+            raise ValueError(
+                "O caixa %s é de %s, mas este lote é de %s. Refaça o envio "
+                "com os arquivos de uma clínica só."
+                % (caixa.arquivo, _apelido(cfg, dona), _apelido(cfg, unidade)))
 
     base = base_clientes.abrir(cfgmod.PASTA_DADOS, unidade)
     if not base.existe:
@@ -359,18 +372,19 @@ def processar_em_segundo_plano(lote_id: str) -> None:
 
         # O PDF de clientes é opcional: só entra quando há gente nova para
         # acrescentar. A conciliação usa sempre a base salva.
-        if lote["arquivos"].get("clientes"):
+        # Cada relatório entra na base da clínica do PRÓPRIO cabeçalho,
+        # nunca na do lote.
+        for caminho, dona in lote["arquivos"].get("clientes") or []:
             lote["progresso"] = {"etapa": "Abrindo o cadastro de clientes",
                                  "percentual": 10}
-            cadastro = obter_cadastro(lote["arquivos"]["clientes"],
-                                      progresso=andamento)
+            cadastro = obter_cadastro(caminho, progresso=andamento)
             lote["progresso"] = {"etapa": "Atualizando a base de clientes",
                                  "percentual": 90}
-            base = base_clientes.abrir(cfgmod.PASTA_DADOS, lote["unidade"])
-            lote["importacao"] = _resumir_importacao(
-                base.mesclar(cadastro, origem=os.path.basename(
-                    lote["arquivos"]["clientes"]))
-            )
+            base = base_clientes.abrir(cfgmod.PASTA_DADOS, dona)
+            resumo = _resumir_importacao(
+                base.mesclar(cadastro, origem=os.path.basename(caminho)))
+            if dona == lote["unidade"]:
+                lote["importacao"] = resumo
 
         lote["progresso"] = {"etapa": "Cruzando o caixa com o cadastro", "percentual": 92}
         conciliar_lote(lote)
@@ -388,6 +402,24 @@ def processar_em_segundo_plano(lote_id: str) -> None:
 # ---------------------------------------------------------------------------
 # telas
 # ---------------------------------------------------------------------------
+
+@app.errorhandler(ValueError)
+def problema_legivel(erro):
+    """Recusa com motivo em portugues, no lugar do "Internal Server Error".
+
+    As travas (lote com caixa de outra clinica, base de clientes que falta)
+    levantam ValueError com a explicacao; sem isto, quem opera via so uma
+    pagina branca em ingles.
+    """
+    return render_template(
+        "erro.html", lote={"erro": str(erro), "sem_dica": True}), 400
+
+
+@app.template_global()
+def dados_da_unidade(chave: str) -> dict:
+    """Apelido, razao social e CNPJ da clinica, para as telas que so tem a chave."""
+    return cfgmod.carregar().unidades.get(chave, {})
+
 
 @app.errorhandler(ControleIlegivel)
 def controle_ilegivel(erro):
@@ -481,8 +513,13 @@ def importar_so_clientes(caminho: str, unidade: str = "") -> dict:
     cfg = cfgmod.carregar()
     cadastro = obter_cadastro(caminho)
 
-    unidade = unidade or cfg.unidade_por_relatorio(
+    do_cabecalho = cfg.unidade_por_relatorio(
         getattr(cadastro, "empresa", "") or "") or ""
+    if unidade and do_cabecalho and unidade != do_cabecalho:
+        raise ValueError(
+            "Este relatório de clientes é de %s, não de %s."
+            % (_apelido(cfg, do_cabecalho), _apelido(cfg, unidade)))
+    unidade = do_cabecalho or unidade or ""
     if unidade not in cfg.unidades:
         raise ValueError(
             "Não reconheci de qual clínica é este relatório. O cabeçalho dele "
@@ -517,7 +554,10 @@ def criar_lote():
     pasta = caminho_lote(lote_id)
     os.makedirs(pasta, exist_ok=True)
 
-    caixas, clientes, ignorados, detalhes = [], None, [], []
+    cfg = cfgmod.carregar()
+    pedida = request.form.get("unidade") or ""
+    # clientes: pares [caminho, unidade]. dono: unidade de cada caixa.
+    caixas, clientes, ignorados, detalhes, dono = [], [], [], [], {}
     for arquivo in arquivos:
         nome = os.path.basename(arquivo.filename or "arquivo.pdf")
         if not nome.lower().endswith(".pdf"):
@@ -531,11 +571,19 @@ def criar_lote():
             continue
         info = identificar_pdf(destino)
         info["arquivo"] = nome
+        # A clínica vem do cabeçalho EMPRESA: de CADA arquivo. Assumir a do
+        # primeiro para todos misturou as duas clínicas em 02/09/2026.
+        info["unidade"] = cfg.unidade_por_relatorio(info["empresa"]) or pedida
         detalhes.append(info)
         if info["tipo"] == "clientes":
-            clientes = destino
+            if info["unidade"]:
+                clientes.append([destino, info["unidade"]])
+            else:
+                ignorados.append(
+                    "%s (não reconheci de qual clínica é)" % nome)
         elif info["tipo"] == "caixa":
             caixas.append(destino)
+            dono[destino] = info["unidade"]
         elif info["tipo"] == "ilegivel":
             ignorados.append("%s — %s" % (nome, info.get("motivo", "ilegível")))
         else:
@@ -547,13 +595,13 @@ def criar_lote():
     # caixa do mes em maos.
     if clientes and not caixas:
         try:
-            resumo = importar_so_clientes(clientes, request.form.get("unidade"))
+            resumos = [importar_so_clientes(c, u) for c, u in clientes]
         except ValueError as falha:
             shutil.rmtree(pasta, ignore_errors=True)
             return jsonify({"erro": str(falha), "detalhes": detalhes}), 400
         shutil.rmtree(pasta, ignore_errors=True)
-        return jsonify({"tipo": "base", "resumo": resumo,
-                        "detalhes": detalhes})
+        return jsonify({"tipo": "base", "resumo": resumos[0],
+                        "resumos": resumos, "detalhes": detalhes})
 
     if not caixas:
         shutil.rmtree(pasta, ignore_errors=True)
@@ -571,44 +619,79 @@ def criar_lote():
     # O cadastro de clientes só é obrigatório enquanto a unidade não tiver
     # base salva. Depois disso, ele vira opcional: mande de novo quando
     # houver paciente novo, e só a diferença entra.
-    cfg = cfgmod.carregar()
-    unidade_detectada = request.form.get("unidade") or ""
-    if not unidade_detectada:
-        primeiro = identificar_pdf(caixas[0])
-        unidade_detectada = cfg.unidade_por_relatorio(primeiro.get("empresa", "")) or ""
+    # Um lote por clínica. Quem opera arrasta tudo de uma vez -- vários
+    # caixas e vários cadastros, das duas clínicas -- e o sistema separa
+    # pelo cabeçalho de cada arquivo. Nada de uma entra no lote da outra.
+    diferentes = [os.path.basename(c) for c in caixas
+                  if pedida and dono[c] != pedida]
+    if diferentes:
+        shutil.rmtree(pasta, ignore_errors=True)
+        return jsonify({
+            "erro": "A clínica escolhida foi %s, mas estes caixas são de "
+                    "outra: %s." % (_apelido(cfg, pedida), ", ".join(diferentes)),
+            "detalhes": detalhes,
+        }), 400
 
-    if not clientes and unidade_detectada:
-        base = base_clientes.abrir(cfgmod.PASTA_DADOS, unidade_detectada)
-        if not base.existe:
-            shutil.rmtree(pasta, ignore_errors=True)
-            return jsonify({
-                "erro": "Ainda não há base de clientes para %s. Mande o "
-                        "relatório CLIENTES E FORNECEDORES junto desta primeira "
-                        "vez — depois ele fica salvo e não precisa mais."
-                        % cfg.unidades.get(unidade_detectada, {}).get(
-                            "apelido", unidade_detectada),
-                "detalhes": detalhes,
-            }), 400
+    grupos = {}
+    for caminho in caixas:
+        grupos.setdefault(dono[caminho], []).append(caminho)
 
-    lote = {
-        "id": lote_id,
-        "criado_em": datetime.now().isoformat(timespec="seconds"),
-        "arquivos": {"caixas": caixas, "clientes": clientes},
-        "detalhes": detalhes,
-        "ignorados": ignorados,
-        "unidade": unidade_detectada,
-        "competencia": request.form.get("competencia") or "",
-        "escolhas": {},
-        "estado": "lendo",
-        "progresso": {"etapa": "Preparando", "percentual": 1},
-    }
-    with _TRAVA:
-        LOTES[lote_id] = lote
-    salvar_lote(lote)
+    # O cadastro de clientes só é obrigatório enquanto a clínica não tiver
+    # base salva. Confere TODAS antes de criar qualquer lote.
+    for unidade in grupos:
+        if unidade and not any(u == unidade for _, u in clientes):
+            if not base_clientes.abrir(cfgmod.PASTA_DADOS, unidade).existe:
+                shutil.rmtree(pasta, ignore_errors=True)
+                return jsonify({
+                    "erro": "Ainda não há base de clientes para %s. Mande o "
+                            "relatório CLIENTES E FORNECEDORES junto desta "
+                            "primeira vez — depois ele fica salvo e não "
+                            "precisa mais." % _apelido(cfg, unidade),
+                    "detalhes": detalhes,
+                }), 400
 
-    threading.Thread(target=processar_em_segundo_plano, args=(lote_id,),
-                     daemon=True).start()
-    return jsonify({"id": lote_id})
+    criados = []
+    for posicao, (unidade, caixas_dela) in enumerate(grupos.items()):
+        # Cadastro vai com o lote da própria clínica; o de clínica que não
+        # mandou caixa pega carona no primeiro (a base certa é escolhida
+        # pelo cabeçalho na hora de importar, não pelo lote).
+        clientes_dela = [par for par in clientes if par[1] == unidade or (
+            posicao == 0 and par[1] not in grupos)]
+        id_dela = lote_id if posicao == 0 else "%s-%d" % (lote_id, posicao + 1)
+        if posicao:
+            pasta_dela = caminho_lote(id_dela)
+            os.makedirs(pasta_dela, exist_ok=True)
+
+            def mudar(caminho, pasta_dela=pasta_dela):
+                return shutil.move(caminho, os.path.join(
+                    pasta_dela, os.path.basename(caminho)))
+
+            caixas_dela = [mudar(c) for c in caixas_dela]
+            clientes_dela = [[mudar(c), u] for c, u in clientes_dela]
+        nomes = {os.path.basename(c) for c in caixas_dela} | {
+            os.path.basename(c) for c, _ in clientes_dela}
+        lote = {
+            "id": id_dela,
+            "criado_em": datetime.now().isoformat(timespec="seconds"),
+            "arquivos": {"caixas": caixas_dela, "clientes": clientes_dela},
+            "detalhes": [d for d in detalhes
+                         if d["arquivo"] in nomes or len(grupos) == 1],
+            "ignorados": ignorados,
+            "unidade": unidade,
+            "competencia": request.form.get("competencia") or "",
+            "escolhas": {},
+            "estado": "lendo",
+            "progresso": {"etapa": "Preparando", "percentual": 1},
+        }
+        with _TRAVA:
+            LOTES[id_dela] = lote
+        salvar_lote(lote)
+        threading.Thread(target=processar_em_segundo_plano, args=(id_dela,),
+                         daemon=True).start()
+        criados.append({"id": id_dela, "unidade": unidade,
+                        "apelido": _apelido(cfg, unidade) if unidade else "",
+                        "caixas": len(caixas_dela)})
+    return jsonify({"id": lote_id, "lotes": criados})
 
 
 @app.get("/lote/<lote_id>/progresso")
@@ -1300,7 +1383,102 @@ def configuracao():
         historico_atualizacoes=atualizacao_mod.historico(),
         atualizacao=session.pop("atualizacao", None),
         descarte=session.pop("descarte", None),
+        aviso_certificado=session.pop("certificado", None),
     )
+
+
+def _linhas(texto: str) -> list:
+    """Uma regra por linha, normalizada como o caixa e comparado, sem repetir."""
+    return list(dict.fromkeys(
+        chave_nome(l) for l in (texto or "").splitlines() if chave_nome(l)))
+
+
+@app.post("/configuracao/regras")
+def salvar_regras():
+    f = request.form
+    listas = {campo: _linhas(f.get(campo)) for campo in cfgmod.LISTAS_DE_REGRAS}
+    # Secao nas duas listas: vale "gera nota", que e o que a pessoa ve primeiro.
+    listas["secoes_ignoradas"] = [
+        s for s in listas["secoes_ignoradas"]
+        if s not in listas["secoes_que_emitem"]]
+    cfgmod.salvar_faturamento({
+        "emitir_particulares": "emitir_particulares" in f,
+        "emitir_convenios": "emitir_convenios" in f,
+        **listas,
+    })
+    return redirect(url_for("configuracao") + "#regras")
+
+
+@app.post("/configuracao/certificado")
+def salvar_certificado():
+    """Recebe o .pfx e a senha, e so guarda depois de conferir.
+
+    Abre o certificado na hora: senha errada, arquivo de outra empresa ou
+    certificado vencido sao recusados aqui, com o motivo, em vez de
+    aparecerem como rejeicao no meio de uma transmissao.
+    """
+    from nfse.assinatura import ErroCertificado, carregar_pfx
+
+    cfg = cfgmod.carregar()
+    chave = request.form.get("unidade") or ""
+    if chave not in cfg.unidades:
+        abort(400)
+    dados = cfg.unidades[chave]
+    destino = cfg.caminho_certificado(chave)
+    candidato = destino
+    arquivo = request.files.get("arquivo")
+    try:
+        if arquivo and arquivo.filename:
+            os.makedirs(os.path.dirname(destino), exist_ok=True)
+            candidato = destino + ".novo"
+            arquivo.save(candidato)
+        senha = request.form.get("senha") or cfg.senha_certificado(chave) or ""
+        cert = carregar_pfx(candidato, senha)
+        esperado = so_digitos(dados.get("cnpj", ""))
+        if cert.cnpj and esperado and cert.cnpj != esperado:
+            raise ErroCertificado(
+                "Este certificado é do CNPJ %s, e a clínica %s é %s. "
+                "Nada foi alterado." % (
+                    formatar_documento(cert.cnpj), _apelido(cfg, chave),
+                    formatar_documento(esperado)))
+        if cert.vencido:
+            raise ErroCertificado(
+                "Este certificado venceu em %s. Nada foi alterado."
+                % cert.validade.strftime("%d/%m/%Y"))
+    except ErroCertificado as falha:
+        if candidato != destino and os.path.exists(candidato):
+            os.remove(candidato)
+        session["certificado"] = {"unidade": chave, "erro": str(falha)}
+        return redirect(url_for("configuracao") + "#clinicas")
+
+    if candidato != destino:
+        os.replace(candidato, destino)
+    cfgmod.guardar_senha(dados["variavel_senha"], senha)
+    session["certificado"] = {
+        "unidade": chave,
+        "ok": "Certificado conferido e guardado: é desta clínica e vale até %s."
+              % cert.validade.strftime("%d/%m/%Y")}
+    return redirect(url_for("configuracao") + "#clinicas")
+
+
+@app.post("/configuracao/secao")
+def decidir_secao():
+    """Botoes da conferencia: esta secao nova gera nota ou e ignorada?"""
+    secao = chave_nome(request.form.get("secao", ""))
+    emite = request.form.get("decisao") == "emite"
+    if not secao:
+        abort(400)
+    f = cfgmod.carregar().faturamento
+    entra, sai = (("secoes_que_emitem", "secoes_ignoradas") if emite
+                  else ("secoes_ignoradas", "secoes_que_emitem"))
+    cfgmod.salvar_faturamento({
+        entra: list(dict.fromkeys(list(f.get(entra, [])) + [secao])),
+        sai: [s for s in f.get(sai, []) if chave_nome(s) != secao],
+    })
+    lote_id = request.form.get("lote") or ""
+    if carregar_lote(lote_id):
+        return redirect(url_for("conferencia", lote_id=lote_id))
+    return redirect(url_for("configuracao") + "#regras")
 
 
 @app.post("/configuracao/numeracao")
@@ -1479,6 +1657,20 @@ def descartar_lote(pasta: str):
     return redirect(url_for("configuracao"))
 
 
+def unidades_das_notas(chaves_acesso, cfg, pedida: str = "") -> dict:
+    """De qual clinica e cada nota, para usar o certificado e o nome certos.
+
+    Antes valia a clinica escolhida na tela -- ou, sem escolha, a primeira
+    da configuracao. Uma nota da Cobilandia era consultada, impressa e
+    avisada ao paciente como se fosse da Gloria.
+    """
+    with Controle(os.path.join(cfgmod.PASTA_DADOS, "controle.db")) as controle:
+        achadas = controle.unidades_das_notas(chaves_acesso)
+    reserva = pedida if pedida in cfg.unidades else next(iter(cfg.unidades))
+    return {c: achadas[c] if achadas.get(c) in cfg.unidades else reserva
+            for c in chaves_acesso}
+
+
 def telefone_do_paciente(unidade: str, documento: str) -> str:
     """Acha o telefone na base de clientes, pelo documento da nota.
 
@@ -1506,41 +1698,70 @@ def consultar_nota():
     cfg = cfgmod.carregar()
     resultado = erro = None
     chave = (request.form.get("chave") or request.args.get("chave") or "").strip()
-    unidade = request.form.get("unidade") or next(iter(cfg.unidades))
+    unidade = request.form.get("unidade") or ""
     if request.method == "POST" and chave:
         chave_limpa = "".join(c for c in chave if c.isdigit())
+        unidade = unidades_das_notas([chave_limpa], cfg, unidade)[chave_limpa]
         try:
             resultado = consultar(cfg, unidade, chave_acesso=chave_limpa)
         except Exception as falha:  # noqa: BLE001
             erro = "%s: %s" % (type(falha).__name__, falha)
+
+    filtro = {
+        "q": (request.args.get("q") or "").strip(),
+        "unidade": request.args.get("unidade") or "",
+        "mes": request.args.get("mes") or "",
+        "teste": request.args.get("teste") == "1",
+    }
     with Controle(os.path.join(cfgmod.PASTA_DADOS, "controle.db")) as controle:
-        # 15 mostrava so a ultima ponta. Com filtro e ordenacao por
-        # coluna, a lista inteira do mes e util: e nela que se acha "aquela
-        # de mil e seiscentos" ou se separa teste de producao.
-        recentes = controle.transmitidas(limite=10 ** 9)
-    for nota in recentes:
+        todas = controle.transmitidas(limite=10 ** 9)
+
+    alvo_nome = chave_nome(filtro["q"])
+    alvo_numero = so_digitos(filtro["q"])
+    meses = sorted({n["competencia"] for n in todas if n.get("competencia")},
+                   reverse=True)
+    recentes = []
+    for nota in todas:
+        nota["unidade"] = (nota.get("chave") or "").split("|", 1)[0]
         # O nome fica guardado dentro da descricao ("FULANO - R$ 30,00").
         # Quem opera identifica a nota pelo paciente, nao pelo numero.
         nota["paciente"] = (nota.get("descricao") or "").split(" - ")[0]
-        # Só as de produção: nota de teste não existe para o paciente.
-        if nota.get("ambiente") != "producao":
-            nota["whatsapp"] = ""
+        # Nota de teste nao existe para o paciente: so aparece se pedirem.
+        if nota.get("ambiente") != "producao" and not filtro["teste"]:
             continue
-        fone = telefone_do_paciente(unidade, nota.get("documento", ""))
+        if filtro["unidade"] and nota["unidade"] != filtro["unidade"]:
+            continue
+        if filtro["mes"] and nota.get("competencia") != filtro["mes"]:
+            continue
+        if filtro["q"] and not (
+                (alvo_nome and alvo_nome in chave_nome(nota["paciente"]))
+                or (alvo_numero and (
+                    alvo_numero in (nota.get("documento") or "")
+                    or alvo_numero == str(nota.get("numero_nota") or "")))):
+            continue
+        recentes.append(nota)
+
+    total_valor = sum(float(n.get("valor") or 0) for n in recentes)
+    recentes, nav = paginar(recentes, request.args.get("pagina"), 50)
+    # O link do WhatsApp so para a pagina que vai para a tela: procurar o
+    # telefone de mil notas para mostrar cinquenta deixava a tela lenta.
+    for nota in recentes:
+        nota["whatsapp"] = ""
+        if nota.get("ambiente") != "producao":
+            continue
+        dona = nota["unidade"] if nota["unidade"] in cfg.unidades else unidade
+        fone = telefone_do_paciente(dona, nota.get("documento", ""))
         nota["whatsapp"] = whatsapp.link(
             {"tomador": nota["paciente"],
              "numero_nota": nota.get("numero_nota"),
              "valor": nota.get("valor"),
              "chave_acesso": nota.get("chave_acesso")},
-            cfg.unidades.get(unidade, {}), fone)
-    # 50 por pagina, como no resto: 100 linhas ja exigem rolagem longa para
-    # chegar ao rodape, e o filtro em cima resolve quando se procura alguem
-    # especifico.
-    recentes, nav = paginar(recentes, request.args.get("pagina"), 50)
+            cfg.unidades.get(dona, {}), fone)
+    parametros = {k: ("1" if v is True else v) for k, v in filtro.items() if v}
     return render_template("consulta.html", cfg=cfg, resultado=resultado,
-                           nav=nav,
-                           erro=erro, chave=chave, unidade=unidade,
-                           recentes=recentes,
+                           nav=nav, erro=erro, chave=chave, unidade=unidade,
+                           recentes=recentes, filtro=filtro, meses=meses,
+                           parametros=parametros, total_valor=total_valor,
                            ambiente=cfg.faturamento.get("ambiente", ""))
 
 
@@ -1558,7 +1779,8 @@ def imprimir_nota(chave: str):
         abort(404)
 
     cfg = cfgmod.carregar()
-    unidade = request.args.get("unidade") or next(iter(cfg.unidades))
+    unidade = unidades_das_notas(
+        [chave], cfg, request.args.get("unidade") or "")[chave]
     try:
         resposta = consultar(cfg, unidade, chave_acesso=chave)
     except Exception as falha:  # noqa: BLE001
@@ -1595,7 +1817,8 @@ def xml_oficial(chave: str):
         abort(404)
 
     cfg = cfgmod.carregar()
-    unidade = request.args.get("unidade") or next(iter(cfg.unidades))
+    unidade = unidades_das_notas(
+        [chave], cfg, request.args.get("unidade") or "")[chave]
     try:
         from nfse.assinatura import carregar_pfx
         caminho = cfg.caminho_certificado(unidade)
@@ -1656,15 +1879,20 @@ def pdf_em_lote():
         abort(400, "Marque pelo menos uma nota.")
 
     cfg = cfgmod.carregar()
-    unidade = request.form.get("unidade") or next(iter(cfg.unidades))
-    try:
-        from nfse.assinatura import carregar_pfx
-        certificado = carregar_pfx(cfg.caminho_certificado(unidade),
-                                   cfg.senha_certificado(unidade))
-    except Exception as falha:  # noqa: BLE001
-        abort(502, "Não consegui abrir o certificado da clínica: %s" % falha)
-
-    oficiais = nacional.baixar_varios(chaves, certificado)
+    # Notas das duas clinicas podem vir marcadas juntas: cada grupo e
+    # baixado com o certificado da clinica que emitiu.
+    donas = unidades_das_notas(chaves, cfg, request.form.get("unidade") or "")
+    oficiais = {}
+    for unidade in dict.fromkeys(donas.values()):
+        try:
+            from nfse.assinatura import carregar_pfx
+            certificado = carregar_pfx(cfg.caminho_certificado(unidade),
+                                       cfg.senha_certificado(unidade))
+        except Exception as falha:  # noqa: BLE001
+            abort(502, "Não consegui abrir o certificado de %s: %s"
+                       % (_apelido(cfg, unidade), falha))
+        oficiais.update(nacional.baixar_varios(
+            [c for c in chaves if donas[c] == unidade], certificado))
     if not oficiais:
         abort(502, "O ambiente nacional não devolveu nenhuma destas notas. "
                    "Verifique a internet — e lembre que nota de teste não "

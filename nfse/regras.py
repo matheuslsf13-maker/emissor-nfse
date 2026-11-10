@@ -20,6 +20,7 @@ M_SAIDA = "Saída de caixa (lançamento negativo)"
 M_DINHEIRO = "Recebimento em dinheiro (regra da clínica)"
 M_ENVELOPE = "Envelope — movimento interno de caixa"
 M_SECAO = "Seção do caixa que não gera nota"
+M_IGNORADA = "Seção marcada para não gerar nota (configuração)"
 M_CONVENIO = "Convênio — fatura consolidado, desligado nesta fase"
 M_PARTICULAR = "Emissão de particulares desligada na configuração"
 M_SEM_NOME = "Lançamento sem paciente identificável"
@@ -31,6 +32,9 @@ class Regras:
         self.emitir_particulares = bool(f.get("emitir_particulares", True))
         self.emitir_convenios = bool(f.get("emitir_convenios", False))
         self.secoes = {chave_nome(s) for s in f.get("secoes_que_emitem", [])}
+        # Ignoradas de proposito. Separa "decidimos que nao gera nota" de
+        # "ninguem configurou ainda", que e o aviso da tela de conferencia.
+        self.ignoradas = {chave_nome(s) for s in f.get("secoes_ignoradas", [])}
         self.bloqueios = [chave_nome(p) for p in f.get("palavras_que_bloqueiam", [])]
         # prefixos mais longos primeiro: "UNIMED ODONTO" antes de "UNIMED"
         self.prefixos_convenio = sorted(
@@ -70,6 +74,8 @@ class Regras:
                 return NAO_EMITE, motivo, ""
         if lanc.tipo == "OUTRO":
             return NAO_EMITE, M_ENVELOPE if "ENVELOPE" in secao else M_SEM_NOME, ""
+        if secao in self.ignoradas:
+            return NAO_EMITE, M_IGNORADA, ""
         if secao not in self.secoes:
             return NAO_EMITE, M_SECAO, ""
 

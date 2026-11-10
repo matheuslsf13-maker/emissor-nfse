@@ -1,176 +1,102 @@
 {% extends "base.html" %}
 {% from "_paginacao.html" import paginacao %}
-{% block titulo %}Consultar uma nota
-{% endblock %}
+{% set pagina = 'consulta' %}
+{% block titulo %}Notas emitidas{% endblock %}
 {% block conteudo %}
 
-<h1>Consultar uma nota na prefeitura</h1>
+<h1>Notas emitidas</h1>
 <p class="legenda">
-  Pergunta direto ao sistema da prefeitura se a nota existe e o que está
-  registrado nela. Serve quando o paciente liga perguntando, e serve para
-  conferir a primeira nota depois de transmitir.
+  Todas as notas que a prefeitura aceitou. Ache a nota, imprima ou salve em
+  PDF, e avise o paciente pelo WhatsApp.
 </p>
 
-{% if erro %}
-<div class="faixa erro">
-  <span class="icone">■</span>
-  <div><b>Não deu para consultar</b><p>{{ erro }}</p></div>
-</div>
-{% endif %}
-
-<div class="cartao">
-  <form method="post">
-    <label style="display:block;font-size:14px;margin-bottom:6px">
-      <b>Chave de acesso</b> — os 50 números que a prefeitura devolveu
-    </label>
-    <input type="text" name="chave" value="{{ chave }}" autocomplete="off"
-           placeholder="00000000000000000000000000000000000000000000000000"
-           style="width:100%;max-width:620px;font-family:monospace;font-size:13px">
-    <div style="margin-top:12px;display:flex;gap:12px;align-items:center;flex-wrap:wrap">
-      <label style="font-size:14px">
-        Clínica:
-        <select name="unidade">
-          {% for chave_u, dados in cfg.unidades.items() %}
-          <option value="{{ chave_u }}" {{ 'selected' if chave_u == unidade }}>
-            {{ dados.apelido or chave_u }}
-          </option>
-          {% endfor %}
-        </select>
-      </label>
-      <button class="botao" type="submit">Consultar</button>
-      <span class="selo neutro">ambiente: {{ ambiente }}</span>
-    </div>
-  </form>
-</div>
-
-{% if resultado %}
-  {% if resultado.encontrada %}
-  <div class="faixa bom"><span class="icone">✓</span><div>
-    <b>A nota está registrada na prefeitura</b>
-    <p>Isto é a resposta do sistema deles, não do nosso — é a confirmação
-       independente de que a nota existe.</p>
-  </div></div>
-
-  <div class="numeros">
-    <div class="numero destaque">
-      <div class="rotulo">Nota fiscal nº</div>
-      <div class="valor">{{ resultado.numero }}</div>
-      <div class="nota">{{ resultado.situacao|lower|replace('_',' ') }}</div>
-    </div>
-    <div class="numero">
-      <div class="rotulo">Valor</div>
-      <div class="valor" style="font-size:22px">{{ resultado.valor | dinheiro }}</div>
-      <div class="nota">registrado na prefeitura</div>
-    </div>
-    <div class="numero">
-      <div class="rotulo">Emitida em</div>
-      <div class="valor" style="font-size:20px">{{ resultado.emitida_em[:10] | data_br }}</div>
-      <div class="nota">&nbsp;</div>
-    </div>
-  </div>
-
-  <div class="cartao">
-    <table>
-      <tr><th style="width:190px">Paciente</th><td>{{ resultado.tomador }}</td></tr>
-      {% if resultado.documento_tomador %}
-      <tr><th>CPF/CNPJ</th><td>{{ resultado.documento_tomador | documento }}</td></tr>
-      {% endif %}
-      <tr><th>Chave de acesso</th>
-          <td class="mono" style="font-size:12.5px">{{ resultado.chave }}</td></tr>
-    </table>
-  </div>
-
-  <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:16px">
-    <a class="botao" href="{{ url_for('imprimir_nota', chave=resultado.chave, unidade=unidade) }}">
-      Imprimir ou salvar em PDF
-    </a>
-  </div>
-
-  {% if resultado.xml_nota %}
-  <details style="margin-top:14px">
-    <summary style="cursor:pointer;color:var(--marca)">Ver o XML que a prefeitura guardou</summary>
-    <code class="mono-bloco" style="margin-top:8px">{{ resultado.xml_nota }}</code>
-  </details>
+{# Os filtros vao na URL (GET): da para voltar, atualizar a pagina e trocar
+   de pagina sem perder o que foi escolhido. #}
+<form method="get" action="{{ url_for('consultar_nota') }}" class="filtros">
+  <label class="campo cresce">
+    <span>Procurar</span>
+    <input type="search" name="q" value="{{ filtro.q }}" autocomplete="off"
+           placeholder="nome do paciente, CPF ou número da nota">
+  </label>
+  <label class="campo">
+    <span>Clínica</span>
+    <select name="unidade">
+      <option value="">Todas</option>
+      {% for chave_u, dados in cfg.unidades.items() %}
+      <option value="{{ chave_u }}" {{ 'selected' if chave_u == filtro.unidade }}>
+        {{ dados.apelido or chave_u }}
+      </option>
+      {% endfor %}
+    </select>
+  </label>
+  <label class="campo">
+    <span>Mês</span>
+    <select name="mes">
+      <option value="">Todos</option>
+      {% for m in meses %}
+      <option value="{{ m }}" {{ 'selected' if m == filtro.mes }}>{{ m[5:7] }}/{{ m[:4] }}</option>
+      {% endfor %}
+    </select>
+  </label>
+  <label class="marcar" title="Notas de teste não valem e não existem para o paciente">
+    <input type="checkbox" name="teste" value="1" {{ 'checked' if filtro.teste }}>
+    Mostrar notas de teste
+  </label>
+  <button class="botao" type="submit">Filtrar</button>
+  {% if parametros %}
+  <a class="botao fantasma" href="{{ url_for('consultar_nota') }}">Limpar</a>
   {% endif %}
-
-  {% else %}
-  <div class="faixa atencao"><span class="icone">▲</span><div>
-    <b>A prefeitura não devolveu essa nota</b>
-    <p>{{ resultado.mensagem or 'Confira se a chave está completa e se o ambiente é o mesmo em que a nota foi emitida — nota de homologação não existe em produção, e vice-versa.' }}</p>
-  </div></div>
-  <details style="margin-top:14px">
-    <summary style="cursor:pointer;color:var(--marca)">Ver a resposta completa</summary>
-    <code class="mono-bloco" style="margin-top:8px">{{ resultado.bruto }}</code>
-  </details>
-  {% endif %}
-{% endif %}
+</form>
 
 {% if recentes %}
-<h2>Notas transmitidas por este sistema</h2>
-<p class="legenda">
-  <b>Avisar no WhatsApp</b> abre a conversa com o paciente e a mensagem já
-  escrita, com número, valor e a chave de acesso — <b>você confere e
-  envia</b>, nada sai sozinho. A mensagem já basta: com a chave, o paciente
-  baixa o documento oficial no portal.
-</p>
-<p class="legenda" style="margin-top:-14px">
-  <b>Imprimir</b> monta a nota aqui mesmo, pronta para o papel ou para
-  salvar em PDF — não precisa ir ao portal nem digitar a chave. O PDF salvo
-  pode ser anexado na conversa, já que o WhatsApp não aceita anexo por
-  link.
-</p>
 <form method="post" action="{{ url_for('pdf_em_lote') }}" id="form-lote"
       target="_blank">
-  <input type="hidden" name="unidade" value="{{ unidade }}">
 
-<div style="margin-bottom:10px;display:flex;gap:12px;align-items:center;
-     flex-wrap:wrap">
-  <input type="text" id="filtro-notas" autocomplete="off"
-         placeholder="filtrar por paciente ou número da nota"
-         style="flex:1;min-width:220px;max-width:340px">
-  <span id="filtro-notas-conta"
-        style="color:var(--tinta-fraca);font-size:13.5px"></span>
-  <button type="submit" class="botao pequeno" id="botao-lote" disabled>
-    Abrir PDF das marcadas <span id="quantas-lote"></span>
+<div class="barra-acoes">
+  <button type="submit" class="botao" id="botao-lote" disabled
+          title="Abre um PDF só, com uma página por nota, para imprimir ou salvar">
+    Imprimir ou salvar as marcadas <span id="quantas-lote"></span>
   </button>
-  <button type="button" class="botao pequeno secundario"
-          onclick="marcarLote(true)">marcar todas</button>
-  <button type="button" class="botao pequeno secundario"
-          onclick="marcarLote(false)">desmarcar</button>
+  <button type="button" class="botao secundario"
+          onclick="marcarLote(true)">Marcar todas desta página</button>
+  <button type="button" class="botao fantasma"
+          onclick="marcarLote(false)">Desmarcar</button>
+  <span class="empurra">
+    <b>{{ nav.total }}</b> nota(s) · <b>R$ {{ total_valor | dinheiro }}</b>
+  </span>
 </div>
-
-<p class="legenda" style="margin-top:-4px;font-size:13.5px">
-  Marque as notas e abra <b>um PDF só</b>, com uma página por nota, no
-  leiaute da prefeitura — para imprimir ou salvar de uma vez.
-  <b>Clique no título de uma coluna para ordenar</b> (a ordenação vale para
-  a página que está na tela).
-</p>
-{{ paginacao(nav, 'consultar_nota', {}) }}
 
 <div class="moldura-tabela rolavel">
   <table id="tabela-recentes" class="ordenavel">
     <thead>
       <tr><th style="width:34px"></th>
-          <th style="width:70px" data-ordem="numero">Nota nº</th>
+          <th style="width:80px" data-ordem="numero">Nota nº</th>
           <th data-ordem="texto">Paciente</th>
-          <th style="width:90px" data-ordem="texto">Quando</th>
-          <th style="width:90px" data-ordem="dinheiro">Valor</th>
-          <th style="width:100px" data-ordem="texto">Ambiente</th>
-          <th style="width:110px">Chave</th>
+          <th style="width:110px" data-ordem="texto">Clínica</th>
+          <th style="width:96px" data-ordem="texto">Emitida em</th>
+          <th style="width:100px" class="num" data-ordem="dinheiro">Valor</th>
           <th></th></tr>
     </thead>
     <tbody>
       {% for n in recentes %}
+      {% set valendo = n.ambiente == 'producao' %}
       <tr>
         <td>
-          {# So producao: nota de teste nao existe no ambiente nacional, e
+          {# So nota valendo: a de teste nao existe no ambiente nacional, e
              nao ha de onde tirar o documento oficial dela. #}
           <input type="checkbox" name="chave" class="lote-escolha"
                  value="{{ n.chave_acesso }}" onclick="contarLote()"
-                 {{ 'disabled' if n.ambiente != 'producao' or not n.chave_acesso }}
-                 title="{{ 'Nota de teste não tem documento oficial' if n.ambiente != 'producao' else '' }}">
+                 aria-label="Marcar a nota {{ n.numero_nota }}"
+                 {{ 'disabled' if not valendo or not n.chave_acesso }}
+                 title="{{ 'Nota de teste não tem documento oficial' if not valendo else '' }}">
         </td>
-        <td><b>{{ n.numero_nota or '—' }}</b></td>
+        <td>
+          {% if n.chave_acesso %}
+          <a href="{{ url_for('consultar_nota', chave=n.chave_acesso) }}#prefeitura"
+             title="Conferir esta nota direto na prefeitura"><b>{{ n.numero_nota or '—' }}</b></a>
+          {% else %}<b>{{ n.numero_nota or '—' }}</b>{% endif %}
+          {% if not valendo %}<span class="selo neutro">teste</span>{% endif %}
+        </td>
         <td>
           <b>{{ n.paciente or '—' }}</b>
           {% if n.documento %}
@@ -178,40 +104,27 @@
                class="mono">{{ n.documento | documento }}</div>
           {% endif %}
         </td>
+        <td>{{ cfg.unidades.get(n.unidade, {}).get('apelido') or n.unidade }}</td>
         <td>{{ (n.transmitida_em or '')[:10] | data_br }}</td>
-        <td>{{ n.valor | dinheiro }}</td>
-        <td><span class="selo {{ 'ruim' if n.ambiente == 'producao' else 'neutro' }}">{{ n.ambiente }}</span></td>
-        <td class="mono" style="font-size:11.5px">
+        <td class="num">{{ n.valor | dinheiro }}</td>
+        <td style="white-space:nowrap;text-align:right">
           {% if n.chave_acesso %}
-          <a href="{{ url_for('consultar_nota', chave=n.chave_acesso) }}"
-             title="{{ n.chave_acesso }}">…{{ n.chave_acesso[-8:] }}</a>
-          {% else %}—{% endif %}
-        </td>
-        <td style="white-space:nowrap">
-          {% if n.chave_acesso %}
-          <a class="botao pequeno" href="{{ url_for('imprimir_nota', chave=n.chave_acesso) }}"
-             title="Monta a nota para imprimir ou salvar em PDF">
-            imprimir
-          </a>
-          <button type="button" class="botao pequeno secundario"
-                  onclick="copiarChave(this, '{{ n.chave_acesso }}')"
-                  title="Copia os 50 dígitos">
-            copiar chave
-          </button>
+          <a class="botao pequeno"
+             href="{{ url_for('imprimir_nota', chave=n.chave_acesso, unidade=n.unidade) }}"
+             title="Abre a nota pronta para imprimir ou salvar em PDF">Imprimir</a>
           {% endif %}
           {% if n.whatsapp %}
-          <a class="botao pequeno secundario" href="{{ n.whatsapp }}"
+          <a class="botao pequeno zap" href="{{ n.whatsapp }}"
              target="_blank" rel="noopener"
-             title="Abre o WhatsApp com a mensagem pronta. Você confere e envia.">
-            Avisar no WhatsApp
-          </a>
-          {% elif n.ambiente == 'producao' %}
-          <span style="color:var(--tinta-fantasma);font-size:12.5px"
-                title="Sem telefone válido no cadastro deste paciente">
-            sem telefone
-          </span>
-          {% else %}
-          <span style="color:var(--tinta-fantasma);font-size:12.5px">—</span>
+             title="Abre o WhatsApp com a mensagem pronta. Você confere e envia.">WhatsApp</a>
+          {% elif valendo %}
+          <span class="botao pequeno fantasma" style="cursor:default"
+                title="O cadastro deste paciente não tem telefone válido">sem telefone</span>
+          {% endif %}
+          {% if n.chave_acesso %}
+          <button type="button" class="botao pequeno fantasma"
+                  onclick="copiarChave(this, '{{ n.chave_acesso }}')"
+                  title="Copia os 50 números da chave de acesso">Copiar chave</button>
           {% endif %}
         </td>
       </tr>
@@ -219,32 +132,134 @@
     </tbody>
   </table>
 </div>
-{{ paginacao(nav, 'consultar_nota', {}) }}
+{{ paginacao(nav, 'consultar_nota', parametros) }}
 </form>
+<p style="font-size:13.5px;color:var(--tinta-fraca);margin:12px 0 0;max-width:80ch">
+  <b>WhatsApp</b> abre a conversa com a mensagem já escrita — você confere e
+  envia, nada sai sozinho. O WhatsApp não aceita anexo por link: se o
+  paciente quiser o PDF, use <b>Imprimir</b>, salve e anexe na conversa.
+</p>
+
+{% else %}
+<div class="cartao vazio">
+  {% if parametros %}
+  <b>Nenhuma nota com esses filtros.</b>
+  <p style="margin:6px 0 0">Confira o nome ou o mês — ou
+    <a href="{{ url_for('consultar_nota') }}">veja todas</a>.</p>
+  {% else %}
+  <b>Ainda não há nota emitida.</b>
+  <p style="margin:6px 0 0">As notas aparecem aqui depois de transmitidas.
+    <a href="{{ url_for('inicio') }}">Emitir agora</a>.</p>
+  {% endif %}
+</div>
 {% endif %}
 
+{# Conferir na prefeitura e o caso raro: fica fechado ate alguem precisar. #}
+<details class="dobra" id="prefeitura" {{ 'open' if resultado or erro or chave }}>
+  <summary>
+    Conferir uma nota direto na prefeitura
+    <small>pela chave de acesso, quando o paciente pergunta se a nota existe</small>
+  </summary>
+  <div class="dentro">
 
+    {% if erro %}
+    <div class="faixa erro">
+      <span class="icone">!</span>
+      <div><b>Não deu para consultar</b><p>{{ erro }}</p></div>
+    </div>
+    {% endif %}
+
+    <form method="post" action="{{ url_for('consultar_nota', **parametros) }}#prefeitura">
+      <label style="display:block;font-size:14px;margin-bottom:6px">
+        <b>Chave de acesso</b> — os 50 números que a prefeitura devolveu
+      </label>
+      <div class="form-linha">
+        <input type="text" name="chave" value="{{ chave }}" autocomplete="off"
+               placeholder="00000000000000000000000000000000000000000000000000"
+               style="flex:1;min-width:260px;max-width:620px;font-family:monospace;font-size:13px">
+        <button class="botao" type="submit">Conferir</button>
+      </div>
+      <p style="margin:8px 0 0;font-size:13.5px;color:var(--tinta-fraca)">
+        A clínica é reconhecida pela própria nota. Dica: clique no número de
+        uma nota da lista para trazer a chave dela para cá.
+      </p>
+    </form>
+
+    {% if resultado %}
+      {% if resultado.encontrada %}
+      <div class="faixa bom" style="margin-top:16px"><span class="icone">✓</span><div>
+        <b>A nota está registrada na prefeitura</b>
+        <p>Esta é a resposta do sistema deles, não do nosso.</p>
+      </div></div>
+
+      <div class="numeros">
+        <div class="numero destaque">
+          <div class="rotulo">Nota fiscal nº</div>
+          <div class="valor">{{ resultado.numero }}</div>
+          <div class="nota">{{ resultado.situacao|lower|replace('_',' ') }}</div>
+        </div>
+        <div class="numero">
+          <div class="rotulo">Valor</div>
+          <div class="valor" style="font-size:22px">{{ resultado.valor | dinheiro }}</div>
+          <div class="nota">registrado na prefeitura</div>
+        </div>
+        <div class="numero">
+          <div class="rotulo">Emitida em</div>
+          <div class="valor" style="font-size:20px">{{ resultado.emitida_em[:10] | data_br }}</div>
+          <div class="nota">{{ cfg.unidades.get(unidade, {}).get('apelido') or '&nbsp;' | safe }}</div>
+        </div>
+      </div>
+
+      <table>
+        <tr><th style="width:190px">Paciente</th><td>{{ resultado.tomador }}</td></tr>
+        {% if resultado.documento_tomador %}
+        <tr><th>CPF/CNPJ</th><td>{{ resultado.documento_tomador | documento }}</td></tr>
+        {% endif %}
+        <tr><th>Chave de acesso</th>
+            <td class="mono" style="font-size:12.5px">{{ resultado.chave }}</td></tr>
+      </table>
+
+      <div class="acoes">
+        <a class="botao" href="{{ url_for('imprimir_nota', chave=resultado.chave, unidade=unidade) }}">
+          Imprimir ou salvar em PDF
+        </a>
+      </div>
+
+      {% if resultado.xml_nota %}
+      <details style="margin-top:14px">
+        <summary style="cursor:pointer;color:var(--marca)">Ver o XML que a prefeitura guardou</summary>
+        <code class="mono-bloco" style="margin-top:8px">{{ resultado.xml_nota }}</code>
+      </details>
+      {% endif %}
+
+      {% else %}
+      <div class="faixa atencao" style="margin-top:16px"><span class="icone">!</span><div>
+        <b>A prefeitura não devolveu essa nota</b>
+        <p>{{ resultado.mensagem or 'Confira se a chave está completa. Nota de teste não existe entre as notas valendo, e vice-versa.' }}</p>
+      </div></div>
+      <details style="margin-top:14px">
+        <summary style="cursor:pointer;color:var(--marca)">Ver a resposta completa</summary>
+        <code class="mono-bloco" style="margin-top:8px">{{ resultado.bruto }}</code>
+      </details>
+      {% endif %}
+    {% endif %}
+  </div>
+</details>
 
 <nav class="rodape-nav">
-  <a href="{{ url_for('inicio') }}">← Voltar ao início</a>
   <a href="{{ url_for('notas_do_paciente') }}">Todas as notas de um paciente →</a>
-  <a href="{{ url_for('clientes') }}">Base de clientes →</a>
+  <a href="{{ url_for('clientes') }}">Cadastro de clientes →</a>
 </nav>
 
 {% endblock %}
 
 {% block scripts %}
 <script>
-  filtrarTabela("filtro-notas", "tabela-recentes");
   ordenarTabela("tabela-recentes");
 
   function marcarLote(ligado) {
     document.querySelectorAll(".lote-escolha").forEach(function (c) {
-      // Linha escondida pelo filtro nao entra: quem filtra por um paciente
-      // e clica "marcar todas" quer as dele, nao a lista inteira.
-      if (!c.disabled && c.closest("tr").style.display !== "none") {
-        c.checked = ligado;
-      }
+      if (!c.disabled) { c.checked = ligado; }
     });
     contarLote();
   }
@@ -258,6 +273,5 @@
   }
 
   document.addEventListener("DOMContentLoaded", contarLote);
-  contarLote();
 </script>
 {% endblock %}

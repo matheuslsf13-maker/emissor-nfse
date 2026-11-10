@@ -10,6 +10,14 @@
 </div>
 
 <h1>Transmitir para a prefeitura</h1>
+{% set clinica = dados_da_unidade(unidade_lote) %}
+<div class="faixa info">
+  <span class="icone">i</span>
+  <div>
+    <b>Notas da clínica {{ clinica.apelido or unidade_lote }}</b>
+    <p>{{ clinica.razao_social }} — CNPJ {{ clinica.cnpj | documento }}</p>
+  </div>
+</div>
 <p class="legenda">
   Pasta <code>{{ pasta }}</code> —
   {% if ja_aceitas %}
