@@ -108,10 +108,8 @@ Aqui as notas vão para a prefeitura.
 
 **Você não escolhe o ambiente de novo** — ele já está assinado dentro de cada
 nota, e o programa manda para onde ela foi feita. A tela avisa se é teste ou
-se vale de verdade. Para transmitir valendo, é preciso digitar `PRODUCAO`.
-
-**Na primeira vez, mande uma nota só.** Confira o retorno. Se estiver certo,
-mande o resto.
+se vale de verdade. **Emitir já envia sozinho**; esta tela só mostra o
+andamento e, se o envio parar no meio, o botão **Enviar as que faltam**.
 
 Quando são muitas, o envio vai em fila, com **barra de progresso e tempo
 restante**. A prefeitura aceita uma nota por vez por clínica, então o
@@ -241,16 +239,14 @@ prefeitura recusaria a nota.
 
 ### Escolher quais notas transmitir
 
-Na tela de transmitir, três opções:
+Só é preciso quando um envio parou no meio. Na tela de transmitir, duas
+opções:
 
-- **Mandar uma primeiro** — a primeira que ainda falta, para conferir
+- **Mandar as que faltam de uma vez** (já vem marcada)
 - **Escolher quais** — abre a lista com o nome de cada paciente; marque as
   que quiser (o filtro ajuda a achar) e mande só aquelas
-- **Mandar todas de uma vez**
 
-> É assim que se emite **uma nota de teste**: escolha quais, filtre pelo
-> paciente, marque uma, transmita. As já aceitas aparecem marcadas e não
-> podem ser reenviadas.
+> As já aceitas aparecem marcadas e não podem ser reenviadas.
 
 Depois de transmitir, aparece **o que fazer com as notas**: uma linha por
 nota aceita, com o nome do paciente, o número, e os botões para abrir o PDF
@@ -377,7 +373,7 @@ certificados e as notas já emitidas ficam onde estão.
 2. Arrastar para o programa  →  Conferir
 3. Olhar o que travou  →  resolver ou deixar de fora
 4. Conferir a clínica  →  digitar EMITIR  →  Emitir as notas
-5. Transmitir  →  ver se a prefeitura aceitou
+5. O envio sai sozinho  →  ver se a prefeitura aceitou
 6. Notas emitidas  →  imprimir ou avisar o paciente, se precisar
 ```
 

@@ -308,7 +308,7 @@ CORRIGIR DE LONGE
 
 EMITIR O MÊS (na clínica)
   anexar os relatórios (as duas clínicas juntas, se quiser)
-  conferir → digitar EMITIR → transmitir → conferir
+  conferir → digitar EMITIR → o envio sai sozinho → ver o resultado
 ```
 
 **Uma vez por mês, na clínica:** Configuração → Backup.

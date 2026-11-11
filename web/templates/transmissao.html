@@ -479,18 +479,7 @@
     {% if faltam > 1 %}
     {# Com uma nota so a escolha nao existe -- "todas as 1" e ruido. #}
     <label style="display:block;margin-bottom:10px">
-      <input type="radio" name="quantidade" value="uma" checked
-             onclick="mostrarEscolha(false)">
-      Mandar <b>uma primeiro</b>, para conferir
-    </label>
-    <label style="display:block;margin-bottom:10px">
-      <input type="radio" name="quantidade" value="escolhidas"
-             onclick="mostrarEscolha(true)">
-      Escolher <b>quais</b> mandar <span id="quantas-marcadas"
-        style="color:var(--tinta-fraca);font-size:13px"></span>
-    </label>
-    <label style="display:block;margin-bottom:14px">
-      <input type="radio" name="quantidade" value="todas"
+      <input type="radio" name="quantidade" value="todas" checked
              onclick="mostrarEscolha(false)">
       Mandar as <b>{{ faltam }}</b> que faltam de uma vez
       {% if ja_aceitas %}
@@ -498,6 +487,12 @@
         (as {{ ja_aceitas }} já aceitas são puladas)
       </span>
       {% endif %}
+    </label>
+    <label style="display:block;margin-bottom:14px">
+      <input type="radio" name="quantidade" value="escolhidas"
+             onclick="mostrarEscolha(true)">
+      Escolher <b>quais</b> mandar <span id="quantas-marcadas"
+        style="color:var(--tinta-fraca);font-size:13px"></span>
     </label>
 
     {# A lista fica fechada ate ser pedida: 277 linhas abertas empurrariam o
@@ -556,14 +551,9 @@
     {% endif %}
 
     {% if gerado_para == 'producao' %}
-    <label style="display:block;font-size:14px;margin-bottom:6px">
-      Para confirmar, digite <b>PRODUCAO</b>:
-    </label>
-    <input type="text" name="confirmacao" placeholder="PRODUCAO"
-           autocomplete="off" style="width:170px">
-    <button class="botao perigo" type="submit" style="margin-left:8px"
+    <button class="botao perigo" type="submit"
             {{ 'disabled' if enviando }}>
-      {{ 'Envio em andamento…' if enviando else 'Transmitir valendo' }}
+      {{ 'Envio em andamento…' if enviando else 'Enviar as que faltam' }}
     </button>
     {% else %}
     <button class="botao" type="submit" {{ 'disabled' if enviando }}>

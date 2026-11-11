@@ -1595,11 +1595,41 @@ checar("pasta de teste nao pode ser transmitida",
        cliente.post("/saida/2026-08-31-teste/transmitir",
                     data={"ambiente": "homologacao"}).status_code in (400, 404))
 
-checar("producao sem digitar PRODUCAO e recusada",
-       b"PRODUCAO" in cliente.post(
-           "/saida/qualquer/transmitir",
-           data={"ambiente": "producao", "confirmacao": "sim"}).data
-       or True)  # a pasta nao existe: o 404 ja barra antes
+# Emitir e um passo so: gerou valendo -> ja comeca o envio e mostra o andamento.
+from types import SimpleNamespace  # noqa: E402
+
+_guardados = {n: getattr(appmod, n) for n in (
+    "carregar_lote", "salvar_lote", "conciliar_lote", "emitir",
+    "situacao_envio", "_iniciar_envio")}
+_iniciados = []
+_pronto = {"pronto": True}
+try:
+    appmod.carregar_lote = lambda _id: {"id": "x"}
+    appmod.salvar_lote = lambda lote: None
+    appmod.conciliar_lote = lambda lote: (None, None, None)
+    appmod.emitir = lambda *a, **k: SimpleNamespace(
+        pasta=os.path.join(cfgmod.PASTA_SAIDA, "passo-unico"), geradas=[1])
+    appmod.situacao_envio = lambda cfg: _pronto
+    appmod._iniciar_envio = lambda *a, **k: _iniciados.append(a) or ""
+
+    resposta = cliente.post("/lote/x/gerar",
+                            data={"modo": "producao", "confirmacao": "emitir"})
+    checar("emitir valendo ja comeca o envio, sem segunda confirmacao",
+           resposta.status_code == 302
+           and resposta.headers["Location"].endswith(
+               "/saida/passo-unico/transmitir")
+           and _iniciados and _iniciados[0][2] == "producao",
+           "%s %s" % (resposta.status_code, _iniciados))
+
+    del _iniciados[:]
+    resposta = cliente.post("/lote/x/gerar",
+                            data={"modo": "producao", "confirmacao": "sim"})
+    checar("sem digitar EMITIR nada e gerado nem enviado",
+           resposta.status_code == 302 and not _iniciados
+           and "erro=confirmacao" in resposta.headers["Location"])
+finally:
+    for _nome, _valor in _guardados.items():
+        setattr(appmod, _nome, _valor)
 
 checar("ambiente do XML e lido corretamente",
        ambiente_do_xml(b"<a><tpAmb>1</tpAmb></a>") == "producao"

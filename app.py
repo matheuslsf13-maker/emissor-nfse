@@ -852,7 +852,7 @@ def buscar_cliente(lote_id: str):
     palavras = [p for p in chave_nome(bruto).split() if p]
 
     # CPF digitado com pontos e o jeito normal de digitar -- e era o que
-    # nao funcionava: chave_nome("129.611.727-80") vira "129 611 727 80",
+    # nao funcionava: chave_nome("111.222.333-44") vira "111 222 333 44",
     # que nunca casa com os digitos guardados. Por isso os digitos sao
     # extraidos a parte, antes de qualquer normalizacao de nome.
     por_documento = len(digitos) >= 3 and len(digitos) >= len(bruto) - 4
@@ -951,6 +951,17 @@ def gerar(lote_id: str):
                    apenas=escolhidas)
     lote["ultima_saida"] = saida.pasta
     salvar_lote(lote)
+
+    # Emitir e UM passo so: gerou valendo, ja manda para a prefeitura. Gerar
+    # e parar deixava numero reservado e nota que nunca saia (agosto/2026).
+    cfg_envio = cfgmod.carregar()
+    cfg_envio.faturamento["ambiente"] = "producao"
+    if (modo == "producao" and saida.geradas
+            and situacao_envio(cfg_envio)["pronto"]):
+        pasta_nome = os.path.basename(saida.pasta)
+        if not _iniciar_envio(pasta_nome, saida.pasta, "producao"):
+            return redirect(url_for("tela_transmitir", pasta=pasta_nome))
+
     return render_template(
         "resultado.html",
         lote=lote,
@@ -1082,9 +1093,9 @@ def notas_para_entregar(resultado, pasta: str, cfg) -> list:
 def transmitir_lote(pasta: str):
     """Transmite os XMLs de uma pasta de saída para a prefeitura.
 
-    Duas travas: a primeira transmissão manda uma nota só, e produção exige
-    confirmação digitada. Em Vila Velha, cancelar exige processo
-    administrativo — errar aqui custa caro.
+    Serve para mandar o que ficou para trás (envio parado, recusa corrigida).
+    O caminho normal é o botão Emitir, que já gera e envia de uma vez; a
+    confirmação digitada fica lá, uma vez só.
     """
     caminho = os.path.join(cfgmod.PASTA_SAIDA, pasta)
     if not os.path.isdir(caminho) or ".." in pasta:
@@ -1104,7 +1115,7 @@ def transmitir_lote(pasta: str):
     # lista) ou todas. Escolher e o que permite mandar a nota de UM paciente
     # para conferir antes de soltar o mes inteiro -- antes era tudo ou a
     # primeira, sem dizer qual era.
-    quantidade = request.form.get("quantidade", "uma")
+    quantidade = request.form.get("quantidade", "todas")
     escolhidas = [a for a in request.form.getlist("arquivo") if a]
     apenas = set(escolhidas) if quantidade == "escolhidas" else None
     limite = 1 if quantidade == "uma" else None
@@ -1114,10 +1125,6 @@ def transmitir_lote(pasta: str):
         erro_escolha = "Marque pelo menos uma nota para transmitir."
 
     erro = erro_escolha
-    if not erro and ambiente == "producao" and chave_nome(
-        request.form.get("confirmacao", "")
-    ) != "PRODUCAO":
-        erro = "Para transmitir em produção é preciso digitar PRODUCAO."
 
     # Uma nota so continua sincrona: e rapida e o operador quer ver o retorno
     # na hora. Lote grande vai para segundo plano -- 276 notas levam minutos,
@@ -1125,19 +1132,8 @@ def transmitir_lote(pasta: str):
     # navegador pode desistir no meio, deixando o envio sem dono).
     sincrono = limite == 1 or (apenas is not None and len(apenas) <= 3)
     if not erro and not sincrono:
-        with _TRAVA:
-            if TRANSMISSOES.get(pasta, {}).get("estado") == "enviando":
-                erro = "Esta pasta já está sendo transmitida agora."
-            else:
-                TRANSMISSOES[pasta] = {
-                    "estado": "enviando", "feitos": 0, "total": 0,
-                    "aceitas": 0, "recusadas": 0, "na_fila": 0,
-                    "ambiente": ambiente, "ultimo": "", "erro": "",
-                }
+        erro = _iniciar_envio(pasta, caminho, ambiente, apenas)
         if not erro:
-            threading.Thread(target=_transmitir_em_segundo_plano,
-                             args=(pasta, caminho, ambiente, apenas),
-                             daemon=True).start()
             return redirect(url_for("tela_transmitir", pasta=pasta))
 
     resultado = None
@@ -1191,6 +1187,23 @@ def parar_transmissao(pasta: str):
         PARADAS.add(pasta)
         andamento["parando"] = True
     return jsonify({"ok": True})
+
+
+def _iniciar_envio(pasta: str, caminho: str, ambiente: str,
+                   apenas: set = None) -> str:
+    """Comeca o envio em segundo plano. Devolve o erro, ou "" se comecou."""
+    with _TRAVA:
+        if TRANSMISSOES.get(pasta, {}).get("estado") == "enviando":
+            return "Esta pasta já está sendo transmitida agora."
+        TRANSMISSOES[pasta] = {
+            "estado": "enviando", "feitos": 0, "total": 0,
+            "aceitas": 0, "recusadas": 0, "na_fila": 0,
+            "ambiente": ambiente, "ultimo": "", "erro": "",
+        }
+    threading.Thread(target=_transmitir_em_segundo_plano,
+                     args=(pasta, caminho, ambiente, apenas),
+                     daemon=True).start()
+    return ""
 
 
 def _transmitir_em_segundo_plano(pasta: str, caminho: str, ambiente: str,
